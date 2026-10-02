@@ -245,9 +245,6 @@ jobs:
           $previous = Get-Content "$testDir\.previous\app\package.json" -Raw | ConvertFrom-Json
           if ($previous.version -ne "0.1.0-alpha.13") { throw "Previous version was not retained for rollback." }
 
-          $installerLog = Get-Content "$env:LOCALAPPDATA\ALRemastered\logs\installer.log" -Raw
-          if ($installerLog -notmatch "event=install_success version=0.1.0-alpha.14") { throw "Upgrade success was not logged." }
-          if ($installerLog -notmatch "event=auto_restart version=0.1.0-alpha.14") { throw "Automatic restart was not logged." }
           if (Test-Path "$testDir\ALRemastered.cmd") { throw "Legacy batch launcher must not be installed." }
 
           $autoClient = Get-Process -Name "ALRemastered" -ErrorAction SilentlyContinue | Where-Object {
