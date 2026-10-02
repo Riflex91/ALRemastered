@@ -43,7 +43,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ALREMASTERED_BUILD_VERSION=0.1.0-alpha.8 npm run build
+          ALREMASTERED_BUILD_VERSION=0.1.0-alpha.9 npm run build
           npm run installer:linux
           cp artifacts/ALRemastered-Linux-*.run "$RUNNER_TEMP/ALRemastered-A.run"
       - name: Install version A to a custom path
@@ -52,7 +52,7 @@ jobs:
           set -euo pipefail
           test_dir="$RUNNER_TEMP/ALRemastered Custom Path"
           "$RUNNER_TEMP/ALRemastered-A.run" --install-dir "$test_dir" --yes --no-desktop
-          test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.8"
+          test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.9"
           paths_json="$("$test_dir/alremastered" --paths)"
           data_dir="$(node -e 'console.log(JSON.parse(process.argv[1]).dataDir)' "$paths_json")"
           mkdir -p "$data_dir"
@@ -72,12 +72,12 @@ jobs:
           test_dir="$RUNNER_TEMP/ALRemastered Custom Path"
           data_dir="$(cat "$RUNNER_TEMP/alremastered-data-dir.txt")"
           "$installer" --yes --no-desktop
-          test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.9"
+          test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.10"
           test "$(cat "$data_dir/upgrade-sentinel.txt")" = "keep-me"
           previous_version="$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).version" "$test_dir/.previous/app/package.json")"
-          test "$previous_version" = "0.1.0-alpha.8"
-          grep 'event=install_success version=0.1.0-alpha.9' "$data_dir/logs/installer.log"
-          "$test_dir/alremastered" --no-open-dashboard --no-update-check >"$RUNNER_TEMP/alremastered-linux.log" 2>&1 &
+          test "$previous_version" = "0.1.0-alpha.9"
+          grep 'event=install_success version=0.1.0-alpha.10' "$data_dir/logs/installer.log"
+          "$test_dir/alremastered" --no-open-dashboard --no-update-check --no-game-version-check >"$RUNNER_TEMP/alremastered-linux.log" 2>&1 &
           client_pid=$!
           sleep 1
           kill -0 "$client_pid"
@@ -85,10 +85,13 @@ jobs:
           curl -fsS http://127.0.0.1:3210/ | grep 'Debug Console'
           curl -fsS http://127.0.0.1:3210/ | grep 'Check for updates'
           curl -fsS http://127.0.0.1:3210/ | grep 'Diagnostics overview'
+          curl -fsS http://127.0.0.1:3210/ | grep 'Adventure Land version'
+          curl -fsS http://127.0.0.1:3210/ | grep 'Check game version'
           curl -fsS http://127.0.0.1:3210/api/status | grep '"status":"running"'
+          curl -fsS http://127.0.0.1:3210/api/game-version | grep '"status":"idle"'
           curl -fsS http://127.0.0.1:3210/api/diagnostics/snapshot | grep '"sanitized":true'
           curl -fsS http://127.0.0.1:3210/api/diagnostics/package | grep 'ALRemasteredDiagnosticPackage'
-          curl -fsS http://127.0.0.1:3210/api/update | grep '"currentVersion":"0.1.0-alpha.9"'
+          curl -fsS http://127.0.0.1:3210/api/update | grep '"currentVersion":"0.1.0-alpha.10"'
           curl -fsS http://127.0.0.1:3210/api/logs/export | grep '"sanitized":true'
           test -f "$data_dir/logs/client.log"
           grep '"level":"INFO"' "$data_dir/logs/client.log"
@@ -118,7 +121,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
-          $env:ALREMASTERED_BUILD_VERSION = "0.1.0-alpha.8"
+          $env:ALREMASTERED_BUILD_VERSION = "0.1.0-alpha.9"
           npm run build
           npm run installer:windows
           Copy-Item (Get-ChildItem "artifacts\ALRemastered-Windows-*-Setup.exe" | Select-Object -First 1).FullName "$env:RUNNER_TEMP\ALRemastered-A.exe"
@@ -130,7 +133,7 @@ jobs:
           $installProcess = Start-Process -FilePath "$env:RUNNER_TEMP\ALRemastered-A.exe" -ArgumentList @("/S", "/D=$testDir") -Wait -PassThru
           if ($installProcess.ExitCode -ne 0) { throw "Version A installer returned exit code $($installProcess.ExitCode)" }
           $version = & "$testDir\ALRemastered.exe" --version
-          if ($version.Trim() -ne "0.1.0-alpha.8") { throw "Expected version A, got $version" }
+          if ($version.Trim() -ne "0.1.0-alpha.9") { throw "Expected version A, got $version" }
           $paths = (& "$testDir\ALRemastered.exe" --paths) | ConvertFrom-Json
           New-Item -ItemType Directory -Path $paths.dataDir -Force | Out-Null
           Set-Content -Path (Join-Path $paths.dataDir "upgrade-sentinel.txt") -Value "keep-me" -NoNewline
@@ -164,16 +167,16 @@ jobs:
           $upgradeProcess = Start-Process -FilePath $installer.FullName -ArgumentList "/S" -Wait -PassThru
           if ($upgradeProcess.ExitCode -ne 0) { throw "Version B installer returned exit code $($upgradeProcess.ExitCode)" }
           $version = & "$testDir\ALRemastered.exe" --version
-          if ($version.Trim() -ne "0.1.0-alpha.9") { throw "Expected version B, got $version" }
+          if ($version.Trim() -ne "0.1.0-alpha.10") { throw "Expected version B, got $version" }
           if ((Get-Content (Join-Path $dataDir "upgrade-sentinel.txt") -Raw) -ne "keep-me") { throw "User data was not preserved." }
           $previous = Get-Content "$testDir\.previous\app\package.json" -Raw | ConvertFrom-Json
-          if ($previous.version -ne "0.1.0-alpha.8") { throw "Previous version was not retained for rollback." }
+          if ($previous.version -ne "0.1.0-alpha.9") { throw "Previous version was not retained for rollback." }
           $installerLog = Get-Content "$env:LOCALAPPDATA\ALRemastered\logs\installer.log" -Raw
-          if ($installerLog -notmatch "event=install_success version=0.1.0-alpha.9") { throw "Upgrade success was not logged." }
+          if ($installerLog -notmatch "event=install_success version=0.1.0-alpha.10") { throw "Upgrade success was not logged." }
           if (Test-Path "$testDir\ALRemastered.cmd") { throw "Legacy batch launcher must not be installed." }
           $normalLog = Join-Path $env:RUNNER_TEMP "alremastered-windows.log"
           $normalError = Join-Path $env:RUNNER_TEMP "alremastered-windows-error.log"
-          $client = Start-Process -FilePath "$testDir\ALRemastered.exe" -ArgumentList @("--no-open-dashboard", "--no-update-check") -RedirectStandardOutput $normalLog -RedirectStandardError $normalError -PassThru
+          $client = Start-Process -FilePath "$testDir\ALRemastered.exe" -ArgumentList @("--no-open-dashboard", "--no-update-check", "--no-game-version-check") -RedirectStandardOutput $normalLog -RedirectStandardError $normalError -PassThru
           Start-Sleep -Seconds 1
           if ($client.HasExited) {
             $normalOutput = if (Test-Path $normalLog) { Get-Content $normalLog -Raw } else { "" }
@@ -184,13 +187,17 @@ jobs:
           if ($dashboardPage.Content -notmatch "Debug Console") { throw "Dashboard UI was not available." }
           if ($dashboardPage.Content -notmatch "Check for updates") { throw "Update controls were not available." }
           if ($dashboardPage.Content -notmatch "Diagnostics overview") { throw "Diagnostics overview was not available." }
+          if ($dashboardPage.Content -notmatch "Adventure Land version") { throw "Game version status was not available." }
+          if ($dashboardPage.Content -notmatch "Check game version") { throw "Game version check control was not available." }
           $dashboardStatus = Invoke-RestMethod "http://127.0.0.1:3210/api/status"
           if ($dashboardStatus.status -ne "running") { throw "Dashboard status endpoint did not report a running core." }
+          $dashboardGameVersion = Invoke-RestMethod "http://127.0.0.1:3210/api/game-version"
+          if ($dashboardGameVersion.status -ne "idle") { throw "Game version API did not expose its idle state." }
           $dashboardUpdate = Invoke-RestMethod "http://127.0.0.1:3210/api/update"
-          if ($dashboardUpdate.currentVersion -ne "0.1.0-alpha.9") { throw "Update API returned the wrong client version." }
+          if ($dashboardUpdate.currentVersion -ne "0.1.0-alpha.10") { throw "Update API returned the wrong client version." }
           $diagnosticsSnapshot = Invoke-RestMethod "http://127.0.0.1:3210/api/diagnostics/snapshot"
           if (-not $diagnosticsSnapshot.sanitized) { throw "Diagnostics snapshot was not marked as sanitized." }
-          if ($diagnosticsSnapshot.components.Count -lt 3) { throw "Diagnostics component health was incomplete." }
+          if ($diagnosticsSnapshot.components.Count -lt 4) { throw "Diagnostics component health was incomplete." }
           $diagnosticsPackage = Invoke-WebRequest -UseBasicParsing "http://127.0.0.1:3210/api/diagnostics/package"
           if ($diagnosticsPackage.Content -notmatch "ALRemasteredDiagnosticPackage") { throw "Diagnostic package was not available." }
           $dashboardExport = Invoke-RestMethod "http://127.0.0.1:3210/api/logs/export"
