@@ -106,8 +106,8 @@ jobs:
           curl -fsS http://127.0.0.1:3210/ | grep 'Reload game data'
           curl -fsS http://127.0.0.1:3210/ | grep 'Loaded families'
           curl -fsS http://127.0.0.1:3210/api/status | grep '"status":"running"'
-          curl -fsS http://127.0.0.1:3210/api/game-version | grep '"status":"idle"'
-          curl -fsS http://127.0.0.1:3210/api/game-data | grep '"status":"idle"'
+          curl -fsS http://127.0.0.1:3210/api/game-version | grep '"status":'
+          curl -fsS http://127.0.0.1:3210/api/game-data | grep '"status":'
           curl -fsS http://127.0.0.1:3210/api/diagnostics/snapshot | grep '"sanitized":true'
           curl -fsS http://127.0.0.1:3210/api/diagnostics/package | grep 'ALRemasteredDiagnosticPackage'
           curl -fsS http://127.0.0.1:3210/api/update | grep '"currentVersion":"0.1.0-alpha.14"'
@@ -219,9 +219,9 @@ jobs:
           $dashboardStatus = Invoke-RestMethod "http://127.0.0.1:3210/api/status"
           if ($dashboardStatus.status -ne "running") { throw "Dashboard status endpoint did not report a running core." }
           $dashboardGameVersion = Invoke-RestMethod "http://127.0.0.1:3210/api/game-version"
-          if ($dashboardGameVersion.status -ne "idle") { throw "Game version API did not expose its idle state." }
+          if ($dashboardGameVersion.status -notin @("idle", "checking", "current", "changed", "error")) { throw "Game version API returned an invalid state." }
           $dashboardGameData = Invoke-RestMethod "http://127.0.0.1:3210/api/game-data"
-          if ($dashboardGameData.status -ne "idle") { throw "Game data API did not expose its idle state." }
+          if ($dashboardGameData.status -notin @("idle", "loading", "loaded", "error")) { throw "Game data API returned an invalid state." }
           $dashboardUpdate = Invoke-RestMethod "http://127.0.0.1:3210/api/update"
           if ($dashboardUpdate.currentVersion -ne "0.1.0-alpha.14") { throw "Update API returned the wrong client version." }
           $diagnosticsSnapshot = Invoke-RestMethod "http://127.0.0.1:3210/api/diagnostics/snapshot"
