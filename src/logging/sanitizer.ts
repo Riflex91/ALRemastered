@@ -23,6 +23,7 @@ function isSensitiveKey(key: string): boolean {
   if (normalized === "sessionid" || normalized === "requestid" || normalized === "characterid") {
     return false;
   }
+  if (normalized === "auth") return true;
   return sensitiveKeyFragments.some((fragment) => normalized.includes(fragment));
 }
 
@@ -31,7 +32,7 @@ export function sanitizeString(value: string): string {
     .replace(/\b(authorization\s*[:=]\s*)(?:bearer|basic)\s+[^\s,;]+/gi, "$1[REDACTED]")
     .replace(/\b(cookie|set-cookie)\s*[:=]\s*[^\r\n]+/gi, "$1: [REDACTED]")
     .replace(
-      /\b(password|passwd|pwd|token|secret|access[_-]?token|refresh[_-]?token|auth[_-]?token|session[_-]?(?:token|secret)|api[_-]?key|client[_-]?secret)\s*[:=]\s*["']?[^\s,"';}&]+["']?/gi,
+      /\b(password|passwd|pwd|auth|token|secret|access[_-]?token|refresh[_-]?token|auth[_-]?token|session[_-]?(?:token|secret)|api[_-]?key|client[_-]?secret)\s*[:=]\s*["']?[^\s,"';}&]+["']?/gi,
       "$1=[REDACTED]",
     )
     .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, REDACTED)

@@ -115,6 +115,15 @@ test("dashboard user interface contains the required English controls", () => {
     "Adventure Land version",
     "Game version status",
     "Last deploy",
+    "Adventure Land account",
+    "Account status",
+    "Account ID",
+    "Connected at",
+    "Email",
+    "Password",
+    "Connect account",
+    "Disconnect account",
+    "Password and session are kept in memory only",
     "Game data",
     "Reload game data",
     "Game data status",
@@ -358,4 +367,114 @@ test("dashboard script renders Adventure Land game data families and counts", ()
   assert.match(script, /Local cache/);
   assert.match(script, /cacheStatusLabels/);
   assert.match(script, /Reloading Adventure Land game data/);
+});
+
+
+test("dashboard account API accepts credentials without exposing secrets", async () => {
+  const runtime = new CoreRuntime();
+  runtime.start();
+  const logger = new Logger({ component: "dashboard-account-test" });
+  let received: { email: string; password: string } | undefined;
+  let state = {
+    status: "disconnected",
+    message: "No Adventure Land account is connected.",
+  };
+  const fakeAccountService = {
+    state: () => state,
+    login: async (credentials: { email: string; password: string }) => {
+      received = credentials;
+      state = {
+        status: "connected",
+        userId: "user-123",
+        connectedAt: "2026-10-02T20:00:00.000Z",
+        message: "Adventure Land account is connected.",
+      } as typeof state;
+      return state;
+    },
+    disconnect: () => {
+      state = {
+        status: "disconnected",
+        message: "Adventure Land account disconnected from this ALRemastered process.",
+      };
+      return state;
+    },
+  };
+
+  const dashboard = new DashboardServer({
+    logger,
+    runtime,
+    accountService: fakeAccountService as any,
+    host: "127.0.0.1",
+    port: 0,
+  });
+
+  const url = await dashboard.start();
+  try {
+    const initial = await fetch(`${url}/api/account`);
+    assert.equal((await initial.json()).status, "disconnected");
+
+    const login = await fetch(`${url}/api/account/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: "player@example.test",
+        password: "dashboard-password-secret",
+      }),
+    });
+    assert.equal(login.status, 200);
+    const connected = await login.json();
+    assert.equal(connected.status, "connected");
+    assert.equal(connected.userId, "user-123");
+    assert.equal(received?.email, "player@example.test");
+    assert.equal(received?.password, "dashboard-password-secret");
+    assert.doesNotMatch(JSON.stringify(connected), /dashboard-password-secret|auth/);
+
+    const disconnected = await fetch(`${url}/api/account/disconnect`, { method: "POST" });
+    assert.equal((await disconnected.json()).status, "disconnected");
+  } finally {
+    await dashboard.stop();
+    runtime.stop();
+  }
+});
+
+test("dashboard account login rejects missing credentials without logging them", async () => {
+  const runtime = new CoreRuntime();
+  runtime.start();
+  const logger = new Logger({ component: "dashboard-account-validation-test" });
+  const fakeAccountService = {
+    state: () => ({ status: "disconnected", message: "Disconnected." }),
+    login: async () => ({ status: "connected", message: "Connected." }),
+    disconnect: () => ({ status: "disconnected", message: "Disconnected." }),
+  };
+  const dashboard = new DashboardServer({
+    logger,
+    runtime,
+    accountService: fakeAccountService as any,
+    host: "127.0.0.1",
+    port: 0,
+  });
+
+  const url = await dashboard.start();
+  try {
+    const response = await fetch(`${url}/api/account/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "player@example.test", password: "" }),
+    });
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /Email and password are required/);
+    assert.doesNotMatch(logger.exportText(), /player@example\.test/);
+  } finally {
+    await dashboard.stop();
+    runtime.stop();
+  }
+});
+
+test("dashboard script renders account connection state and clears password input", () => {
+  const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
+  assert.match(script, /refreshAccount/);
+  assert.match(script, /Connecting to Adventure Land/);
+  assert.match(script, /accountPassword\.value = ""/);
+  assert.match(script, /\/api\/account\/login/);
+  assert.match(script, /\/api\/account\/disconnect/);
 });

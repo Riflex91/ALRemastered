@@ -1,7 +1,8 @@
 import { createReadStream, existsSync } from "node:fs";
-import { createServer, type Server, type ServerResponse } from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { extname } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { AdventureLandAccountService } from "../account/service.ts";
 import type { CoreRuntime, HealthSnapshot } from "../core/app.ts";
 import type { DiagnosticsService } from "../diagnostics/service.ts";
 import type { AdventureLandGameDataService } from "../game/data-service.ts";
@@ -14,6 +15,7 @@ export interface DashboardServerOptions {
   readonly runtime: CoreRuntime;
   readonly host?: string;
   readonly port?: number;
+  readonly accountService?: AdventureLandAccountService;
   readonly updateService?: UpdateService;
   readonly diagnostics?: DiagnosticsService;
   readonly gameVersionService?: AdventureLandVersionService;
@@ -25,6 +27,7 @@ export class DashboardServer {
   readonly #runtime: CoreRuntime;
   readonly #host: string;
   readonly #port: number;
+  readonly #accountService?: AdventureLandAccountService;
   readonly #updateService?: UpdateService;
   readonly #diagnostics?: DiagnosticsService;
   readonly #gameVersionService?: AdventureLandVersionService;
@@ -39,6 +42,7 @@ export class DashboardServer {
     this.#runtime = options.runtime;
     this.#host = options.host ?? "127.0.0.1";
     this.#port = options.port ?? 3210;
+    this.#accountService = options.accountService;
     this.#updateService = options.updateService;
     this.#diagnostics = options.diagnostics;
     this.#gameVersionService = options.gameVersionService;
@@ -54,7 +58,7 @@ export class DashboardServer {
     if (this.#server) return this.url;
 
     const server = createServer((request, response) => {
-      void this.#handleRequest(request.url ?? "/", request.method ?? "GET", response).catch((error) => {
+      void this.#handleRequest(request, response).catch((error) => {
         this.#logger.error("Dashboard request failed.", error, {
           method: request.method,
           path: request.url,
@@ -99,8 +103,35 @@ export class DashboardServer {
     });
   }
 
-  async #handleRequest(pathWithQuery: string, method: string, response: ServerResponse): Promise<void> {
+  async #handleRequest(request: IncomingMessage, response: ServerResponse): Promise<void> {
+    const pathWithQuery = request.url ?? "/";
+    const method = request.method ?? "GET";
     const path = pathWithQuery.split("?", 1)[0];
+
+    if (method === "GET" && path === "/api/account") {
+      if (!this.#accountService) return this.#json(response, { status: "unavailable" }, 503);
+      return this.#json(response, this.#accountService.state());
+    }
+    if (method === "POST" && path === "/api/account/login") {
+      if (!this.#accountService) return this.#json(response, { error: "Account service is unavailable." }, 503);
+      let body: Record<string, unknown>;
+      try {
+        body = await this.#readJsonObject(request);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Invalid request body.";
+        return this.#json(response, { error: message }, 400);
+      }
+      const email = typeof body.email === "string" ? body.email : "";
+      const password = typeof body.password === "string" ? body.password : "";
+      if (!email.trim() || !password) {
+        return this.#json(response, { error: "Email and password are required." }, 400);
+      }
+      return this.#json(response, await this.#accountService.login({ email, password }));
+    }
+    if (method === "POST" && path === "/api/account/disconnect") {
+      if (!this.#accountService) return this.#json(response, { error: "Account service is unavailable." }, 503);
+      return this.#json(response, this.#accountService.disconnect());
+    }
 
     if (method === "GET" && path === "/api/diagnostics/snapshot") {
       if (!this.#diagnostics) return this.#json(response, { error: "Diagnostics service is unavailable." }, 503);
@@ -248,6 +279,32 @@ export class DashboardServer {
       const message = error instanceof Error ? error.message : String(error);
       this.#json(response, { error: message }, 400);
     }
+  }
+
+  async #readJsonObject(request: IncomingMessage): Promise<Record<string, unknown>> {
+    const chunks: Buffer[] = [];
+    let bytes = 0;
+    for await (const chunk of request) {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      bytes += buffer.length;
+      if (bytes > 16 * 1024) {
+        throw new Error("Request body is too large.");
+      }
+      chunks.push(buffer);
+    }
+
+    if (bytes === 0) return {};
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    } catch {
+      throw new Error("Request body must be valid JSON.");
+    }
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      throw new Error("Request body must be a JSON object.");
+    }
+    return parsed as Record<string, unknown>;
   }
 
   #json(response: ServerResponse, payload: unknown, statusCode = 200): void {
