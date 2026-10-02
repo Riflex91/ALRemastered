@@ -139,10 +139,36 @@
           <span class="label">Selected server</span>
           <strong id="selected-server">Not selected</strong>
         </article>
+        <article class="card">
+          <span class="label">Character connection</span>
+          <strong id="character-connection-status">Disconnected</strong>
+        </article>
+        <article class="card">
+          <span class="label">Active character</span>
+          <strong id="active-character">—</strong>
+        </article>
+        <article class="card">
+          <span class="label">Character server</span>
+          <strong id="character-server">—</strong>
+        </article>
+        <article class="card">
+          <span class="label">Character connected at</span>
+          <strong id="character-connected-at">—</strong>
+        </article>
       </div>
 
       <div class="selection-content">
         <div>
+          <h3>Headless character</h3>
+          <div class="server-picker">
+            <label>
+              <span class="label">Character</span>
+              <select id="character-select" aria-label="Adventure Land character"></select>
+            </label>
+            <button id="start-character" type="button">Start headless character</button>
+            <button id="stop-character" type="button" hidden>Disconnect character</button>
+          </div>
+          <small class="selection-note">This opens only the game transport for one character. No automation runs in this slice.</small>
           <h3>Characters</h3>
           <div id="character-list" class="selection-list" aria-label="Adventure Land characters">
             <div class="empty">Connect an account to load characters.</div>
@@ -158,7 +184,7 @@
             </label>
             <button id="select-server" type="button">Use selected server</button>
           </div>
-          <small class="selection-note">This slice only stores the server choice. No character is started.</small>
+          <small class="selection-note">Choose the server before starting the headless character connection.</small>
           <div id="server-list" class="selection-list" aria-label="Adventure Land servers">
             <div class="empty">Connect an account to load servers.</div>
           </div>

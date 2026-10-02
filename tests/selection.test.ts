@@ -32,8 +32,8 @@ test("selection source authenticates with the in-memory account session and pars
             name: "I",
             region: "EU",
             players: 123,
-            address: "ignored.example",
-            path: "/ignored",
+            address: "eu1.example.test",
+            path: "/socket.io/",
           }],
         }],
       }), {
@@ -68,8 +68,10 @@ test("selection source authenticates with the in-memory account session and pars
     name: "I",
     region: "EU",
     players: 123,
+    address: "eu1.example.test",
+    path: "/socket.io/",
   }]);
-  assert.doesNotMatch(JSON.stringify(snapshot), /session-secret|ignored\.example/);
+  assert.doesNotMatch(JSON.stringify(snapshot), /session-secret/);
 });
 
 test("selection source returns safe authentication failures", async () => {
@@ -112,8 +114,8 @@ test("selection service loads characters and servers and only stores a server ch
           serverKey: "SR_EUI",
         }],
         servers: [
-          { key: "SR_EUI", name: "I", region: "EU", players: 91 },
-          { key: "SR_USI", name: "I", region: "US", players: 72 },
+          { key: "SR_EUI", name: "I", region: "EU", players: 91, address: "eu1.example.test", path: "/socket.io/" },
+          { key: "SR_USI", name: "I", region: "US", players: 72, address: "us1.example.test", path: "/socket.io/" },
         ],
       }),
     },

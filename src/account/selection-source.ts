@@ -16,6 +16,8 @@ export interface AdventureLandServerSummary {
   readonly name: string;
   readonly region: string;
   readonly players: number;
+  readonly address: string;
+  readonly path: string;
 }
 
 export interface AdventureLandSelectionSnapshot {
@@ -145,7 +147,9 @@ function parseServer(value: unknown): AdventureLandServerSummary[] {
   if (
     typeof value.key !== "string" ||
     typeof value.name !== "string" ||
-    typeof value.region !== "string"
+    typeof value.region !== "string" ||
+    typeof value.address !== "string" ||
+    typeof value.path !== "string"
   ) {
     return [];
   }
@@ -158,6 +162,8 @@ function parseServer(value: unknown): AdventureLandServerSummary[] {
       typeof value.players === "number" && Number.isFinite(value.players)
         ? value.players
         : 0,
+    address: value.address,
+    path: value.path,
   })];
 }
 

@@ -3,6 +3,8 @@ import { AdventureLandAccountService } from "./account/service.ts";
 import { AdventureLandAccountSource } from "./account/source.ts";
 import { AdventureLandSelectionService } from "./account/selection-service.ts";
 import { AdventureLandSelectionSource } from "./account/selection-source.ts";
+import { AdventureLandCharacterService } from "./character/service.ts";
+import { AdventureLandCharacterTransport } from "./character/transport.ts";
 import { CoreRuntime } from "./core/app.ts";
 import { openDashboard } from "./dashboard/open.ts";
 import { DashboardServer } from "./dashboard/server.ts";
@@ -91,6 +93,7 @@ let shuttingDown = false;
 let dashboard: DashboardServer | undefined;
 let accountService: AdventureLandAccountService | undefined;
 let selectionService: AdventureLandSelectionService | undefined;
+let characterService: AdventureLandCharacterService | undefined;
 let updateService: UpdateService | undefined;
 let gameVersionService: AdventureLandVersionService | undefined;
 let gameDataService: AdventureLandGameDataService | undefined;
@@ -107,6 +110,14 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   updateService?.stop();
   gameVersionService?.stop();
   gameDataService?.stop();
+
+  if (characterService) {
+    try {
+      await characterService.stop("shutdown");
+    } catch (error) {
+      logger.error("Headless character connection failed to stop cleanly.", error);
+    }
+  }
 
   if (dashboard) {
     try {
@@ -146,6 +157,22 @@ diagnostics.registerComponent("selection", () => {
   const state = selectionService!.state();
   return {
     name: "selection",
+    status: state.status === "error" ? "degraded" : "healthy",
+    message: state.message,
+  };
+});
+
+characterService = new AdventureLandCharacterService({
+  logger,
+  transport: new AdventureLandCharacterTransport(),
+  selection: selectionService,
+  session: () => accountService!.session(),
+});
+
+diagnostics.registerComponent("character-connection", () => {
+  const state = characterService!.state();
+  return {
+    name: "character-connection",
     status: state.status === "error" ? "degraded" : "healthy",
     message: state.message,
   };
@@ -236,6 +263,7 @@ dashboard = new DashboardServer({
   runtime,
   accountService,
   selectionService,
+  characterService,
   updateService,
   diagnostics,
   gameVersionService,

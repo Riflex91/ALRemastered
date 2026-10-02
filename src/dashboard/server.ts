@@ -4,6 +4,7 @@ import { extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AdventureLandAccountService } from "../account/service.ts";
 import type { AdventureLandSelectionService } from "../account/selection-service.ts";
+import type { AdventureLandCharacterService } from "../character/service.ts";
 import type { CoreRuntime, HealthSnapshot } from "../core/app.ts";
 import type { DiagnosticsService } from "../diagnostics/service.ts";
 import type { AdventureLandGameDataService } from "../game/data-service.ts";
@@ -18,6 +19,7 @@ export interface DashboardServerOptions {
   readonly port?: number;
   readonly accountService?: AdventureLandAccountService;
   readonly selectionService?: AdventureLandSelectionService;
+  readonly characterService?: AdventureLandCharacterService;
   readonly updateService?: UpdateService;
   readonly diagnostics?: DiagnosticsService;
   readonly gameVersionService?: AdventureLandVersionService;
@@ -31,6 +33,7 @@ export class DashboardServer {
   readonly #port: number;
   readonly #accountService?: AdventureLandAccountService;
   readonly #selectionService?: AdventureLandSelectionService;
+  readonly #characterService?: AdventureLandCharacterService;
   readonly #updateService?: UpdateService;
   readonly #diagnostics?: DiagnosticsService;
   readonly #gameVersionService?: AdventureLandVersionService;
@@ -47,6 +50,7 @@ export class DashboardServer {
     this.#port = options.port ?? 3210;
     this.#accountService = options.accountService;
     this.#selectionService = options.selectionService;
+    this.#characterService = options.characterService;
     this.#updateService = options.updateService;
     this.#diagnostics = options.diagnostics;
     this.#gameVersionService = options.gameVersionService;
@@ -138,6 +142,7 @@ export class DashboardServer {
     }
     if (method === "POST" && path === "/api/account/disconnect") {
       if (!this.#accountService) return this.#json(response, { error: "Account service is unavailable." }, 503);
+      if (this.#characterService) await this.#characterService.stop("account_disconnect");
       const accountState = this.#accountService.disconnect();
       this.#selectionService?.clear();
       return this.#json(response, accountState);
@@ -165,6 +170,34 @@ export class DashboardServer {
       return this.#runSelectionAction(
         response,
         () => this.#selectionService!.selectServer(serverKey),
+      );
+    }
+
+    if (method === "GET" && path === "/api/character") {
+      if (!this.#characterService) return this.#json(response, { status: "unavailable" }, 503);
+      return this.#json(response, this.#characterService.state());
+    }
+    if (method === "POST" && path === "/api/character/start") {
+      if (!this.#characterService) return this.#json(response, { error: "Character connection service is unavailable." }, 503);
+      let body: Record<string, unknown>;
+      try {
+        body = await this.#readJsonObject(request);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Invalid request body.";
+        return this.#json(response, { error: message }, 400);
+      }
+      const characterId = typeof body.characterId === "string" ? body.characterId : "";
+      if (!characterId.trim()) return this.#json(response, { error: "Character selection is required." }, 400);
+      return this.#runCharacterAction(
+        response,
+        () => this.#characterService!.start(characterId),
+      );
+    }
+    if (method === "POST" && path === "/api/character/stop") {
+      if (!this.#characterService) return this.#json(response, { error: "Character connection service is unavailable." }, 503);
+      return this.#runCharacterAction(
+        response,
+        () => this.#characterService!.stop("dashboard"),
       );
     }
 
@@ -290,6 +323,15 @@ export class DashboardServer {
   }
 
   async #runSelectionAction(response: ServerResponse, action: () => unknown | Promise<unknown>): Promise<void> {
+    try {
+      this.#json(response, await action());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.#json(response, { error: message }, 400);
+    }
+  }
+
+  async #runCharacterAction(response: ServerResponse, action: () => unknown | Promise<unknown>): Promise<void> {
     try {
       this.#json(response, await action());
     } catch (error) {
