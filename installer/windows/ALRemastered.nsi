@@ -22,15 +22,32 @@ RequestExecutionLevel user
 SetCompressor /SOLID lzma
 
 Var UpdateRestart
+Var UpdateWaitPid
 
 Function .onInit
   StrCpy $UpdateRestart "0"
+  StrCpy $UpdateWaitPid ""
   ${GetParameters} $0
+
   ClearErrors
   ${GetOptions} $0 "/ALRUPDATE=" $1
   IfErrors update_flag_done
   StrCpy $UpdateRestart $1
 update_flag_done:
+
+  ClearErrors
+  ${GetOptions} $0 "/ALRWAITPID=" $1
+  IfErrors update_wait_done
+  StrCpy $UpdateWaitPid $1
+update_wait_done:
+
+  StrCmp $UpdateWaitPid "" update_init_done
+  System::Call 'kernel32::OpenProcess(i 0x00100000, i 0, i $UpdateWaitPid) p .r2'
+  StrCmp $2 0 update_init_done
+  System::Call 'kernel32::WaitForSingleObject(p r2, i 30000) i .r3'
+  System::Call 'kernel32::CloseHandle(p r2)'
+  Sleep 500
+update_init_done:
 FunctionEnd
 
 Page directory

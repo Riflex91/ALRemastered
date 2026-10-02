@@ -141,7 +141,7 @@ updateService = new UpdateService({
       logger,
       process.platform,
       process.pid,
-      dashboardUpdateInstallerArguments(process.platform),
+      dashboardUpdateInstallerArguments(process.platform, process.pid),
     ),
   onInstallScheduled: () => {
     setTimeout(() => void shutdown("SIGTERM"), 1500);

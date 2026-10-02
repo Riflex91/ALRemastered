@@ -4,8 +4,11 @@ import type { Logger } from "../logging/logger.ts";
 
 export function dashboardUpdateInstallerArguments(
   platform: NodeJS.Platform,
+  parentPid: number = process.pid,
 ): readonly string[] {
-  if (platform === "win32") return ["/S", "/ALRUPDATE=1"];
+  if (platform === "win32") {
+    return ["/S", "/ALRUPDATE=1", `/ALRWAITPID=${parentPid}`];
+  }
   if (platform === "linux") return ["--yes", "--no-desktop", "--restart"];
   return [];
 }
@@ -18,32 +21,12 @@ export async function scheduleInstallerAfterCurrentProcess(
   installerArguments: readonly string[] = [],
 ): Promise<void> {
   if (platform === "win32") {
-    const script = [
-      "$ErrorActionPreference = 'Stop'",
-      "$parentPid = [int]$env:ALR_UPDATE_PARENT_PID",
-      "try { Wait-Process -Id $parentPid -ErrorAction SilentlyContinue } catch {}",
-      "Start-Sleep -Milliseconds 500",
-      "$installerArgs = @()",
-      "if ($env:ALR_UPDATE_INSTALLER_ARGS) { $installerArgs = @(ConvertFrom-Json $env:ALR_UPDATE_INSTALLER_ARGS) }",
-      "Start-Process -FilePath $env:ALR_UPDATE_INSTALLER_PATH -ArgumentList $installerArgs",
-    ].join("; ");
-
-    await spawnConfirmed(
-      "powershell.exe",
-      ["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script],
-      {
-        detached: true,
-        stdio: "ignore",
-        windowsHide: true,
-        env: {
-          ...process.env,
-          ALR_UPDATE_PARENT_PID: String(parentPid),
-          ALR_UPDATE_INSTALLER_PATH: installerPath,
-          ALR_UPDATE_INSTALLER_ARGS: JSON.stringify(installerArguments),
-        },
-      },
-    );
-    logger.info("Verified Windows update installer handoff started.", { installerPath });
+    await spawnConfirmed(installerPath, [...installerArguments], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+    });
+    logger.info("Verified Windows update installer process started.", { installerPath });
     return;
   }
 

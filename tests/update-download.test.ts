@@ -103,8 +103,8 @@ test("successful update verifies data and schedules installation", async () => {
 
 test("dashboard update installer arguments enable unattended restart without opening a new dashboard", () => {
   assert.deepEqual(
-    dashboardUpdateInstallerArguments("win32"),
-    ["/S", "/ALRUPDATE=1"],
+    dashboardUpdateInstallerArguments("win32", 4242),
+    ["/S", "/ALRUPDATE=1", "/ALRWAITPID=4242"],
   );
   assert.deepEqual(
     dashboardUpdateInstallerArguments("linux"),

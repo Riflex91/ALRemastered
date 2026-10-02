@@ -183,7 +183,8 @@ jobs:
           $installer = Get-ChildItem "artifacts\ALRemastered-Windows-*-Setup.exe" | Select-Object -First 1
           $testDir = Join-Path $env:RUNNER_TEMP "ALRemastered Custom Path"
           $dataDir = Get-Content "$env:RUNNER_TEMP\alremastered-data-dir.txt" -Raw
-          $upgradeProcess = Start-Process -FilePath $installer.FullName -ArgumentList @("/S", "/ALRUPDATE=1") -Wait -PassThru
+          $waitProbe = Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 1") -PassThru
+          $upgradeProcess = Start-Process -FilePath $installer.FullName -ArgumentList @("/S", "/ALRUPDATE=1", "/ALRWAITPID=$($waitProbe.Id)") -Wait -PassThru
           if ($upgradeProcess.ExitCode -ne 0) { throw "Version B installer returned exit code $($upgradeProcess.ExitCode)" }
           $version = & "$testDir\ALRemastered.exe" --version
           if ($version.Trim() -ne "0.1.0-alpha.14") { throw "Expected version B, got $version" }
