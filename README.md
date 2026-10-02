@@ -105,7 +105,9 @@ The central in-memory game-data service makes these required families available 
 
 It also surfaces additional families when present, including `G.dismantle`, `G.upgrades`, `G.compounds`, and `G.events`.
 
-The dashboard shows **Game data status**, **Game data version**, **Loaded families**, **Loaded at**, individual family counts, and a manual **Reload game data** action. If a later reload fails, the already loaded in-memory snapshot is retained.
+The dashboard shows **Game data status**, **Game data version**, **Loaded families**, **Loaded at**, **Game data source**, **Cache status**, **Cached at**, individual family counts, and a manual **Reload game data** action. If a later reload fails, the already loaded in-memory snapshot is retained.
+
+Successful live snapshots are persisted in a versioned local cache. A complete new cache file is written and atomically renamed into place before older snapshots are cleaned up, so an interrupted write cannot replace a valid cache with a partial file. On startup ALRemastered can restore a valid cache before refreshing the live source. Cache data that conflicts with the last known Adventure Land version is not used, and corrupted cache files are ignored and replaced by the next valid live snapshot.
 
 ## Adventure Land game version
 

@@ -121,6 +121,9 @@ test("dashboard user interface contains the required English controls", () => {
     "Game data version",
     "Loaded families",
     "Loaded at",
+    "Game data source",
+    "Cache status",
+    "Cached at",
   ]) {
     assert.equal(html.includes(label), true, `Missing dashboard label: ${label}`);
   }
@@ -297,6 +300,9 @@ test("dashboard game data API exposes loading state and manual reload", async ()
     loadedAt: "2026-10-02T17:00:00.000Z",
     sourceUrl: "https://example.test/data.js",
     bytes: 1234,
+    origin: "cache",
+    cacheStatus: "loaded",
+    cachedAt: "2026-10-02T16:55:00.000Z",
     familyCount: 14,
     loadedFamilyCount: 14,
     families: [
@@ -330,6 +336,8 @@ test("dashboard game data API exposes loading state and manual reload", async ()
     const state = await stateResponse.json();
     assert.equal(state.status, "loaded");
     assert.equal(state.version, 15555);
+    assert.equal(state.origin, "cache");
+    assert.equal(state.cacheStatus, "loaded");
     assert.equal(state.loadedFamilyCount, 14);
 
     const reloadResponse = await fetch(`${url}/api/game-data/reload`, { method: "POST" });
@@ -347,5 +355,7 @@ test("dashboard script renders Adventure Land game data families and counts", ()
   assert.match(script, /refreshGameData/);
   assert.match(script, /G\.\$\{family\.name\}/);
   assert.match(script, /entries/);
+  assert.match(script, /Local cache/);
+  assert.match(script, /cacheStatusLabels/);
   assert.match(script, /Reloading Adventure Land game data/);
 });
