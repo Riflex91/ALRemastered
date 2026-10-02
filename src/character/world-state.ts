@@ -49,6 +49,23 @@ export function emptyWorldState(): AdventureLandWorldState {
   });
 }
 
+export function worldStateFromStart(data: Record<string, unknown>): AdventureLandWorldState {
+  let world = emptyWorldState();
+  if (isRecord(data.entities)) world = applyEntityPacket(world, data.entities);
+
+  const partyLeader = stringValue(data.party);
+  if (!partyLeader) return world;
+  return Object.freeze({
+    ...world,
+    party: Object.freeze({
+      inParty: true,
+      leader: partyLeader,
+      members: Object.freeze([]),
+      details: Object.freeze({}),
+    }),
+  });
+}
+
 export function applyEntityPacket(
   current: AdventureLandWorldState,
   data: Record<string, unknown>,
