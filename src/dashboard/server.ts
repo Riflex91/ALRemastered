@@ -88,6 +88,7 @@ export class DashboardServer {
     }
     if (method === "POST" && path === "/api/logs/clear") {
       this.#logger.clearBuffer();
+      this.#broadcastEvent("clear", { ok: true });
       return this.#json(response, { ok: true });
     }
     if (method === "GET" && path === "/api/logs/stream") {
@@ -97,6 +98,9 @@ export class DashboardServer {
         Connection: "keep-alive",
       });
       response.write(": connected\n\n");
+      for (const record of this.#logger.records()) {
+        response.write(this.#event("log", record));
+      }
       this.#clients.add(response);
       response.on("close", () => this.#clients.delete(response));
       return;
@@ -148,8 +152,17 @@ export class DashboardServer {
   }
 
   #broadcast(record: LogRecord): void {
-    const event = `event: log\ndata: ${JSON.stringify(record)}\n\n`;
+    const event = this.#event("log", record);
     for (const client of this.#clients) client.write(event);
+  }
+
+  #broadcastEvent(name: string, payload: unknown): void {
+    const event = this.#event(name, payload);
+    for (const client of this.#clients) client.write(event);
+  }
+
+  #event(name: string, payload: unknown): string {
+    return `event: ${name}\ndata: ${JSON.stringify(payload)}\n\n`;
   }
 
   #exportPayload(): {
