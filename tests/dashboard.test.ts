@@ -473,7 +473,7 @@ test("dashboard account login rejects missing credentials without logging them",
 test("dashboard script renders account connection state and clears password input", () => {
   const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
   assert.match(script, /refreshAccount/);
-  assert.match(script, /Connect account/);
+  assert.match(script, /Connecting to Adventure Land/);
   assert.match(script, /accountPassword\.value = ""/);
   assert.match(script, /\/api\/account\/login/);
   assert.match(script, /\/api\/account\/disconnect/);
