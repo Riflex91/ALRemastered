@@ -142,8 +142,8 @@ test("Windows automatic updater handoff tells the installer which client process
     installerHandoffArguments(
       "win32",
       4242,
-      ["-e", "console.log('probe')"],
+      ["-e", "process.stdout.write('probe')"],
     ),
-    ["-e", "console.log('probe')"],
+    ["-e", "process.stdout.write('probe')"],
   );
 });
