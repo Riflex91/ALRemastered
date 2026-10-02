@@ -26,13 +26,22 @@ const MAX_GAME_DATA_BYTES = 64 * 1024 * 1024;
 export class AdventureLandGameDataSource {
   readonly #fetch: typeof fetch;
   readonly #sourceUrl: string;
+  #inFlight?: Promise<AdventureLandGameDataSnapshot>;
 
   constructor(fetchImpl: typeof fetch = fetch, sourceUrl = ADVENTURE_LAND_GAME_DATA_URL) {
     this.#fetch = fetchImpl;
     this.#sourceUrl = sourceUrl;
   }
 
-  async fetchData(): Promise<AdventureLandGameDataSnapshot> {
+  fetchData(): Promise<AdventureLandGameDataSnapshot> {
+    if (this.#inFlight) return this.#inFlight;
+    this.#inFlight = this.#download().finally(() => {
+      this.#inFlight = undefined;
+    });
+    return this.#inFlight;
+  }
+
+  async #download(): Promise<AdventureLandGameDataSnapshot> {
     const response = await this.#fetch(this.#sourceUrl, {
       headers: {
         Accept: "application/javascript, text/javascript, text/plain",
