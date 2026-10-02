@@ -567,6 +567,10 @@ Bewegen/Party betreten und Logs/State vergleichen.
 
 ## Slice 3.1 – Action Gateway
 
+**Status: MERGED – AWAITING USER TEST**
+
+> 2026-10-03: Central Action Gateway merged for `0.1.0-alpha.21`. Every gateway request receives a correlation/request ID and origin, passes a per-action rate guard, runs with a bounded timeout/AbortSignal, returns a structured success/error/timeout/rate-limited result, and is logged through the existing sanitizer without arbitrary action input. The dashboard exposes only a fixed local-only gateway probe for live validation; no move/xmove/attack/skill/loot/item/party gameplay command exists yet. Automated Windows/Linux CI and alpha.20 → alpha.21 installer upgrade smokes passed. Installed-client gateway-probe validation is still required before VERIFIED.
+
 Zentrale Schicht für alle spielverändernden Aktionen:
 
 - Request ID
