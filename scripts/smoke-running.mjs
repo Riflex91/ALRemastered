@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { setTimeout as delay } from "node:timers/promises";
 
-const child = spawn(process.execPath, ["build/package/src/main.js", "--no-open-dashboard", "--no-update-check", "--no-game-version-check"], {
+const child = spawn(process.execPath, ["build/package/src/main.js", "--no-open-dashboard", "--no-update-check", "--no-game-version-check", "--no-game-data-load"], {
   stdio: ["ignore", "pipe", "pipe"],
 });
 

@@ -6,6 +6,7 @@ const state = {
   status: null,
   update: null,
   gameVersion: null,
+  gameData: null,
   diagnostics: null,
   source: null,
 };
@@ -20,6 +21,12 @@ const elements = {
   gameVersionStatus: document.querySelector("#game-version-status"),
   gameLastDeploy: document.querySelector("#game-last-deploy"),
   checkGameVersion: document.querySelector("#check-game-version"),
+  gameDataStatus: document.querySelector("#game-data-status"),
+  gameDataVersion: document.querySelector("#game-data-version"),
+  gameDataFamilyTotal: document.querySelector("#game-data-family-total"),
+  gameDataLoadedAt: document.querySelector("#game-data-loaded-at"),
+  gameDataFamilies: document.querySelector("#game-data-families"),
+  reloadGameData: document.querySelector("#reload-game-data"),
   console: document.querySelector("#log-console"),
   feedback: document.querySelector("#feedback"),
   level: document.querySelector("#level-filter"),
@@ -190,6 +197,58 @@ function renderGameVersion() {
   elements.gameVersionStatus.title = gameVersion.message ?? "";
 }
 
+function renderGameData() {
+  const gameData = state.gameData;
+  if (!gameData) return;
+
+  const statusLabels = {
+    idle: "Waiting",
+    loading: "Loading…",
+    loaded: "Loaded",
+    error: "Load failed",
+  };
+
+  elements.gameDataStatus.textContent = statusLabels[gameData.status] ?? gameData.status;
+  elements.gameDataStatus.title = gameData.message ?? "";
+  elements.gameDataVersion.textContent =
+    gameData.version === undefined ? "—" : String(gameData.version);
+  elements.gameDataFamilyTotal.textContent =
+    `${gameData.loadedFamilyCount ?? 0} / ${gameData.familyCount ?? 0}`;
+  elements.gameDataLoadedAt.textContent =
+    gameData.loadedAt ? formatPublished(gameData.loadedAt) : "—";
+
+  elements.gameDataFamilies.replaceChildren();
+  const families = gameData.families ?? [];
+  if (families.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = "Game data has not been loaded yet.";
+    elements.gameDataFamilies.append(empty);
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  for (const family of families) {
+    const card = document.createElement("article");
+    card.className = "game-data-family";
+    card.dataset.loaded = String(family.loaded);
+
+    const name = document.createElement("span");
+    name.className = "label";
+    name.textContent = `G.${family.name}`;
+
+    const count = document.createElement("strong");
+    count.textContent = family.loaded ? `${family.count} entries` : "Not loaded";
+
+    const kind = document.createElement("small");
+    kind.textContent = family.required ? "Required data family" : "Additional data family";
+
+    card.append(name, count, kind);
+    fragment.append(card);
+  }
+  elements.gameDataFamilies.append(fragment);
+}
+
 function renderUpdate() {
   const update = state.update;
   const visible = update && ["available", "downloading", "installing"].includes(update.status);
@@ -331,6 +390,17 @@ async function refreshStatus() {
   }
 }
 
+async function refreshGameData() {
+  try {
+    const response = await fetch("/api/game-data", { cache: "no-store" });
+    if (!response.ok) return;
+    state.gameData = await response.json();
+    renderGameData();
+  } catch {
+    // Dashboard connectivity is reported separately.
+  }
+}
+
 async function refreshGameVersion() {
   try {
     const response = await fetch("/api/game-version", { cache: "no-store" });
@@ -385,6 +455,15 @@ function connectStream() {
     elements.connectionStatus.textContent = "Reconnecting…";
     elements.connectionStatus.classList.remove("online");
   });
+}
+
+async function gameDataAction(path) {
+  const response = await fetch(path, { method: "POST" });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error ?? payload.message ?? `HTTP ${response.status}`);
+  state.gameData = payload;
+  renderGameData();
+  return payload;
 }
 
 async function gameVersionAction(path) {
@@ -520,6 +599,28 @@ elements.downloadPackage.addEventListener("click", async () => {
   }
 });
 
+elements.reloadGameData.addEventListener("click", async () => {
+  elements.reloadGameData.disabled = true;
+  setFeedback("Reloading Adventure Land game data…");
+  state.gameData = { ...state.gameData, status: "loading" };
+  renderGameData();
+  try {
+    const gameData = await gameDataAction("/api/game-data/reload");
+    if (gameData.status === "loaded") {
+      setFeedback(
+        `Loaded Adventure Land game data version ${gameData.version}: ${gameData.loadedFamilyCount} / ${gameData.familyCount} data families available.`,
+        "success",
+      );
+    } else {
+      setFeedback(`Game data load failed: ${gameData.message}`, "error");
+    }
+  } catch (error) {
+    setFeedback(`Game data load failed: ${error.message}`, "error");
+  } finally {
+    elements.reloadGameData.disabled = false;
+  }
+});
+
 elements.checkGameVersion.addEventListener("click", async () => {
   elements.checkGameVersion.disabled = true;
   setFeedback("Checking Adventure Land game version…");
@@ -596,12 +697,14 @@ elements.installUpdate.addEventListener("click", async () => {
 
 await refreshStatus();
 await refreshGameVersion();
+await refreshGameData();
 await refreshUpdate();
 await refreshDiagnostics();
 await loadLogs();
 connectStream();
 setInterval(refreshStatus, 3000);
 setInterval(refreshGameVersion, 2000);
+setInterval(refreshGameData, 2000);
 setInterval(refreshUpdate, 1500);
 setInterval(refreshDiagnostics, 1500);
 setInterval(updateStatusView, 1000);

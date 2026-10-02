@@ -158,6 +158,9 @@ export class DiagnosticsService {
 function friendlySummary(record: LogRecord): string {
   const message = record.message.toLowerCase();
 
+  if (message.includes("adventure land game data load failed")) {
+    return "ALRemastered could not load the Adventure Land game data. Previously loaded data remains available when possible.";
+  }
   if (message.includes("adventure land version check failed")) {
     return "ALRemastered could not verify the Adventure Land game version online. The last stored version remains available.";
   }

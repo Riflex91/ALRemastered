@@ -3,6 +3,8 @@ import { CoreRuntime } from "./core/app.ts";
 import { openDashboard } from "./dashboard/open.ts";
 import { DashboardServer } from "./dashboard/server.ts";
 import { DiagnosticsService } from "./diagnostics/service.ts";
+import { AdventureLandGameDataService } from "./game/data-service.ts";
+import { AdventureLandGameDataSource } from "./game/data-source.ts";
 import { AdventureLandVersionService } from "./game/version-service.ts";
 import { AdventureLandVersionSource } from "./game/version-source.ts";
 import { AdventureLandVersionStore } from "./game/version-store.ts";
@@ -75,6 +77,7 @@ let shuttingDown = false;
 let dashboard: DashboardServer | undefined;
 let updateService: UpdateService | undefined;
 let gameVersionService: AdventureLandVersionService | undefined;
+let gameDataService: AdventureLandGameDataService | undefined;
 const keepAlive = setInterval(() => undefined, 60_000);
 
 async function shutdown(signal: NodeJS.Signals): Promise<void> {
@@ -87,6 +90,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
 
   updateService?.stop();
   gameVersionService?.stop();
+  gameDataService?.stop();
 
   if (dashboard) {
     try {
@@ -142,12 +146,35 @@ diagnostics.registerComponent("game-version", () => {
   };
 });
 
+gameDataService = new AdventureLandGameDataService({
+  logger,
+  source: new AdventureLandGameDataSource(),
+});
+
+diagnostics.registerComponent("game-data", () => {
+  const state = gameDataService!.state();
+  const gameVersion = gameVersionService!.state().currentVersion;
+  const versionMismatch =
+    state.version !== undefined &&
+    gameVersion !== undefined &&
+    state.version !== gameVersion;
+
+  return {
+    name: "game-data",
+    status: state.status === "error" || versionMismatch ? "degraded" : "healthy",
+    message: versionMismatch
+      ? `Loaded game data version ${state.version} does not match detected Adventure Land version ${gameVersion}.`
+      : state.message ?? "Adventure Land game data status is available.",
+  };
+});
+
 dashboard = new DashboardServer({
   logger,
   runtime,
   updateService,
   diagnostics,
   gameVersionService,
+  gameDataService,
   host: "127.0.0.1",
   port: 3210,
 });
@@ -193,6 +220,12 @@ if (!args.has("--no-game-version-check")) {
   gameVersionService.start();
 } else {
   logger.debug("Automatic Adventure Land version check disabled for this process.");
+}
+
+if (!args.has("--no-game-data-load")) {
+  gameDataService.start();
+} else {
+  logger.debug("Automatic Adventure Land game data load disabled for this process.");
 }
 
 process.stdout.write(`ALRemastered ${getAppVersion()}\n`);
