@@ -391,7 +391,7 @@ Gezielt mehrere künstliche Fehler erzeugen und prüfen, ob sie sowohl verständ
 
 ## Slice 1.1 – Game-Version-Erkennung
 
-**Status: MERGED – AWAITING USER TEST**
+**Status: VERIFIED**
 
 - aktuelle Adventure-Land-Version erkennen
 - lokale Version speichern
@@ -406,6 +406,8 @@ Onlineprüfung gegen Adventure Land und Logkontrolle.
 ---
 
 ## Slice 1.2 – Game-Daten laden
+
+**Status: IN PROGRESS**
 
 Zentral verfügbar machen:
 
