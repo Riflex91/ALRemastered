@@ -57,6 +57,12 @@ const elements = {
   characterInventorySummary: document.querySelector("#character-inventory-summary"),
   characterEquipmentSummary: document.querySelector("#character-equipment-summary"),
   characterConditionsSummary: document.querySelector("#character-conditions-summary"),
+  characterEntitiesSummary: document.querySelector("#character-entities-summary"),
+  characterPlayersSummary: document.querySelector("#character-players-summary"),
+  characterMonstersSummary: document.querySelector("#character-monsters-summary"),
+  characterPartySummary: document.querySelector("#character-party-summary"),
+  characterEntities: document.querySelector("#character-entities"),
+  characterParty: document.querySelector("#character-party"),
   characterInventory: document.querySelector("#character-inventory"),
   characterEquipment: document.querySelector("#character-equipment"),
   characterConditions: document.querySelector("#character-conditions"),
@@ -313,9 +319,29 @@ function renderCharacterConnection() {
     equipment === undefined ? "—" : `${equipmentUsed} equipped`;
   elements.characterConditionsSummary.textContent =
     conditions === undefined ? "—" : `${conditionCount} active`;
+
+  const entities = connection.entities;
+  const nearbyPlayers = entities?.filter((entity) => entity.kind === "player") ?? [];
+  const nearbyMonsters = entities?.filter((entity) => entity.kind === "monster") ?? [];
+  const party = connection.party;
+  elements.characterEntitiesSummary.textContent =
+    entities === undefined ? "—" : `${entities.length} visible`;
+  elements.characterPlayersSummary.textContent =
+    entities === undefined ? "—" : String(nearbyPlayers.length);
+  elements.characterMonstersSummary.textContent =
+    entities === undefined ? "—" : String(nearbyMonsters.length);
+  elements.characterPartySummary.textContent =
+    party === undefined
+      ? "—"
+      : party.inParty
+        ? `${party.members.length} members · Leader: ${party.leader ?? "Unknown"}`
+        : "Solo";
+
   renderInventoryState(inventory);
   renderEquipmentState(equipment);
   renderConditionState(conditions);
+  renderEntityState(entities);
+  renderPartyState(party);
 
   const busy = ["connecting", "connected", "disconnecting"].includes(connection.status);
   const canStart =
@@ -402,6 +428,64 @@ function renderConditionState(conditions) {
       name,
       details.join(" · ") || "Active",
     );
+  }
+}
+
+function renderEntityState(entities) {
+  elements.characterEntities.replaceChildren();
+  if (!entities) {
+    appendStateEmpty(elements.characterEntities, "Nearby entity state is not available.");
+    return;
+  }
+  if (!entities.length) {
+    appendStateEmpty(elements.characterEntities, "No nearby entities are currently visible.");
+    return;
+  }
+
+  const sorted = [...entities].sort((left, right) => {
+    if (left.kind !== right.kind) return left.kind.localeCompare(right.kind);
+    return left.name.localeCompare(right.name);
+  });
+  for (const entity of sorted) {
+    const details = [
+      entity.kind === "player" ? "Player" : "Monster",
+      entity.type,
+    ];
+    if (typeof entity.level === "number") details.push(`Level ${entity.level}`);
+    if (typeof entity.hp === "number") {
+      details.push(`HP ${entity.hp} / ${entity.maxHp ?? "?"}`);
+    }
+    if (typeof entity.x === "number" && typeof entity.y === "number") {
+      details.push(`${entity.x.toFixed(1)}, ${entity.y.toFixed(1)}`);
+    }
+    if (entity.target) details.push(`Target: ${entity.target}`);
+    appendStateCard(elements.characterEntities, entity.name, details.join(" · "));
+  }
+}
+
+function renderPartyState(party) {
+  elements.characterParty.replaceChildren();
+  if (!party) {
+    appendStateEmpty(elements.characterParty, "Party state is not available.");
+    return;
+  }
+  if (!party.inParty || !party.members.length) {
+    appendStateEmpty(elements.characterParty, "Character is not in a party.");
+    return;
+  }
+
+  for (const name of party.members) {
+    const member = party.details?.[name];
+    const details = [];
+    if (name === party.leader) details.push("Leader");
+    if (member?.type) details.push(member.type);
+    if (typeof member?.level === "number") details.push(`Level ${member.level}`);
+    if (member?.map) details.push(member.map);
+    if (typeof member?.x === "number" && typeof member?.y === "number") {
+      details.push(`${member.x.toFixed(1)}, ${member.y.toFixed(1)}`);
+    }
+    if (member?.dead === true) details.push("Dead");
+    appendStateCard(elements.characterParty, name, details.join(" · ") || "Party member");
   }
 }
 
