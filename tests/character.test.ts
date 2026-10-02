@@ -108,8 +108,9 @@ test("headless transport follows welcome-loaded-auth-start without automation ev
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(socket.sent.at(-1), "3server-ping");
 
-  socket.message('42["start",{"id":"CH_1","name":"RangerOne","ctype":"ranger","level":45,"map":"main","x":12,"y":34,"hp":4000,"max_hp":4000,"mp":900,"max_mp":1000}]');
+  socket.message('42["start",{"id":"RangerOne","name":"RangerOne","ctype":"ranger","level":45,"map":"main","x":12,"y":34,"hp":4000,"max_hp":4000,"mp":900,"max_mp":1000}]');
   const connection = await connecting;
+  assert.equal(connection.character.id, "CH_1");
   assert.equal(connection.character.name, "RangerOne");
   assert.equal(connection.character.type, "ranger");
   assert.equal(connection.character.map, "main");
