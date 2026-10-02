@@ -84,11 +84,12 @@ jobs:
           $testDir = Join-Path $env:RUNNER_TEMP "ALRemastered Custom Path"
           $installProcess = Start-Process -FilePath $installer.FullName -ArgumentList @("/S", "/D=$testDir") -Wait -PassThru
           if ($installProcess.ExitCode -ne 0) { throw "Installer returned exit code $($installProcess.ExitCode)" }
-          $health = & "$testDir\ALRemastered.cmd" --health-check
+          $health = & "$testDir\ALRemastered.exe" --health-check
           if ($LASTEXITCODE -ne 0 -or $health -notmatch '"application":"ALRemastered"') { throw "Installed client health check failed." }
+          if (Test-Path "$testDir\ALRemastered.cmd") { throw "Legacy batch launcher must not be installed." }
           $normalLog = Join-Path $env:RUNNER_TEMP "alremastered-windows.log"
           $normalError = Join-Path $env:RUNNER_TEMP "alremastered-windows-error.log"
-          $client = Start-Process -FilePath "$testDir\ALRemastered.cmd" -RedirectStandardOutput $normalLog -RedirectStandardError $normalError -PassThru
+          $client = Start-Process -FilePath "$testDir\ALRemastered.exe" -RedirectStandardOutput $normalLog -RedirectStandardError $normalError -PassThru
           Start-Sleep -Seconds 1
           if ($client.HasExited) {
             $normalOutput = if (Test-Path $normalLog) { Get-Content $normalLog -Raw } else { "" }
