@@ -74,7 +74,7 @@ jobs:
           test "$(cat "$data_dir/upgrade-sentinel.txt")" = "keep-me"
           previous_version="$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).version" "$test_dir/.previous/app/package.json")"
           test "$previous_version" = "0.1.0-alpha.1"
-          grep 'event=install_success version=0.1.0-alpha.2' "$data_dir/../logs/installer.log"
+          grep 'event=install_success version=0.1.0-alpha.2' "$data_dir/logs/installer.log"
           "$test_dir/alremastered" >"$RUNNER_TEMP/alremastered-linux.log" 2>&1 &
           client_pid=$!
           sleep 1
