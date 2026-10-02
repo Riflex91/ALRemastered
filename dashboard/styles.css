@@ -205,6 +205,7 @@ h2 {
 }
 
 
+.game-data-panel,
 .diagnostics-overview {
   margin: 1.2rem 0;
   border: 1px solid #242a33;
@@ -220,6 +221,45 @@ h2 {
   justify-content: space-between;
   gap: 1rem;
   padding: 1rem;
+}
+
+.game-data-summary {
+  margin: 0;
+  padding: 0 1rem 1rem;
+}
+
+.game-data-families {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.7rem;
+  padding: 0 1rem 1rem;
+}
+
+.game-data-family {
+  border: 1px solid #2c333d;
+  border-radius: 10px;
+  padding: 0.85rem;
+  background: #0f1318;
+}
+
+.game-data-family strong {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 1.05rem;
+}
+
+.game-data-family[data-loaded="true"] strong {
+  color: #8ee1aa;
+}
+
+.game-data-family[data-loaded="false"] strong {
+  color: #f0c76b;
+}
+
+.game-data-family small {
+  display: block;
+  margin-top: 0.3rem;
+  color: #8f99a7;
 }
 
 .component-health {
