@@ -4,6 +4,7 @@ const state = {
   paused: false,
   autoScroll: true,
   status: null,
+  update: null,
   source: null,
 };
 
@@ -23,6 +24,17 @@ const elements = {
   copyFiltered: document.querySelector("#copy-filtered"),
   download: document.querySelector("#download-log"),
   clear: document.querySelector("#clear-log"),
+  checkUpdates: document.querySelector("#check-updates"),
+  updateBanner: document.querySelector("#update-banner"),
+  updateTitle: document.querySelector("#update-title"),
+  updateSummary: document.querySelector("#update-summary"),
+  releaseNotes: document.querySelector("#release-notes"),
+  updateProgress: document.querySelector("#update-progress"),
+  updateProgressBar: document.querySelector("#update-progress-bar"),
+  updateProgressLabel: document.querySelector("#update-progress-label"),
+  installUpdate: document.querySelector("#install-update"),
+  skipUpdate: document.querySelector("#skip-update"),
+  remindUpdate: document.querySelector("#remind-update"),
 };
 
 function setFeedback(message, kind = "") {
@@ -41,6 +53,13 @@ function formatDuration(milliseconds) {
   if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
   if (minutes > 0) return `${minutes}m ${seconds}s`;
   return `${seconds}s`;
+}
+
+function formatPublished(value) {
+  if (!value) return "Unknown";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
 }
 
 function appendRecord(record) {
@@ -135,6 +154,36 @@ function updateStatusView() {
   elements.uptime.textContent = formatDuration(Date.now() - started);
 }
 
+function renderUpdate() {
+  const update = state.update;
+  const visible = update && ["available", "downloading", "installing"].includes(update.status);
+  elements.updateBanner.hidden = !visible;
+  if (!visible) return;
+
+  elements.updateTitle.textContent = `ALRemastered ${update.latestVersion} is available`;
+  elements.updateSummary.textContent =
+    `Current version: ${update.currentVersion} · New version: ${update.latestVersion} · Published: ${formatPublished(update.publishedAt)}`;
+
+  if (update.releaseNotesUrl) {
+    elements.releaseNotes.href = update.releaseNotesUrl;
+    elements.releaseNotes.hidden = false;
+  } else {
+    elements.releaseNotes.hidden = true;
+  }
+
+  const busy = update.status === "downloading" || update.status === "installing";
+  elements.installUpdate.disabled = busy;
+  elements.skipUpdate.disabled = busy;
+  elements.remindUpdate.disabled = busy;
+  elements.updateProgress.hidden = !busy;
+
+  if (busy) {
+    const progress = Math.max(0, Math.min(100, update.progressPercent ?? 0));
+    elements.updateProgressBar.style.width = `${progress}%`;
+    elements.updateProgressLabel.textContent = update.status === "installing" ? "Verified" : `${progress}%`;
+  }
+}
+
 async function refreshStatus() {
   try {
     const response = await fetch("/api/status", { cache: "no-store" });
@@ -146,6 +195,17 @@ async function refreshStatus() {
   } catch {
     elements.connectionStatus.textContent = "Dashboard disconnected";
     elements.connectionStatus.classList.remove("online");
+  }
+}
+
+async function refreshUpdate() {
+  try {
+    const response = await fetch("/api/update", { cache: "no-store" });
+    if (!response.ok) return;
+    state.update = await response.json();
+    renderUpdate();
+  } catch {
+    // The connection indicator already reports dashboard connectivity.
   }
 }
 
@@ -181,6 +241,15 @@ function connectStream() {
     elements.connectionStatus.textContent = "Reconnecting…";
     elements.connectionStatus.classList.remove("online");
   });
+}
+
+async function updateAction(path) {
+  const response = await fetch(path, { method: "POST" });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error ?? payload.message ?? `HTTP ${response.status}`);
+  state.update = payload;
+  renderUpdate();
+  return payload;
 }
 
 async function writeClipboard(text) {
@@ -283,8 +352,62 @@ elements.clear.addEventListener("click", async () => {
   }
 });
 
+elements.checkUpdates.addEventListener("click", async () => {
+  elements.checkUpdates.disabled = true;
+  setFeedback("Checking for updates…");
+  try {
+    const update = await updateAction("/api/update/check");
+    if (update.status === "available") {
+      setFeedback(`ALRemastered ${update.latestVersion} is available.`, "success");
+    } else if (update.status === "upToDate") {
+      setFeedback("ALRemastered is up to date.", "success");
+    } else if (update.status === "deferred") {
+      setFeedback(update.message ?? "The latest update is currently deferred.");
+    } else if (update.status === "error") {
+      setFeedback(`Update check failed: ${update.message}`, "error");
+    }
+  } catch (error) {
+    setFeedback(`Update check failed: ${error.message}`, "error");
+  } finally {
+    elements.checkUpdates.disabled = false;
+  }
+});
+
+elements.skipUpdate.addEventListener("click", async () => {
+  try {
+    const update = await updateAction("/api/update/skip");
+    setFeedback(update.message ?? "This version will be skipped.", "success");
+  } catch (error) {
+    setFeedback(`Skip failed: ${error.message}`, "error");
+  }
+});
+
+elements.remindUpdate.addEventListener("click", async () => {
+  try {
+    const update = await updateAction("/api/update/remind");
+    setFeedback(update.message ?? "This update will be shown again tomorrow.", "success");
+  } catch (error) {
+    setFeedback(`Reminder failed: ${error.message}`, "error");
+  }
+});
+
+elements.installUpdate.addEventListener("click", async () => {
+  setFeedback("Downloading and verifying update…");
+  state.update = { ...state.update, status: "downloading", progressPercent: 0 };
+  renderUpdate();
+  try {
+    const update = await updateAction("/api/update/install");
+    setFeedback(update.message ?? "Update verified. Starting installer…", "success");
+  } catch (error) {
+    setFeedback(`Update installation failed: ${error.message}`, "error");
+    await refreshUpdate();
+  }
+});
+
 await refreshStatus();
+await refreshUpdate();
 await loadLogs();
 connectStream();
 setInterval(refreshStatus, 3000);
+setInterval(refreshUpdate, 1500);
 setInterval(updateStatusView, 1000);

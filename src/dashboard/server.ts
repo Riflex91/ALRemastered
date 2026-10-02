@@ -4,12 +4,14 @@ import { extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { CoreRuntime, HealthSnapshot } from "../core/app.ts";
 import type { Logger, LogRecord } from "../logging/logger.ts";
+import type { UpdateService } from "../update/service.ts";
 
 export interface DashboardServerOptions {
   readonly logger: Logger;
   readonly runtime: CoreRuntime;
   readonly host?: string;
   readonly port?: number;
+  readonly updateService?: UpdateService;
 }
 
 export class DashboardServer {
@@ -17,6 +19,7 @@ export class DashboardServer {
   readonly #runtime: CoreRuntime;
   readonly #host: string;
   readonly #port: number;
+  readonly #updateService?: UpdateService;
   #server?: Server;
   #url?: string;
   readonly #clients = new Set<ServerResponse>();
@@ -27,6 +30,7 @@ export class DashboardServer {
     this.#runtime = options.runtime;
     this.#host = options.host ?? "127.0.0.1";
     this.#port = options.port ?? 3210;
+    this.#updateService = options.updateService;
   }
 
   get url(): string {
@@ -38,7 +42,16 @@ export class DashboardServer {
     if (this.#server) return this.url;
 
     const server = createServer((request, response) => {
-      void this.#handleRequest(request.url ?? "/", request.method ?? "GET", response);
+      void this.#handleRequest(request.url ?? "/", request.method ?? "GET", response).catch((error) => {
+        this.#logger.error("Dashboard request failed.", error, {
+          method: request.method,
+          path: request.url,
+        });
+        if (!response.headersSent) {
+          response.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
+        }
+        if (!response.writableEnded) response.end(JSON.stringify({ error: "Dashboard request failed." }));
+      });
     });
     this.#server = server;
     this.#unsubscribe = this.#logger.subscribe((record) => this.#broadcast(record));
@@ -80,6 +93,27 @@ export class DashboardServer {
     if (method === "GET" && path === "/api/status") {
       return this.#json(response, this.#runtime.health());
     }
+    if (method === "GET" && path === "/api/update") {
+      if (!this.#updateService) return this.#json(response, { status: "unavailable" }, 503);
+      return this.#json(response, this.#updateService.state());
+    }
+    if (method === "POST" && path === "/api/update/check") {
+      if (!this.#updateService) return this.#json(response, { error: "Update service is unavailable." }, 503);
+      return this.#runUpdateAction(response, () => this.#updateService!.checkNow(true));
+    }
+    if (method === "POST" && path === "/api/update/skip") {
+      if (!this.#updateService) return this.#json(response, { error: "Update service is unavailable." }, 503);
+      return this.#runUpdateAction(response, () => this.#updateService!.skipVersion());
+    }
+    if (method === "POST" && path === "/api/update/remind") {
+      if (!this.#updateService) return this.#json(response, { error: "Update service is unavailable." }, 503);
+      return this.#runUpdateAction(response, () => this.#updateService!.remindTomorrow());
+    }
+    if (method === "POST" && path === "/api/update/install") {
+      if (!this.#updateService) return this.#json(response, { error: "Update service is unavailable." }, 503);
+      return this.#runUpdateAction(response, () => this.#updateService!.installUpdate());
+    }
+
     if (method === "GET" && path === "/api/logs") {
       return this.#json(response, { records: this.#logger.records() });
     }
@@ -143,8 +177,17 @@ export class DashboardServer {
     createReadStream(filePath).pipe(response);
   }
 
-  #json(response: ServerResponse, payload: unknown): void {
-    response.writeHead(200, {
+  async #runUpdateAction(response: ServerResponse, action: () => unknown | Promise<unknown>): Promise<void> {
+    try {
+      this.#json(response, await action());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.#json(response, { error: message }, 400);
+    }
+  }
+
+  #json(response: ServerResponse, payload: unknown, statusCode = 200): void {
+    response.writeHead(statusCode, {
       "Content-Type": "application/json; charset=utf-8",
       "Cache-Control": "no-store",
     });

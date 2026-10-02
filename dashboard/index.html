@@ -13,8 +13,31 @@
         <p class="eyebrow">Adventure Land Client</p>
         <h1>ALRemastered</h1>
       </div>
-      <div class="status-pill" id="connection-status">Connecting…</div>
+      <div class="topbar-actions">
+        <button id="check-updates" type="button">Check for updates</button>
+        <div class="status-pill" id="connection-status">Connecting…</div>
+      </div>
     </header>
+
+    <section class="update-banner" id="update-banner" hidden aria-live="polite">
+      <div class="update-copy">
+        <p class="eyebrow">Update available</p>
+        <h2 id="update-title">A new ALRemastered version is available</h2>
+        <p id="update-summary"></p>
+        <a id="release-notes" href="#" target="_blank" rel="noreferrer">Release notes</a>
+        <div class="update-progress" id="update-progress" hidden>
+          <div class="update-progress-track">
+            <div class="update-progress-bar" id="update-progress-bar"></div>
+          </div>
+          <span id="update-progress-label">0%</span>
+        </div>
+      </div>
+      <div class="toolbar update-actions">
+        <button id="install-update" type="button">Install update</button>
+        <button id="skip-update" type="button">Skip this version</button>
+        <button id="remind-update" type="button">Remind me tomorrow</button>
+      </div>
+    </section>
 
     <section class="status-grid" aria-label="Client status">
       <article class="card">

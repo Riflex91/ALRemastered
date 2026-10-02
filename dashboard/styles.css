@@ -57,6 +57,82 @@ button.danger {
 .topbar,
 .console-heading,
 .toolbar,
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.update-banner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid #4d5f93;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(48, 66, 112, 0.38), rgba(24, 29, 39, 0.95));
+}
+
+.update-banner[hidden] {
+  display: none;
+}
+
+.update-copy {
+  min-width: 0;
+}
+
+.update-copy h2 {
+  margin-top: 0.2rem;
+}
+
+.update-copy p {
+  margin-top: 0.45rem;
+  color: #c3cad5;
+}
+
+.update-copy a {
+  display: inline-block;
+  margin-top: 0.55rem;
+  color: #9cb7ff;
+}
+
+.update-actions {
+  justify-content: flex-end;
+}
+
+.update-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 0.8rem;
+}
+
+.update-progress-track {
+  width: min(360px, 50vw);
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #11161d;
+  border: 1px solid #303846;
+}
+
+.update-progress-bar {
+  width: 0;
+  height: 100%;
+  background: #87a7ff;
+  transition: width 120ms linear;
+}
+
+.update-progress span {
+  min-width: 3rem;
+  color: #cbd3df;
+  font-variant-numeric: tabular-nums;
+}
+
 .status-grid {
   display: flex;
   align-items: center;
@@ -245,7 +321,8 @@ h2 {
 
 @media (max-width: 800px) {
   .topbar,
-  .console-heading {
+  .console-heading,
+  .update-banner {
     align-items: flex-start;
     flex-direction: column;
   }

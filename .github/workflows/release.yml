@@ -1,0 +1,81 @@
+name: Publish release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - run: npm run check
+      - run: npm run installer:linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-linux
+          path: artifacts/ALRemastered-Linux-*.run
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - shell: powershell
+        run: choco install nsis --no-progress -y
+      - run: npm run check
+      - run: npm run installer:windows
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: artifacts/ALRemastered-Windows-*-Setup.exe
+
+  release:
+    needs: [linux, windows]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+      - name: Create update manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).version")"
+          windows="$(find release-assets -maxdepth 1 -name 'ALRemastered-Windows-*-Setup.exe' -print -quit)"
+          linux="$(find release-assets -maxdepth 1 -name 'ALRemastered-Linux-*.run' -print -quit)"
+          test -n "$windows"
+          test -n "$linux"
+          node scripts/create-update-manifest.mjs "$version" release-assets/ALRemastered-update.json "$windows" "$linux"
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).version")"
+          tag="v$version"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists." >&2
+            exit 1
+          fi
+
+          prerelease=()
+          if [[ "$version" == *-* ]]; then
+            prerelease=(--prerelease)
+          fi
+
+          gh release create "$tag"             release-assets/ALRemastered-update.json             release-assets/ALRemastered-Windows-*-Setup.exe             release-assets/ALRemastered-Linux-*.run             --target "$GITHUB_SHA"             --title "ALRemastered $version"             --generate-notes             "${prerelease[@]}"
