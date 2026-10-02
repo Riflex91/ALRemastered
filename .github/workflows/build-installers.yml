@@ -1,0 +1,38 @@
+name: Build installers
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - run: npm run check
+      - run: npm run installer:linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ALRemastered-Linux
+          path: artifacts/ALRemastered-Linux-*.run
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - shell: powershell
+        run: choco install nsis --no-progress -y
+      - run: npm run check
+      - run: npm run installer:windows
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ALRemastered-Windows
+          path: artifacts/ALRemastered-Windows-*-Setup.exe
