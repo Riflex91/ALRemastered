@@ -710,11 +710,11 @@ test("dashboard renders Slice 2.4 base live-state fields", () => {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
 
-  assert.match(script, /character\.hp/);
-  assert.match(script, /character\.xp/);
-  assert.match(script, /character\.map/);
-  assert.match(script, /character\.directionLabel/);
-  assert.match(script, /character\.target/);
+  assert.match(script, /character\?\.hp/);
+  assert.match(script, /character\?\.xp/);
+  assert.match(script, /character\?\.map/);
+  assert.match(script, /character\?\.directionLabel/);
+  assert.match(script, /character\?\.target/);
   assert.match(script, /character\.dead/);
   assert.match(script, /connection\.pingMs/);
 });
