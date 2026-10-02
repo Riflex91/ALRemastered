@@ -273,8 +273,8 @@ diagnostics.registerComponent("game-data", () => {
 });
 
 movementService = new AdventureLandMovementService({
-  gateway: actionGateway,
-  character: characterService,
+  gateway: actionGateway!,
+  character: characterService!,
   gameData: () => gameDataService!.data(),
 });
 
