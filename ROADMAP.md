@@ -266,7 +266,7 @@ Erst nach Benutzer-Livetest → Slice 0.4.
 
 ## Slice 0.4 – Minimales lokales Dashboard + Debug-Konsole
 
-**Status: IN PROGRESS**
+**Status: MERGED – AWAITING USER TEST**
 
 ### Inhalt
 
