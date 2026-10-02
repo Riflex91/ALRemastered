@@ -115,6 +115,12 @@ test("dashboard user interface contains the required English controls", () => {
     "Adventure Land version",
     "Game version status",
     "Last deploy",
+    "Game data",
+    "Reload game data",
+    "Game data status",
+    "Game data version",
+    "Loaded families",
+    "Loaded at",
   ]) {
     assert.equal(html.includes(label), true, `Missing dashboard label: ${label}`);
   }
@@ -278,4 +284,68 @@ test("dashboard script renders Adventure Land version state", () => {
   assert.match(script, /refreshGameVersion/);
   assert.match(script, /Changed from/);
   assert.match(script, /Checking Adventure Land game version/);
+});
+
+
+test("dashboard game data API exposes loading state and manual reload", async () => {
+  const runtime = new CoreRuntime();
+  runtime.start();
+  const logger = new Logger({ component: "dashboard-game-data-test" });
+  const loaded = {
+    status: "loaded",
+    version: 15555,
+    loadedAt: "2026-10-02T17:00:00.000Z",
+    sourceUrl: "https://example.test/data.js",
+    bytes: 1234,
+    familyCount: 14,
+    loadedFamilyCount: 14,
+    families: [
+      { name: "items", required: true, loaded: true, count: 900 },
+      { name: "geometry", required: true, loaded: true, count: 42 },
+      { name: "events", required: false, loaded: true, count: 8 },
+    ],
+    message: "Adventure Land game data is loaded and available.",
+  };
+  let reloads = 0;
+  const fakeGameDataService = {
+    state: () => loaded,
+    loadNow: async () => {
+      reloads += 1;
+      return loaded;
+    },
+  };
+
+  const dashboard = new DashboardServer({
+    logger,
+    runtime,
+    gameDataService: fakeGameDataService,
+    host: "127.0.0.1",
+    port: 0,
+  });
+
+  const url = await dashboard.start();
+  try {
+    const stateResponse = await fetch(`${url}/api/game-data`);
+    assert.equal(stateResponse.status, 200);
+    const state = await stateResponse.json();
+    assert.equal(state.status, "loaded");
+    assert.equal(state.version, 15555);
+    assert.equal(state.loadedFamilyCount, 14);
+
+    const reloadResponse = await fetch(`${url}/api/game-data/reload`, { method: "POST" });
+    assert.equal(reloadResponse.status, 200);
+    assert.equal((await reloadResponse.json()).status, "loaded");
+    assert.equal(reloads, 1);
+  } finally {
+    await dashboard.stop();
+    runtime.stop();
+  }
+});
+
+test("dashboard script renders Adventure Land game data families and counts", () => {
+  const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
+  assert.match(script, /refreshGameData/);
+  assert.match(script, /G\.\$\{family\.name\}/);
+  assert.match(script, /entries/);
+  assert.match(script, /Reloading Adventure Land game data/);
 });
