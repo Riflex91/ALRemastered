@@ -31,8 +31,7 @@ Section "ALRemastered" SEC_CORE
   CreateDirectory "$LOCALAPPDATA\ALRemastered\logs"
 
   FileOpen $0 "$LOCALAPPDATA\ALRemastered\logs\installer.log" a
-  FileWrite $0 "event=install_start version=${APP_VERSION} path=$INSTDIR$$
-"
+  FileWrite $0 "event=install_start version=${APP_VERSION} path=$INSTDIR$\r$\n"
   FileClose $0
 
   RMDir /r "$INSTDIR\.update"
@@ -73,8 +72,7 @@ Section "ALRemastered" SEC_CORE
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
   FileOpen $0 "$LOCALAPPDATA\ALRemastered\logs\installer.log" a
-  FileWrite $0 "event=install_success version=${APP_VERSION} path=$INSTDIR$$
-"
+  FileWrite $0 "event=install_success version=${APP_VERSION} path=$INSTDIR$\r$\n"
   FileClose $0
   Goto install_done
 
@@ -90,8 +88,7 @@ upgrade_failed:
     Rename "$INSTDIR\.previous\ALRemastered.exe" "$INSTDIR\ALRemastered.exe"
   RMDir /r "$INSTDIR\.update"
   FileOpen $0 "$LOCALAPPDATA\ALRemastered\logs\installer.log" a
-  FileWrite $0 "event=install_rollback version=${APP_VERSION} path=$INSTDIR$$
-"
+  FileWrite $0 "event=install_rollback version=${APP_VERSION} path=$INSTDIR$\r$\n"
   FileClose $0
   MessageBox MB_ICONSTOP|MB_OK "ALRemastered could not be updated. The previous version was restored."
   Abort
@@ -106,8 +103,7 @@ SectionEnd
 Section "Uninstall"
   CreateDirectory "$LOCALAPPDATA\ALRemastered\logs"
   FileOpen $0 "$LOCALAPPDATA\ALRemastered\logs\installer.log" a
-  FileWrite $0 "event=uninstall path=$INSTDIR$$
-"
+  FileWrite $0 "event=uninstall path=$INSTDIR$\r$\n"
   FileClose $0
 
   Delete "$DESKTOP\ALRemastered.lnk"
