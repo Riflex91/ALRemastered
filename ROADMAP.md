@@ -589,6 +589,14 @@ Noch keine komplexe Botlogik.
 
 ## Slice 3.2 – Move / XMove
 
+**Status: MERGED – AWAITING USER TEST**
+
+> 2026-10-03: Slice 3.2 merged via PR #46 for release target `0.1.0-alpha.22`. The dashboard now exposes only fixed 32-unit Move/XMove test steps. Every gameplay mutation runs through the central Action Gateway with request ID, dashboard origin, character ID, shared movement rate guard, timeout, structured outcome, and sanitized correlated logging. Direct movement is validated against the loaded Adventure Land map geometry before the official `move` socket packet is emitted with current position and movement sequence. Blocked Move requests are rejected before transport; XMove executes the direct path only and returns `XMOVE_PATH_REQUIRED` rather than silently introducing the later smart/pathfinding navigation stack.
+>
+> Automated evidence on the exact PR #46 head `bbc3ef8e7e72190a31e16a65095df41b870cacbb`: Ubuntu verify success, Windows verify success, Linux alpha.21 → alpha.22 installer upgrade smoke success, and Windows alpha.21 → alpha.22 installer upgrade smoke success. Unit/transport/dashboard tests cover the movement packet, collision rejection, missing state/geometry, dead-character rejection, shared rate limiting, fixed dashboard input validation, and absence of an arbitrary action endpoint.
+>
+> Real-account movement through the installed dashboard is still required. Do not mark this slice VERIFIED until the user supplies the live evidence recorded in `LIVE_TEST_QUEUE.md`.
+
 - einfache Bewegung
 - Validierung
 - Action-Logging
