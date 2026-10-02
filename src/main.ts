@@ -143,6 +143,25 @@ try {
   stopAfterUnexpectedError("Dashboard server failed to start.", error);
 }
 
+if (args.has("--diagnostic-test-mode")) {
+  logger.warn("Diagnostic test mode enabled. Synthetic errors will be generated.");
+  logger.error(
+    "Update check failed.",
+    new Error("Synthetic update-check failure for diagnostic testing."),
+    { testMode: true, password: "synthetic-secret-must-be-redacted" },
+  );
+  logger.error(
+    "Dashboard request failed.",
+    new Error("Synthetic dashboard failure for diagnostic testing."),
+    { testMode: true, route: "/api/diagnostics/test" },
+  );
+  logger.fatal(
+    "Synthetic internal failure.",
+    new Error("Synthetic internal stack detail for diagnostic testing."),
+    { testMode: true },
+  );
+}
+
 if (!args.has("--no-update-check")) {
   updateService.start();
 } else {
