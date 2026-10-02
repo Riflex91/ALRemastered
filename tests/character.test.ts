@@ -108,7 +108,7 @@ test("headless transport follows welcome-loaded-auth-start without automation ev
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(socket.sent.at(-1), "3server-ping");
 
-  socket.message('42["start",{"id":"RangerOne","name":"RangerOne","ctype":"ranger","level":45,"xp":12345,"max_xp":50000,"map":"main","x":12,"y":34,"hp":4000,"max_hp":4000,"mp":900,"max_mp":1000,"angle":0,"target":null,"rip":false,"items":[{"name":"hpot0","q":20},null,{"name":"scroll0","level":0}],"slots":{"mainhand":{"name":"bow","level":3},"helmet":null,"trade1":{"name":"hpot0","q":5}},"gold":123456,"s":{"mluck":{"ms":5000,"f":"Merchant"}},"party":"RangerOne","entities":{"type":"all","players":[{"id":"MageStart","name":"MageStart","ctype":"mage","level":49,"x":18,"y":36}],"monsters":[{"id":"goo-start","type":"goo","x":22,"y":38}]}}]');
+  socket.message('42["start",{"id":"RangerOne","name":"RangerOne","ctype":"ranger","level":45,"xp":12345,"max_xp":50000,"map":"main","x":12,"y":34,"hp":4000,"max_hp":4000,"mp":900,"max_mp":1000,"angle":0,"target":null,"rip":false,"items":[{"name":"hpot0","q":20},null,{"name":"scroll0","level":0}],"slots":{"mainhand":{"name":"bow","level":3},"helmet":null,"trade1":{"name":"hpot0","q":5}},"gold":123456,"m":7,"s":{"mluck":{"ms":5000,"f":"Merchant"}},"party":"RangerOne","entities":{"type":"all","players":[{"id":"MageStart","name":"MageStart","ctype":"mage","level":49,"x":18,"y":36}],"monsters":[{"id":"goo-start","type":"goo","x":22,"y":38}]}}]');
   const connection = await connecting;
   assert.equal(connection.character.id, "CH_1");
   assert.equal(connection.character.name, "RangerOne");
@@ -127,6 +127,23 @@ test("headless transport follows welcome-loaded-auth-start without automation ev
   assert.equal("trade1" in (connection.character.equipment ?? {}), false);
   assert.equal(connection.character.gold, 123456);
   assert.equal(connection.character.conditions?.mluck?.ms, 5000);
+  assert.equal(connection.character.movementSequence, 7);
+
+  const moveReceipt = connection.sendMove({ x: 44, y: 34 });
+  assert.deepEqual(moveReceipt, {
+    fromX: 12,
+    fromY: 34,
+    targetX: 44,
+    targetY: 34,
+  });
+  const movePacket = socket.sent.find((packet) =>
+    packet.startsWith('42["move"')
+  );
+  assert.ok(movePacket);
+  assert.deepEqual(JSON.parse(movePacket.slice(2)), [
+    "move",
+    { x: 12, y: 34, going_x: 44, going_y: 34, m: 7 },
+  ]);
 
   let liveState = connection.snapshot();
   assert.equal(liveState.entities.length, 2);
@@ -240,6 +257,7 @@ test("character service allows exactly one connection and disconnects controllab
       equipment: { mainhand: { name: "bow", level: 3 } },
       gold: 123456,
       conditions: { mluck: { ms: 5000 } },
+      movementSequence: 7,
     },
     pingMs: undefined,
     snapshot() {
@@ -266,6 +284,14 @@ test("character service allows exactly one connection and disconnects controllab
     },
     onUnexpectedClose(listener) {
       unexpectedClose = listener;
+    },
+    sendMove(input) {
+      return {
+        fromX: this.character.x ?? 0,
+        fromY: this.character.y ?? 0,
+        targetX: input.x,
+        targetY: input.y,
+      };
     },
     async close() {
       closeCalls += 1;
@@ -298,6 +324,12 @@ test("character service allows exactly one connection and disconnects controllab
   assert.match(connected.message, /no automation is running/i);
   assert.equal(connected.character?.hp, 4000);
   assert.throws(() => service.start("CH_1"), /already active/);
+  assert.deepEqual(service.sendDirectMovement({ x: 44, y: 34 }), {
+    fromX: 12,
+    fromY: 34,
+    targetX: 44,
+    targetY: 34,
+  });
 
   liveListener?.({
     character: {
