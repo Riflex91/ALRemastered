@@ -90,6 +90,7 @@ internal static class Program
             return "\"\"";
         }
 
-        return "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+        return "\"" + value.Replace("\"", "\\\"") + "\"";
+
     }
 }
