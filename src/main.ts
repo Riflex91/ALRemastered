@@ -1,5 +1,7 @@
 import { join } from "node:path";
 import { CoreRuntime } from "./core/app.ts";
+import { openDashboard } from "./dashboard/open.ts";
+import { DashboardServer } from "./dashboard/server.ts";
 import { Logger } from "./logging/logger.ts";
 import { getUserPaths } from "./platform/paths.ts";
 import { getReleaseMetadata } from "./release/version-model.ts";
@@ -54,20 +56,50 @@ if (args.has("--health-check")) {
   process.exit(0);
 }
 
+const dashboard = new DashboardServer({
+  logger,
+  runtime,
+  host: "127.0.0.1",
+  port: 3210,
+});
+
+let dashboardUrl: string;
+try {
+  dashboardUrl = await dashboard.start();
+} catch (error) {
+  stopAfterUnexpectedError("Dashboard server failed to start.", error);
+}
+
 process.stdout.write(`ALRemastered ${getAppVersion()}\n`);
-process.stdout.write("Core is running. Dashboard is not available yet in Slice 0.3.\n");
+process.stdout.write("Core is running.\n");
+process.stdout.write(`Dashboard: ${dashboardUrl}\n`);
 process.stdout.write("Press Ctrl+C to stop.\n");
 
-const keepAlive = setInterval(() => undefined, 60_000);
+if (!args.has("--no-open-dashboard")) {
+  openDashboard(dashboardUrl, logger);
+}
 
-function shutdown(signal: NodeJS.Signals): void {
+const keepAlive = setInterval(() => undefined, 60_000);
+let shuttingDown = false;
+
+async function shutdown(signal: NodeJS.Signals): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
   clearInterval(keepAlive);
+
   process.stdout.write(`Received ${signal}. Stopping ALRemastered.\n`);
   logger.info("Shutdown requested.", { signal });
+
+  try {
+    await dashboard.stop();
+  } catch (error) {
+    logger.error("Dashboard server failed to stop cleanly.", error);
+  }
+
   runtime.stop();
   logger.info("Core stopped.");
   process.exit(0);
 }
 
-process.once("SIGINT", () => shutdown("SIGINT"));
-process.once("SIGTERM", () => shutdown("SIGTERM"));
+process.once("SIGINT", () => void shutdown("SIGINT"));
+process.once("SIGTERM", () => void shutdown("SIGTERM"));
