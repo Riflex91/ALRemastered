@@ -147,12 +147,37 @@ test("headless transport follows welcome-loaded-auth-start without automation ev
   assert.equal(liveState.character.gold, 123000);
   assert.deepEqual(Object.keys(liveState.character.conditions ?? {}).sort(), ["energized", "mluck"]);
 
+  socket.message('42["entities",{"type":"all","players":[{"id":"MageOne","name":"MageOne","ctype":"mage","level":50,"x":25,"y":45,"hp":3000,"max_hp":3000,"party":"RangerOne"}],"monsters":[{"id":"goo-1","mtype":"goo","x":35,"y":45,"hp":120,"max_hp":120,"target":"RangerOne"}]}]');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(liveState.entities.length, 2);
+  assert.equal(liveState.entities.find((entity) => entity.id === "MageOne")?.kind, "player");
+  assert.equal(liveState.entities.find((entity) => entity.id === "MageOne")?.type, "mage");
+  assert.equal(liveState.entities.find((entity) => entity.id === "goo-1")?.kind, "monster");
+  assert.equal(liveState.entities.find((entity) => entity.id === "goo-1")?.type, "goo");
+
+  socket.message('42["entities",{"type":"delta","players":[],"monsters":[{"id":"goo-1","mtype":"goo","x":36,"y":46,"hp":90,"max_hp":120}]}]');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(liveState.entities.find((entity) => entity.id === "goo-1")?.hp, 90);
+
+  socket.message('42["party_update",{"list":["RangerOne","MageOne"],"party":{"RangerOne":{"type":"ranger","level":45,"map":"main","x":20,"y":40,"hp":3500,"max_hp":4000},"MageOne":{"type":"mage","level":50,"map":"main","x":25,"y":45,"hp":3000,"max_hp":3000}}}]');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(liveState.party.inParty, true);
+  assert.equal(liveState.party.leader, "RangerOne");
+  assert.deepEqual(liveState.party.members, ["RangerOne", "MageOne"]);
+  assert.equal(liveState.party.details.MageOne?.type, "mage");
+
+  socket.message('42["disappear",{"id":"MageOne","outside":true}]');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(liveState.entities.some((entity) => entity.id === "MageOne"), false);
+
   socket.message('42["new_map",{"name":"cave","x":101,"y":202,"direction":3}]');
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(liveState.character.map, "cave");
   assert.equal(liveState.character.x, 101);
   assert.equal(liveState.character.y, 202);
   assert.equal(liveState.character.directionLabel, "Up");
+  assert.equal(liveState.entities.length, 0);
+  assert.deepEqual(liveState.party.members, ["RangerOne", "MageOne"]);
 
   const pingPacket = socket.sent.find((packet) => packet.startsWith('42["ping_trig"'));
   assert.ok(pingPacket);
@@ -214,6 +239,18 @@ test("character service allows exactly one connection and disconnects controllab
     snapshot() {
       return {
         character: this.character,
+        entities: [
+          { id: "goo-1", kind: "monster", name: "goo-1", type: "goo", x: 20, y: 30 },
+        ],
+        party: {
+          inParty: true,
+          leader: "RangerOne",
+          members: ["RangerOne", "MageOne"],
+          details: {
+            RangerOne: { name: "RangerOne", type: "ranger", level: 45 },
+            MageOne: { name: "MageOne", type: "mage", level: 50 },
+          },
+        },
         pingMs: this.pingMs,
         updatedAt: "2026-10-02T20:05:00.000Z",
       };
@@ -271,6 +308,19 @@ test("character service allows exactly one connection and disconnects controllab
       gold: 123000,
       conditions: { energized: { ms: 2000 } },
     },
+    entities: [
+      { id: "goo-1", kind: "monster", name: "goo-1", type: "goo", x: 35, y: 45 },
+      { id: "MageOne", kind: "player", name: "MageOne", type: "mage", x: 25, y: 45 },
+    ],
+    party: {
+      inParty: true,
+      leader: "RangerOne",
+      members: ["RangerOne", "MageOne"],
+      details: {
+        RangerOne: { name: "RangerOne", type: "ranger", level: 45 },
+        MageOne: { name: "MageOne", type: "mage", level: 50 },
+      },
+    },
     pingMs: 42,
     updatedAt: "2026-10-02T20:05:01.000Z",
   });
@@ -281,6 +331,10 @@ test("character service allows exactly one connection and disconnects controllab
   assert.equal(live.character?.equipment?.mainhand?.level, 4);
   assert.equal(live.character?.gold, 123000);
   assert.deepEqual(Object.keys(live.character?.conditions ?? {}), ["energized"]);
+  assert.equal(live.entities?.length, 2);
+  assert.equal(live.entities?.find((entity) => entity.id === "MageOne")?.kind, "player");
+  assert.deepEqual(live.party?.members, ["RangerOne", "MageOne"]);
+  assert.equal(live.party?.leader, "RangerOne");
   assert.equal(live.pingMs, 42);
   assert.equal(live.lastLiveUpdateAt, "2026-10-02T20:05:01.000Z");
 
@@ -291,6 +345,10 @@ test("character service allows exactly one connection and disconnects controllab
   assert.match(logger.exportText(), /"inventoryUsed":1/);
   assert.match(logger.exportText(), /"equipmentUsed":1/);
   assert.match(logger.exportText(), /"conditions":\["energized"\]/);
+  assert.match(logger.exportText(), /"visibleEntities":2/);
+  assert.match(logger.exportText(), /"visiblePlayers":1/);
+  assert.match(logger.exportText(), /"visibleMonsters":1/);
+  assert.match(logger.exportText(), /"partyMembers":\["RangerOne","MageOne"\]/);
   assert.doesNotMatch(logger.exportText(), /private-auth/);
 
   await service.start("CH_1");
