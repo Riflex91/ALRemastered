@@ -53,6 +53,7 @@ export interface AdventureLandConnectedCharacter {
   readonly gold?: number;
   readonly conditions?: AdventureLandConditionState;
   readonly movementSequence?: number;
+  readonly range?: number;
 }
 
 export interface AdventureLandDirectMovementInput {
@@ -66,6 +67,18 @@ export interface AdventureLandDirectMovementReceipt {
   readonly fromY: number;
   readonly targetX: number;
   readonly targetY: number;
+}
+
+export interface AdventureLandAttackInput {
+  readonly targetId: string;
+  readonly signal?: AbortSignal;
+}
+
+export interface AdventureLandAttackReceipt {
+  readonly targetId: string;
+  readonly success: boolean;
+  readonly reason?: string;
+  readonly cooldownMs?: number;
 }
 
 export interface AdventureLandCharacterLiveState {
@@ -83,6 +96,8 @@ export interface AdventureLandCharacterConnection {
   onState(listener: (state: AdventureLandCharacterLiveState) => void): void;
   onUnexpectedClose(listener: (reason?: string) => void): void;
   sendMove(input: AdventureLandDirectMovementInput): AdventureLandDirectMovementReceipt;
+  sendAttack(input: AdventureLandAttackInput): Promise<AdventureLandAttackReceipt>;
+  attackCooldownRemainingMs(): number;
   close(): Promise<void>;
 }
 
@@ -241,6 +256,14 @@ export class AdventureLandCharacterTransport {
                 liveConnection.applyPartyUpdate(data);
                 continue;
               }
+              if (name === "skill_timeout" && isRecord(data)) {
+                liveConnection.applySkillTimeout(data);
+                continue;
+              }
+              if (name === "game_response" && isRecord(data)) {
+                liveConnection.applyGameResponse(data);
+                continue;
+              }
             }
 
             if (name === "welcome") {
@@ -331,6 +354,14 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
   #world: AdventureLandWorldState = emptyWorldState();
   #pingMs?: number;
   #updatedAt: string;
+  #attackCooldownUntilMs = 0;
+  #pendingAttack?: {
+    readonly targetId: string;
+    readonly resolve: (receipt: AdventureLandAttackReceipt) => void;
+    readonly reject: (error: AdventureLandCharacterTransportError) => void;
+    readonly signal?: AbortSignal;
+    readonly onAbort?: () => void;
+  };
   #intentional = false;
   #closed = false;
   #pingSequence = 0;
@@ -351,6 +382,12 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
       this.#closed = true;
       clearInterval(this.#pingTimer);
       this.#pingSent.clear();
+      this.#rejectPendingAttack(
+        new AdventureLandCharacterTransportError(
+          "Adventure Land character transport closed during attack.",
+          "attack_transport_closed",
+        ),
+      );
       if (this.#intentional) return;
       const reason = this.#disconnectReason();
       for (const listener of this.#listeners) listener(reason);
@@ -429,6 +466,38 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
     this.#touch();
   }
 
+  applySkillTimeout(data: Record<string, unknown>): void {
+    if (data.name !== "attack") return;
+    const ms = finiteNumber(data.ms);
+    if (ms === undefined) return;
+    this.#attackCooldownUntilMs = Date.now() + Math.max(0, ms);
+  }
+
+  applyGameResponse(data: Record<string, unknown>): void {
+    if (data.place !== "attack" || !this.#pendingAttack) return;
+    const pending = this.#pendingAttack;
+    this.#pendingAttack = undefined;
+    if (pending.signal && pending.onAbort) {
+      pending.signal.removeEventListener("abort", pending.onAbort);
+    }
+    const failed = data.failed === true || data.success === false;
+    const reason = typeof data.reason === "string"
+      ? data.reason
+      : failed && typeof data.response === "string"
+        ? data.response
+        : undefined;
+    const responseCooldown = finiteNumber(data.ms);
+    const cooldownMs = responseCooldown === undefined
+      ? this.attackCooldownRemainingMs()
+      : Math.max(0, responseCooldown);
+    pending.resolve(Object.freeze({
+      targetId: pending.targetId,
+      success: !failed,
+      reason,
+      cooldownMs: cooldownMs > 0 ? cooldownMs : undefined,
+    }));
+  }
+
   sendMove(
     input: AdventureLandDirectMovementInput,
   ): AdventureLandDirectMovementReceipt {
@@ -489,11 +558,80 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
     return receipt;
   }
 
+  sendAttack(input: AdventureLandAttackInput): Promise<AdventureLandAttackReceipt> {
+    if (input.signal?.aborted) {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Adventure Land attack was cancelled before it was sent.",
+        "attack_aborted",
+      ));
+    }
+    if (this.#closed || this.#socket.readyState !== 1) {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Adventure Land character transport is not ready for attack.",
+        "attack_transport_unavailable",
+      ));
+    }
+    if (!input.targetId.trim()) {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Adventure Land attack target is invalid.",
+        "attack_target_invalid",
+      ));
+    }
+    if (this.#pendingAttack) {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Another Adventure Land attack is still waiting for a server response.",
+        "attack_already_pending",
+      ));
+    }
+
+    return new Promise<AdventureLandAttackReceipt>((resolve, reject) => {
+      const onAbort = () => {
+        if (!this.#pendingAttack || this.#pendingAttack.targetId !== input.targetId) return;
+        this.#pendingAttack = undefined;
+        input.signal?.removeEventListener("abort", onAbort);
+        reject(new AdventureLandCharacterTransportError(
+          "Adventure Land attack was cancelled while waiting for the server.",
+          "attack_aborted",
+        ));
+      };
+      this.#pendingAttack = {
+        targetId: input.targetId,
+        resolve,
+        reject,
+        signal: input.signal,
+        onAbort,
+      };
+      input.signal?.addEventListener("abort", onAbort, { once: true });
+      try {
+        this.#socket.send(
+          "42" + JSON.stringify(["attack", { id: input.targetId }]),
+        );
+      } catch {
+        this.#pendingAttack = undefined;
+        input.signal?.removeEventListener("abort", onAbort);
+        reject(new AdventureLandCharacterTransportError(
+          "Adventure Land attack could not be sent.",
+          "attack_send_failed",
+        ));
+      }
+    });
+  }
+
+  attackCooldownRemainingMs(): number {
+    return Math.max(0, Math.ceil(this.#attackCooldownUntilMs - Date.now()));
+  }
+
   async close(): Promise<void> {
     if (this.#closed || this.#socket.readyState === 3) return;
     this.#intentional = true;
     clearInterval(this.#pingTimer);
     this.#pingSent.clear();
+    this.#rejectPendingAttack(
+      new AdventureLandCharacterTransportError(
+        "Adventure Land attack was cancelled because the character stopped.",
+        "attack_transport_closed",
+      ),
+    );
 
     await new Promise<void>((resolve) => {
       let finished = false;
@@ -511,6 +649,16 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
       }
     });
     this.#closed = true;
+  }
+
+  #rejectPendingAttack(error: AdventureLandCharacterTransportError): void {
+    const pending = this.#pendingAttack;
+    if (!pending) return;
+    this.#pendingAttack = undefined;
+    if (pending.signal && pending.onAbort) {
+      pending.signal.removeEventListener("abort", pending.onAbort);
+    }
+    pending.reject(error);
   }
 
   #sendPing(): void {
@@ -608,6 +756,7 @@ function parseConnectedCharacter(
     gold: finiteNumber(data.gold),
     conditions: parseConditions(data.s),
     movementSequence: finiteNumber(data.m),
+    range: finiteNumber(data.range),
   });
 }
 
@@ -656,6 +805,9 @@ function mergeConnectedCharacter(
     movementSequence: "m" in data
       ? (finiteNumber(data.m) ?? current.movementSequence)
       : current.movementSequence,
+    range: "range" in data
+      ? (finiteNumber(data.range) ?? current.range)
+      : current.range,
   });
 }
 
