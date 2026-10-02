@@ -487,6 +487,10 @@ Abgleich Dashboard ↔ tatsächlicher Account.
 
 ## Slice 2.3 – Erster Headless-Character-Connect
 
+**Status: MERGED – AWAITING USER TEST**
+
+> 2026-10-02: First single-character headless connection merged in `0.1.0-alpha.16`. The client uses a minimal Socket.IO-compatible WebSocket transport, supports controlled disconnect on demand/account disconnect/application shutdown, prevents a second concurrent character connection, and includes no gameplay automation. Automated Windows/Linux CI passed. Real-account live validation is still required before VERIFIED.
+
 - exakt einen Character starten
 - Socket/Transport
 - Disconnect
