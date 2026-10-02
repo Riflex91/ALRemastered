@@ -2,6 +2,9 @@ name: Publish release
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - "release/**"
 
 permissions:
   contents: write
@@ -68,6 +71,15 @@ jobs:
           set -euo pipefail
           version="$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).version")"
           tag="v$version"
+
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            expected_branch="release/$tag"
+            if [[ "$GITHUB_REF_NAME" != "$expected_branch" ]]; then
+              echo "Release branch mismatch: expected $expected_branch, got $GITHUB_REF_NAME." >&2
+              exit 1
+            fi
+          fi
+
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "Release $tag already exists." >&2
             exit 1
