@@ -43,6 +43,16 @@ const elements = {
   activeCharacter: document.querySelector("#active-character"),
   characterServer: document.querySelector("#character-server"),
   characterConnectedAt: document.querySelector("#character-connected-at"),
+  characterHp: document.querySelector("#character-hp"),
+  characterMp: document.querySelector("#character-mp"),
+  characterLevel: document.querySelector("#character-level"),
+  characterXp: document.querySelector("#character-xp"),
+  characterMap: document.querySelector("#character-map"),
+  characterPosition: document.querySelector("#character-position"),
+  characterDirection: document.querySelector("#character-direction"),
+  characterTarget: document.querySelector("#character-target"),
+  characterDeathState: document.querySelector("#character-death-state"),
+  characterPing: document.querySelector("#character-ping"),
   characterSelect: document.querySelector("#character-select"),
   startCharacter: document.querySelector("#start-character"),
   stopCharacter: document.querySelector("#stop-character"),
@@ -247,6 +257,37 @@ function renderCharacterConnection() {
       : "—";
   elements.characterConnectedAt.textContent =
     connection.connectedAt ? formatPublished(connection.connectedAt) : "—";
+
+  const character = connection.character;
+  elements.characterHp.textContent =
+    character?.hp === undefined
+      ? "—"
+      : `${character.hp} / ${character.maxHp ?? "?"}`;
+  elements.characterMp.textContent =
+    character?.mp === undefined
+      ? "—"
+      : `${character.mp} / ${character.maxMp ?? "?"}`;
+  elements.characterLevel.textContent =
+    character?.level === undefined ? "—" : String(character.level);
+  elements.characterXp.textContent =
+    character?.xp === undefined
+      ? "—"
+      : `${character.xp} / ${character.maxXp ?? "?"}`;
+  elements.characterMap.textContent = character?.map ?? "—";
+  elements.characterPosition.textContent =
+    character?.x === undefined || character?.y === undefined
+      ? "—"
+      : `${character.x.toFixed(1)}, ${character.y.toFixed(1)}`;
+  elements.characterDirection.textContent =
+    character?.directionLabel ??
+    (character?.angle === undefined ? "—" : `${character.angle.toFixed(1)}°`);
+  elements.characterTarget.textContent = character?.target ?? "None";
+  elements.characterDeathState.textContent =
+    character ? (character.dead ? "Dead" : "Alive") : "—";
+  elements.characterPing.textContent =
+    connection.pingMs === undefined
+      ? (connection.status === "connected" ? "Measuring…" : "—")
+      : `${Math.round(connection.pingMs)} ms`;
 
   const busy = ["connecting", "connected", "disconnecting"].includes(connection.status);
   const canStart =

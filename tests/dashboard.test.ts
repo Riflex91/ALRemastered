@@ -610,7 +610,28 @@ test("dashboard character API starts and stops one headless connection without a
         serverRegion: "EU",
         serverName: "II",
         connectedAt: "2026-10-02T20:05:00.000Z",
-        message: "RangerOne is connected headlessly. No automation is running.",
+        pingMs: 37,
+        lastLiveUpdateAt: "2026-10-02T20:05:01.000Z",
+        character: {
+          id: characterId,
+          name: "RangerOne",
+          type: "ranger",
+          level: 45,
+          xp: 12345,
+          maxXp: 50000,
+          hp: 3500,
+          maxHp: 4000,
+          mp: 850,
+          maxMp: 1000,
+          map: "main",
+          x: 12,
+          y: 34,
+          direction: 2,
+          directionLabel: "Right",
+          target: "goo-1",
+          dead: false,
+        },
+        message: "RangerOne is connected headlessly. Live state is updating; no automation is running.",
       } as typeof state;
       return state;
     },
@@ -667,4 +688,33 @@ test("dashboard script exposes only headless character start and disconnect cont
   assert.match(script, /\/api\/character\/stop/);
   assert.match(script, /No automation is running/);
   assert.doesNotMatch(script, /\/api\/character\/automation/);
+});
+
+
+test("dashboard renders Slice 2.4 base live-state fields", () => {
+  const html = readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
+  const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
+
+  for (const id of [
+    "character-hp",
+    "character-mp",
+    "character-level",
+    "character-xp",
+    "character-map",
+    "character-position",
+    "character-direction",
+    "character-target",
+    "character-death-state",
+    "character-ping",
+  ]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+
+  assert.match(script, /character\?\.hp/);
+  assert.match(script, /character\?\.xp/);
+  assert.match(script, /character\?\.map/);
+  assert.match(script, /character\?\.directionLabel/);
+  assert.match(script, /character\?\.target/);
+  assert.match(script, /character\.dead/);
+  assert.match(script, /connection\.pingMs/);
 });
