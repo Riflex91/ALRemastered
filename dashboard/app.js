@@ -1,5 +1,6 @@
 const state = {
   records: [],
+  seenIds: new Set(),
   paused: false,
   autoScroll: true,
   status: null,
@@ -40,6 +41,29 @@ function formatDuration(milliseconds) {
   if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
   if (minutes > 0) return `${minutes}m ${seconds}s`;
   return `${seconds}s`;
+}
+
+function appendRecord(record) {
+  if (state.seenIds.has(record.id)) return;
+  state.seenIds.add(record.id);
+  state.records.push(record);
+
+  if (state.records.length > 2000) {
+    const removed = state.records.splice(0, state.records.length - 2000);
+    for (const entry of removed) state.seenIds.delete(entry.id);
+  }
+}
+
+function replaceRecords(records) {
+  state.records = [];
+  state.seenIds.clear();
+  for (const record of records) appendRecord(record);
+}
+
+function clearRecords() {
+  state.records = [];
+  state.seenIds.clear();
+  renderLogs();
 }
 
 function visibleRecords() {
@@ -129,7 +153,7 @@ async function loadLogs() {
   const response = await fetch("/api/logs", { cache: "no-store" });
   if (!response.ok) throw new Error(`Unable to load logs: HTTP ${response.status}`);
   const payload = await response.json();
-  state.records = payload.records;
+  replaceRecords(payload.records);
   renderLogs();
 }
 
@@ -139,10 +163,13 @@ function connectStream() {
   state.source = source;
 
   source.addEventListener("log", (event) => {
-    const record = JSON.parse(event.data);
-    state.records.push(record);
-    if (state.records.length > 2000) state.records.splice(0, state.records.length - 2000);
+    appendRecord(JSON.parse(event.data));
     renderLogs();
+  });
+
+  source.addEventListener("clear", () => {
+    clearRecords();
+    setFeedback("In-memory diagnostic log cleared. Persistent log files were kept.", "success");
   });
 
   source.addEventListener("open", () => {
@@ -215,7 +242,7 @@ elements.copyFull.addEventListener("click", async () => {
     const payload = await response.json();
     await writeClipboard(payload.text);
     setFeedback(
-      `Copied ${payload.lineCount} log lines. Time range: ${payload.from} -> ${payload.to}. Secrets sanitized: yes.`,
+      `Copied ${payload.lineCount} log lines. Version: ${state.status?.version ?? "unknown"}. Platform: ${state.status?.platform ?? "unknown"}. Time range: ${payload.from} -> ${payload.to}. Secrets sanitized: yes.`,
       "success",
     );
   } catch (error) {
@@ -250,9 +277,7 @@ elements.clear.addEventListener("click", async () => {
   try {
     const response = await fetch("/api/logs/clear", { method: "POST" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    state.records = [];
-    renderLogs();
-    setFeedback("In-memory diagnostic log cleared. Persistent log files were kept.", "success");
+    clearRecords();
   } catch (error) {
     setFeedback(`Clear failed: ${error.message}`, "error");
   }
