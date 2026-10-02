@@ -567,9 +567,11 @@ Bewegen/Party betreten und Logs/State vergleichen.
 
 ## Slice 3.1 – Action Gateway
 
-**Status: MERGED – AWAITING USER TEST**
+**Status: VERIFIED**
 
 > 2026-10-03: Central Action Gateway merged for `0.1.0-alpha.21`. Every gateway request receives a correlation/request ID and origin, passes a per-action rate guard, runs with a bounded timeout/AbortSignal, returns a structured success/error/timeout/rate-limited result, and is logged through the existing sanitizer without arbitrary action input. The dashboard exposes only a fixed local-only gateway probe for live validation; no move/xmove/attack/skill/loot/item/party gameplay command exists yet. Automated Windows/Linux CI and alpha.20 → alpha.21 installer upgrade smokes passed. Installed-client gateway-probe validation is still required before VERIFIED.
+
+> 2026-10-03: VERIFIED on Windows with `0.1.0-alpha.21`. The installed client restarted automatically after update and the diagnostic export reported `Secrets sanitized: yes`. Three local-only `gateway.probe` requests completed successfully with unique `act-…` request IDs, `origin:"dashboard"`, the configured 1000 ms timeout/rate interval, and correlated start/completion log records. Rapid repeated probes exercised the live rate guard four times with `outcome:"rate_limited"`, `errorCode:"ACTION_RATE_LIMITED"`, and concrete `retryAfterMs` values (844, 49, 173, and 39 ms). No Adventure Land gameplay action was emitted by the probe.
 
 Zentrale Schicht für alle spielverändernden Aktionen:
 
