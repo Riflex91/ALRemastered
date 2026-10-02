@@ -96,6 +96,8 @@ Available diagnostic actions include:
 
 Diagnostic snapshots and packages are generated only from already sanitized runtime/log data.
 
+For live validation during development, start ALRemastered with `--diagnostic-test-mode`. This opt-in flag generates three synthetic diagnostic errors without changing normal client behavior. Restart without the flag to return to the normal error-free state.
+
 ## Diagnostics
 
 ALRemastered writes structured client logs to the platform user-data location:
