@@ -58,6 +58,33 @@
       </article>
     </section>
 
+    <section class="diagnostics-overview">
+      <div class="diagnostics-heading">
+        <div>
+          <p class="eyebrow">System health</p>
+          <h2>Diagnostics overview</h2>
+        </div>
+        <div class="toolbar">
+          <button id="copy-snapshot" type="button">Copy diagnostic snapshot</button>
+          <button id="download-package" type="button">Download diagnostic package</button>
+        </div>
+      </div>
+
+      <div class="component-health" id="component-health" aria-label="Component health"></div>
+
+      <div class="recent-errors">
+        <div class="recent-errors-heading">
+          <div>
+            <p class="eyebrow">Attention</p>
+            <h2>Recent errors</h2>
+          </div>
+        </div>
+        <div id="recent-errors-list" class="error-list" aria-live="polite">
+          <div class="empty">No recent errors.</div>
+        </div>
+      </div>
+    </section>
+
     <section class="console-panel">
       <div class="console-heading">
         <div>
