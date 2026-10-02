@@ -452,6 +452,10 @@ Start online, Neustart mit Cache, simuliert beschädigten Cache testen.
 
 ## Slice 2.1 – Account-Verbindungsgrundlage
 
+**Status: MERGED – AWAITING USER TEST**
+
+> 2026-10-02: Login-only account/session foundation merged in `0.1.0-alpha.14`. Passwords are not persisted, auth sessions stay in process memory, account/auth secrets are sanitized from logs, and automated Windows/Linux CI passed. Real-account live validation is still required before VERIFIED.
+
 - sichere Account-/Session-Anbindung
 - keine Secrets im Log
 - Verbindungsstatus im Dashboard
