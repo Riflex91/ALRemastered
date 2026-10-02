@@ -96,11 +96,9 @@ updateService = new UpdateService({
   source,
   preferences,
   updatesDir: join(userPaths.dataDir, "updates"),
-  scheduleInstaller: (installerPath) => {
-    scheduleInstallerAfterCurrentProcess(installerPath, logger);
-  },
+  scheduleInstaller: (installerPath) => scheduleInstallerAfterCurrentProcess(installerPath, logger),
   onInstallScheduled: () => {
-    setTimeout(() => void shutdown("SIGTERM"), 800);
+    setTimeout(() => void shutdown("SIGTERM"), 1500);
   },
 });
 
