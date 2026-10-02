@@ -7,6 +7,14 @@
 Diese Regeln gelten für die gesamte Entwicklung:
 
 - **Während der gesamten Entwicklung wird kein Codex verwendet.**
+- **Die gesamte Benutzeroberfläche ist ausschließlich Englisch.** Das gilt für Dashboard, Installer, Browser-Modus, Dialoge, Buttons, Tooltips, Benachrichtigungen, Fehlertexte, Update-Hinweise und benutzerseitige Logs. Interne Entwicklerdokumentation darf davon unabhängig sein.
+- Ein echter Installer ist von Anfang an Teil der Produktentwicklung und nicht erst ein spätes Packaging-Thema.
+- Der Installer muss dem Benutzer einen frei wählbaren Installationspfad anbieten.
+- Jeder für den Benutzer bestimmte Windows-Testbuild soll über denselben Installer-/Upgrade-Pfad testbar sein, der später auch für Releases verwendet wird.
+- ALRemastered prüft automatisch auf neue Client-Versionen. Updates werden niemals ungefragt installiert.
+- Wird eine neue Version gefunden, muss sie im Client deutlich sichtbar angezeigt werden und genau die primären Aktionen **“Install update”**, **“Skip this version”** und **“Remind me tomorrow”** anbieten.
+- **“Skip this version”** unterdrückt nur die exakt angebotene Version; eine spätere Version wird wieder angezeigt.
+- **“Remind me tomorrow”** unterdrückt die angebotene Version für 24 Stunden und zeigt sie danach erneut an, sofern sie noch aktuell ist.
 - Entwicklung erfolgt in **kleinen, testbaren Slices**.
 - Jeder Slice folgt strikt: **implementieren → prüfen → PR → mergen → Benutzer-Livetest → erst danach nächster Slice**.
 - Kein Folge-Slice wird begonnen, solange der vorherige Slice im realen Test noch einen ungeklärten Fehler hat.
@@ -119,7 +127,7 @@ Ein Character existiert logisch nur einmal. Renderer und Bedienoberflächen werd
 
 # 3. Slices
 
-## Slice 0.1 – Repository-Basis
+## Slice 0.1 – Repository-Basis + Release-/Installer-Grundlage
 
 ### Inhalt
 
@@ -130,21 +138,40 @@ Ein Character existiert logisch nur einmal. Renderer und Bedienoberflächen werd
   - `dashboard/`
   - `renderer/`
   - `packages/`
+  - `installer/`
+  - `updater/`
   - `tests/`
 - Build
 - Lint
 - Format
 - Test-Runner
-- Versionsinformation
+- semantische Versionsinformation
 - zentrale Konfiguration
 - CI-Grundlage
+- reproduzierbarer Windows-Build
+- erster echter Installer-Build statt ZIP-/Copy-only-Verteilung
+- **English-only User Interface Contract** als Test-/Review-Regel
+
+### Installer-Mindestumfang ab dem ersten Testbuild
+
+- Installationspfad frei auswählbar
+- sinnvoller Standardpfad vorgeschlagen
+- Startmenü-Eintrag
+- optionaler Desktop-Shortcut
+- sauberer Uninstaller
+- Programmdateien und veränderliche Benutzerdaten getrennt
+- bestehende Benutzerkonfiguration bei Upgrade nicht überschreiben
+- keine separate Node.js-Installation durch den Endbenutzer erforderlich
 
 ### Test
 
-- Installation auf sauberer Umgebung
-- Build
-- Tests
-- Start/Stop eines leeren Core-Prozesses
+- Installer auf sauberer Windows-Umgebung
+- Installation in Standardpfad
+- Installation in frei gewählten benutzerdefinierten Pfad
+- Programm starten/stoppen
+- deinstallieren
+- Build und Tests
+- prüfen, dass alle sichtbaren Installer-Texte Englisch sind
 
 ### Freigabe
 
@@ -152,7 +179,35 @@ Erst nach Benutzer-Livetest → Slice 0.2.
 
 ---
 
-## Slice 0.2 – Logging-Core und Secret-Sanitizer
+## Slice 0.2 – Installer-Upgradepfad und Versionsmodell
+
+### Inhalt
+
+- Upgrade über eine bereits installierte Version
+- eindeutige App-Version
+- Release Channel zunächst `stable`
+- lokale installierte Version abrufbar
+- Update-/Installer-Metadatenformat
+- atomare Upgrade-Strategie
+- Rollback-/Fehlerpfad vorbereiten
+- Benutzerdaten, Scripts, Dashboard-Layouts und Konfiguration beim Upgrade erhalten
+- Installer- und Upgrade-Ereignisse strukturiert loggen
+
+### Test
+
+- Version A installieren
+- Version B darüber installieren
+- alternativen Installationspfad beibehalten
+- Benutzerdaten unverändert prüfen
+- Deinstallation separat prüfen
+
+### Freigabe
+
+Erst nach Benutzer-Livetest → Slice 0.3.
+
+---
+
+## Slice 0.3 – Logging-Core und Secret-Sanitizer
 
 **Dieser Slice kommt absichtlich sehr früh.**
 
@@ -170,6 +225,7 @@ Zentraler strukturierter Logger mit:
 - Log-Rotation
 - Secret-Sanitizer
 - Fehler-/Stacktrace-Unterstützung
+- benutzerseitige Logtexte auf Englisch
 
 Log-Level:
 
@@ -194,42 +250,42 @@ Im ausgegebenen Diagnose-Log dürfen sie nicht lesbar sein.
 
 ### Freigabe
 
-Erst nach Benutzer-Livetest → Slice 0.3.
+Erst nach Benutzer-Livetest → Slice 0.4.
 
 ---
 
-## Slice 0.3 – Minimales lokales Dashboard + Debug-Konsole
+## Slice 0.4 – Minimales lokales Dashboard + Debug-Konsole
 
 ### Inhalt
 
-Lokales Dashboard mit zunächst nur:
+Lokales Dashboard mit zunächst nur englischen UI-Texten:
 
-- Core-Status
-- Client-Version
-- Startzeit
-- Debug-Konsole
-- Live-Logstream
-- Level-Filter
-- Textsuche
-- Auto-Scroll
-- Pause der Anzeige
-- **Gesamten Log kopieren**
-- **Gefilterten Log kopieren**
-- **Log herunterladen**
-- **Log leeren**
+- Core status
+- Client version
+- Uptime
+- Debug Console
+- Live log stream
+- Level filter
+- Search
+- Auto-scroll
+- Pause
+- **“Copy full log”**
+- **“Copy filtered log”**
+- **“Download log”**
+- **“Clear log”**
 
-### „Gesamten Log kopieren“
+### “Copy full log”
 
 Der Button kopiert den vollständigen aktuell gehaltenen Diagnose-Log nach Secret-Sanitizing in die Zwischenablage.
 
-Zusätzlich:
+Zusätzlich zeigt der Client auf Englisch:
 
-- Erfolgsmeldung
-- Anzahl kopierter Logzeilen
-- Zeitbereich
-- Client-Version
-- Plattform
-- keine Secrets
+- copy succeeded/failed
+- number of copied log lines
+- covered time range
+- client version
+- platform
+- confirmation that secrets were sanitized
 
 ### Test
 
@@ -241,17 +297,72 @@ Ab diesem Slice ist die Debug-Konsole Teil **jedes** folgenden Livetests.
 
 ---
 
-## Slice 0.4 – Diagnose-Grundlage
+## Slice 0.5 – Automatische Update-Erkennung + Update-Banner
 
 ### Inhalt
 
-- verständliche Fehlermeldungen
+- automatische Prüfung auf neue ALRemastered-Versionen beim Programmstart
+- erneute periodische Prüfung während langer Laufzeit
+- manuelle Aktion **“Check for updates”**
+- Release-Metadaten mit Version, Veröffentlichungsdatum, Download, Integritätsdaten und Release Notes
+- klar sichtbares persistentes Update-Banner, wenn eine neuere Version verfügbar ist
+- aktuelle und neue Versionsnummer anzeigen
+- optional Release Notes öffnen
+- exakt diese primären Benutzeraktionen:
+  - **“Install update”**
+  - **“Skip this version”**
+  - **“Remind me tomorrow”**
+- **“Skip this version”** speichert exakt die übersprungene Version
+- **“Remind me tomorrow”** setzt einen 24-Stunden-Snooze für diese Version
+- eine neuere als die übersprungene/verschobene Version hebt die alte Entscheidung auf
+- keine automatische Installation ohne Benutzeraktion
+- Downloadfortschritt sichtbar
+- Integrität/Signatur vor Installation prüfen
+- Updatefehler landen strukturiert in der Debug-Konsole
+
+### Update-Ablauf
+
+```text
+New version available
+        ↓
+prominent update banner
+        ↓
+┌──────────────────────┬──────────────────────┬────────────────────────┐
+│ Install update       │ Skip this version    │ Remind me tomorrow     │
+└──────────────────────┴──────────────────────┴────────────────────────┘
+```
+
+### Test
+
+Mindestens:
+
+- keine neue Version
+- neue Version vorhanden
+- “Skip this version”
+- danach höhere Version verfügbar
+- “Remind me tomorrow”
+- 24h-Snooze
+- Downloadfehler
+- Integritätsfehler
+- erfolgreicher Updatepfad
+
+### Freigabe
+
+Erst nach Benutzer-Livetest → Slice 0.6.
+
+---
+
+## Slice 0.6 – Diagnose-Grundlage
+
+### Inhalt
+
+- verständliche englische Fehlermeldungen
 - technisches Detailpanel
 - letzte Fehler hervorheben
 - Health-Status pro Komponente
 - Diagnose-Snapshot
 - optionales Diagnosepaket
-- Copy-Log-Aktion von Fehlerkarten aus
+- **“Copy full log”** direkt von Fehlerkarten aus
 
 ### Test
 
@@ -655,13 +766,15 @@ Verbindung gezielt unterbrechen.
 
 ---
 
-## Slice 8.2 – Setup-Wizard
+## Slice 8.2 – Setup Wizard
+
+Alle sichtbaren Texte Englisch.
 
 1. Account
 2. Character
 3. Server
-4. Aufgabe/Template
-5. Konfiguration
+4. Task / Template
+5. Configuration
 6. Start
 
 ---
@@ -692,7 +805,7 @@ Anzeige:
 
 ## Slice 9.1 – Dashboard Edit Mode
 
-- **Dashboard bearbeiten**
+- **“Edit dashboard”**
 - Drag & Drop
 - Resize
 - Raster/Snapping
@@ -946,7 +1059,7 @@ Healer:   [Priest ▼]
 DPS:      [Ranger ▼]
 Merchant: [Merchant ▼]
 
-[Einrichten]
+[Set up]
 ```
 
 ---
@@ -974,20 +1087,31 @@ Für irreversible oder wirtschaftlich riskante Aktionen gelten besonders strenge
 
 ---
 
-# Phase 15 – Packaging und Einsteigerinstallation
+# Phase 15 – Distribution, Update-Härtung und weitere Plattformen
 
-## Slice 15.1 – Windows-Ein-Klick-Start
+Der Windows-Installer und die Update-Erkennung existieren bereits seit Phase 0. Diese Phase härtet die inzwischen produktionsreife Distribution.
 
-Ziel: kein manuelles Node.js-Setup.
+## Slice 15.1 – Windows Installer Hardening
+
+- Upgrade über viele Versionen
+- Repair-Modus, soweit sinnvoll
+- saubere Deinstallation
+- Installationspfadänderungen kontrolliert behandeln
+- Code Signing / Vertrauenskette vorbereiten bzw. aktivieren
+- Benutzerdaten niemals unbeabsichtigt löschen
+- Installer-UI vollständig Englisch
 
 ---
 
-## Slice 15.2 – Windows Installer
+## Slice 15.2 – Updater Hardening
 
-- installieren
-- Startmenü
-- Updatefähigkeit
-- Datenverzeichnis sauber getrennt
+- Recovery nach unterbrochenem Download
+- Recovery nach fehlgeschlagenem Update
+- atomarer Austausch
+- Integritäts-/Signaturprüfung
+- Update-Rollback
+- klare englische Fehleranzeigen
+- Update-Historie in Diagnoseinformationen
 
 ---
 
@@ -1017,7 +1141,7 @@ Wieder in einzeln testbare Slices zerlegen:
 
 # 4. Debug-Log als verbindlicher Teil jedes Tests
 
-Ab Slice 0.3 gilt bei jedem Livetest:
+Ab Slice 0.4 gilt bei jedem Livetest:
 
 ## Wenn alles funktioniert
 
@@ -1027,7 +1151,7 @@ Kurze Rückmeldung genügt; nächster Slice wird freigegeben.
 
 1. Fehler möglichst nicht durch hektisches Neustarten verwischen.
 2. Debug-Konsole öffnen.
-3. **Gesamten Log kopieren** drücken.
+3. **“Copy full log”** drücken.
 4. Log vollständig zur Analyse schicken.
 5. Wenn relevant kurz dazuschreiben:
    - was wurde angeklickt/getan?
@@ -1059,7 +1183,29 @@ Ein Merge allein schließt einen Slice ausdrücklich **nicht** ab.
 
 ---
 
-# 6. Projektziel
+# 6. Sprach- und UX-Vertrag
+
+Alle vom Benutzer sichtbaren Texte des Clients sind Englisch. Das umfasst insbesondere:
+
+- Installer / Uninstaller
+- First-run wizard
+- Dashboard
+- Debug Console
+- Browser mode
+- Character controls
+- Script/package import
+- Permissions
+- Notifications
+- update banner / update dialogs
+- errors and recovery messages
+- tooltips and empty states
+- downloadable/copied diagnostic headers
+
+Neue UI-Komponenten gelten als unvollständig, solange sichtbarer nicht-englischer Text enthalten ist. Automatisierte String-/Snapshot-Checks sollen offensichtliche Verstöße früh erkennen.
+
+---
+
+# 7. Projektziel
 
 Ein Anfänger soll langfristig:
 
@@ -1088,4 +1234,4 @@ können, ohne einen separaten Client benutzen zu müssen.
 
 Die zentrale Entwicklungsregel bleibt dabei von Anfang bis Ende:
 
-> **Klein bauen. Mergen. Real testen. Log auswerten. Erst dann weiter.**
+> **Build small. Merge. Test the merged build. Read the log. Only then continue.**
