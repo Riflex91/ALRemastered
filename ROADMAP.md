@@ -369,7 +369,7 @@ Erst nach Benutzer-Livetest → Slice 0.6.
 
 ## Slice 0.6 – Diagnose-Grundlage
 
-**Status: MERGED – AWAITING USER TEST**
+**Status: VERIFIED**
 
 ### Inhalt
 
@@ -390,6 +390,8 @@ Gezielt mehrere künstliche Fehler erzeugen und prüfen, ob sie sowohl verständ
 # Phase 1 – Adventure-Land-Daten ohne Character-Verbindung
 
 ## Slice 1.1 – Game-Version-Erkennung
+
+**Status: IN PROGRESS**
 
 - aktuelle Adventure-Land-Version erkennen
 - lokale Version speichern
