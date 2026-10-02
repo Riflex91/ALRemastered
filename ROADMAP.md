@@ -349,6 +349,7 @@ prominent update banner
 ### Test
 
 Mindestens:
+- Bootstrap-Test: erste updater-fähige Version einmal manuell installieren, danach nächste reine Testversion vollständig über den In-Client-Updater erkennen und installieren
 
 - keine neue Version
 - neue Version vorhanden
