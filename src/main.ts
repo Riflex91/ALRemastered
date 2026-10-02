@@ -14,7 +14,10 @@ import { AdventureLandVersionStore } from "./game/version-store.ts";
 import { Logger } from "./logging/logger.ts";
 import { getUserPaths } from "./platform/paths.ts";
 import { getReleaseMetadata } from "./release/version-model.ts";
-import { scheduleInstallerAfterCurrentProcess } from "./update/installer-launcher.ts";
+import {
+  dashboardUpdateInstallerArguments,
+  scheduleInstallerAfterCurrentProcess,
+} from "./update/installer-launcher.ts";
 import { UpdatePreferenceStore } from "./update/preferences.ts";
 import { UpdateService } from "./update/service.ts";
 import { GitHubReleaseSource } from "./update/source.ts";
@@ -132,7 +135,14 @@ updateService = new UpdateService({
   source,
   preferences,
   updatesDir: join(userPaths.dataDir, "updates"),
-  scheduleInstaller: (installerPath) => scheduleInstallerAfterCurrentProcess(installerPath, logger),
+  scheduleInstaller: (installerPath) =>
+    scheduleInstallerAfterCurrentProcess(
+      installerPath,
+      logger,
+      process.platform,
+      process.pid,
+      dashboardUpdateInstallerArguments(process.platform),
+    ),
   onInstallScheduled: () => {
     setTimeout(() => void shutdown("SIGTERM"), 1500);
   },

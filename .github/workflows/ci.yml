@@ -64,6 +64,19 @@ jobs:
           set -euo pipefail
           npm run build
           npm run installer:linux
+      - name: Verify Linux update handoff survives caller exit
+        shell: bash
+        run: |
+          set -euo pipefail
+          marker="$RUNNER_TEMP/alremastered-linux-update-handoff-marker.txt"
+          rm -f "$marker"
+          node scripts/linux-update-handoff-smoke.mjs "$marker"
+          for attempt in $(seq 1 24); do
+            if [ -f "$marker" ]; then break; fi
+            sleep 0.25
+          done
+          test -f "$marker"
+          test "$(cat "$marker")" = "started-after-parent-exit"
       - name: Upgrade without choosing the path again and verify
         shell: bash
         run: |
@@ -71,17 +84,20 @@ jobs:
           installer="$(find artifacts -maxdepth 1 -name 'ALRemastered-Linux-*.run' -print -quit)"
           test_dir="$RUNNER_TEMP/ALRemastered Custom Path"
           data_dir="$(cat "$RUNNER_TEMP/alremastered-data-dir.txt")"
-          "$installer" --yes --no-desktop
+          "$installer" --yes --no-desktop --restart
           test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.14"
           test "$(cat "$data_dir/upgrade-sentinel.txt")" = "keep-me"
           previous_version="$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).version" "$test_dir/.previous/app/package.json")"
           test "$previous_version" = "0.1.0-alpha.13"
           grep 'event=install_success version=0.1.0-alpha.14' "$data_dir/logs/installer.log"
-          "$test_dir/alremastered" --no-open-dashboard --no-update-check --no-game-version-check --no-game-data-load >"$RUNNER_TEMP/alremastered-linux.log" 2>&1 &
-          client_pid=$!
-          sleep 1
-          kill -0 "$client_pid"
-          grep 'Core is running.' "$RUNNER_TEMP/alremastered-linux.log"
+          dashboard_status=""
+          for attempt in $(seq 1 30); do
+            dashboard_status="$(curl -fsS http://127.0.0.1:3210/api/status 2>/dev/null || true)"
+            if printf '%s' "$dashboard_status" | grep -q '"version":"0.1.0-alpha.14"'; then break; fi
+            sleep 0.5
+          done
+          printf '%s' "$dashboard_status" | grep '"status":"running"'
+          printf '%s' "$dashboard_status" | grep '"version":"0.1.0-alpha.14"'
           curl -fsS http://127.0.0.1:3210/ | grep 'Debug Console'
           curl -fsS http://127.0.0.1:3210/ | grep 'Check for updates'
           curl -fsS http://127.0.0.1:3210/ | grep 'Diagnostics overview'
@@ -99,8 +115,8 @@ jobs:
           test -f "$data_dir/logs/client.log"
           grep '"level":"INFO"' "$data_dir/logs/client.log"
           grep '"message":"ALRemastered starting."' "$data_dir/logs/client.log"
-          kill "$client_pid"
-          wait "$client_pid" || true
+          pkill -f "$test_dir/runtime/node" || true
+          sleep 0.5
           "$test_dir/uninstall.sh" --yes
           test ! -e "$test_dir"
           test "$(cat "$data_dir/upgrade-sentinel.txt")" = "keep-me"
@@ -167,7 +183,7 @@ jobs:
           $installer = Get-ChildItem "artifacts\ALRemastered-Windows-*-Setup.exe" | Select-Object -First 1
           $testDir = Join-Path $env:RUNNER_TEMP "ALRemastered Custom Path"
           $dataDir = Get-Content "$env:RUNNER_TEMP\alremastered-data-dir.txt" -Raw
-          $upgradeProcess = Start-Process -FilePath $installer.FullName -ArgumentList "/S" -Wait -PassThru
+          $upgradeProcess = Start-Process -FilePath $installer.FullName -ArgumentList @("/S", "/ALRUPDATE=1") -Wait -PassThru
           if ($upgradeProcess.ExitCode -ne 0) { throw "Version B installer returned exit code $($upgradeProcess.ExitCode)" }
           $version = & "$testDir\ALRemastered.exe" --version
           if ($version.Trim() -ne "0.1.0-alpha.14") { throw "Expected version B, got $version" }
@@ -177,15 +193,21 @@ jobs:
           $installerLog = Get-Content "$env:LOCALAPPDATA\ALRemastered\logs\installer.log" -Raw
           if ($installerLog -notmatch "event=install_success version=0.1.0-alpha.14") { throw "Upgrade success was not logged." }
           if (Test-Path "$testDir\ALRemastered.cmd") { throw "Legacy batch launcher must not be installed." }
-          $normalLog = Join-Path $env:RUNNER_TEMP "alremastered-windows.log"
-          $normalError = Join-Path $env:RUNNER_TEMP "alremastered-windows-error.log"
-          $client = Start-Process -FilePath "$testDir\ALRemastered.exe" -ArgumentList @("--no-open-dashboard", "--no-update-check", "--no-game-version-check", "--no-game-data-load") -RedirectStandardOutput $normalLog -RedirectStandardError $normalError -PassThru
-          Start-Sleep -Seconds 1
-          if ($client.HasExited) {
-            $normalOutput = if (Test-Path $normalLog) { Get-Content $normalLog -Raw } else { "" }
-            $normalErrors = if (Test-Path $normalError) { Get-Content $normalError -Raw } else { "" }
-            throw "Installed client exited during normal start. Output: $normalOutput Errors: $normalErrors"
+          $dashboardStatus = $null
+          for ($attempt = 0; $attempt -lt 30; $attempt++) {
+            try {
+              $dashboardStatus = Invoke-RestMethod "http://127.0.0.1:3210/api/status"
+              if ($dashboardStatus.version -eq "0.1.0-alpha.14") { break }
+            } catch {
+              $dashboardStatus = $null
+            }
+            Start-Sleep -Milliseconds 500
           }
+          if (-not $dashboardStatus) { throw "Updated ALRemastered did not restart automatically." }
+          if ($dashboardStatus.status -ne "running") { throw "Restarted ALRemastered was not running." }
+          if ($dashboardStatus.version -ne "0.1.0-alpha.14") { throw "Restarted ALRemastered reported the wrong version." }
+          $client = Get-Process -Name "ALRemastered" -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq "$testDir\ALRemastered.exe" } | Select-Object -First 1
+          if (-not $client) { throw "Restarted ALRemastered launcher process was not found." }
           $dashboardPage = Invoke-WebRequest -UseBasicParsing "http://127.0.0.1:3210/"
           if ($dashboardPage.Content -notmatch "Debug Console") { throw "Dashboard UI was not available." }
           if ($dashboardPage.Content -notmatch "Check for updates") { throw "Update controls were not available." }

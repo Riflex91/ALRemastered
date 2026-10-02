@@ -478,3 +478,13 @@ test("dashboard script renders account connection state and clears password inpu
   assert.match(script, /\/api\/account\/login/);
   assert.match(script, /\/api\/account\/disconnect/);
 });
+
+
+test("dashboard update flow keeps the current page and reloads after the new backend starts", () => {
+  const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
+  assert.match(script, /waitForUpdatedDashboard/);
+  assert.match(script, /Installing update\. This dashboard will reconnect automatically/);
+  assert.match(script, /window\.location\.reload\(\)/);
+  assert.match(script, /expectedVersionReached/);
+  assert.match(script, /updateReconnectPending/);
+});

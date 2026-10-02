@@ -7,6 +7,7 @@ import { test } from "node:test";
 import { Logger } from "../src/logging/logger.ts";
 import type { UpdateManifest } from "../src/update/model.ts";
 import { UpdatePreferenceStore } from "../src/update/preferences.ts";
+import { dashboardUpdateInstallerArguments } from "../src/update/installer-launcher.ts";
 import { UpdateService, downloadAndVerify } from "../src/update/service.ts";
 
 function assetFor(data: Buffer, sha256 = createHash("sha256").update(data).digest("hex")) {
@@ -97,4 +98,17 @@ test("successful update verifies data and schedules installation", async () => {
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+
+test("dashboard update installer arguments enable unattended restart without opening a new dashboard", () => {
+  assert.deepEqual(
+    dashboardUpdateInstallerArguments("win32"),
+    ["/S", "/ALRUPDATE=1"],
+  );
+  assert.deepEqual(
+    dashboardUpdateInstallerArguments("linux"),
+    ["--yes", "--no-desktop", "--restart"],
+  );
+  assert.deepEqual(dashboardUpdateInstallerArguments("darwin"), []);
 });

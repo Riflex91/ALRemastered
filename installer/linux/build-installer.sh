@@ -82,6 +82,7 @@ DEFAULT_DIR="\$HOME/.local/opt/ALRemastered"
 INSTALL_DIR=""
 ASSUME_YES=0
 CREATE_DESKTOP=1
+RESTART_AFTER_INSTALL=0
 
 mkdir -p "\$CONFIG_ROOT" "\$DATA_ROOT/logs"
 if [ -f "\$INSTALL_RECORD" ]; then
@@ -94,6 +95,7 @@ while [ "\$#" -gt 0 ]; do
     --install-dir) INSTALL_DIR="\${2:-}"; shift 2 ;;
     --yes) ASSUME_YES=1; shift ;;
     --no-desktop) CREATE_DESKTOP=0; shift ;;
+    --restart) RESTART_AFTER_INSTALL=1; shift ;;
     --version) echo "\$VERSION"; exit 0 ;;
     *) echo "Unknown option: \$1" >&2; exit 2 ;;
   esac
@@ -190,6 +192,11 @@ printf 'User data folder: %s\n' "\$DATA_ROOT"
 printf 'Run: %s/alremastered\n' "\$INSTALL_DIR"
 trap - EXIT HUP INT TERM
 rm -rf "\$TMP_ROOT"
+
+if [ "\$RESTART_AFTER_INSTALL" -eq 1 ]; then
+  nohup "\$INSTALL_DIR/alremastered" --no-open-dashboard >/dev/null 2>&1 &
+fi
+
 exit 0
 __ALREMASTERED_ARCHIVE_BELOW__
 EOF_HEADER

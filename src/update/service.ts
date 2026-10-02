@@ -166,7 +166,7 @@ export class UpdateService {
         ...this.#state,
         status: "installing",
         progressPercent: 100,
-        message: "Update verified. Starting installer…",
+        message: "Update verified. Installing automatically…",
       });
       this.#logger.info("Update integrity verified.", {
         version: this.#manifest.version,

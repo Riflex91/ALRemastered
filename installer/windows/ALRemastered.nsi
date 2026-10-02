@@ -1,4 +1,7 @@
 Unicode true
+!include "FileFunc.nsh"
+!insertmacro GetParameters
+!insertmacro GetOptions
 LoadLanguageFile "${NSISDIR}\Contrib\Language files\English.nlf"
 
 !ifndef APP_VERSION
@@ -17,6 +20,18 @@ InstallDir "$LOCALAPPDATA\Programs\ALRemastered"
 InstallDirRegKey HKCU "Software\ALRemastered" "InstallLocation"
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
+
+Var UpdateRestart
+
+Function .onInit
+  StrCpy $UpdateRestart "0"
+  ${GetParameters} $0
+  ClearErrors
+  ${GetOptions} $0 "/ALRUPDATE=" $1
+  IfErrors update_flag_done
+  StrCpy $UpdateRestart $1
+update_flag_done:
+FunctionEnd
 
 Page directory
 Page instfiles
@@ -74,6 +89,9 @@ Section "ALRemastered" SEC_CORE
   FileOpen $0 "$LOCALAPPDATA\ALRemastered\logs\installer.log" a
   FileWrite $0 "event=install_success version=${APP_VERSION} path=$INSTDIR$\r$\n"
   FileClose $0
+
+  StrCmp $UpdateRestart "1" 0 install_done
+  Exec '"$INSTDIR\ALRemastered.exe" --no-open-dashboard'
   Goto install_done
 
 upgrade_failed:

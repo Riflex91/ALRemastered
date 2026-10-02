@@ -10,6 +10,7 @@ const state = {
   gameData: null,
   diagnostics: null,
   source: null,
+  updateReconnectPending: false,
 };
 
 const elements = {
@@ -478,6 +479,45 @@ async function refreshGameVersion() {
   }
 }
 
+async function waitForUpdatedDashboard(previousVersion, expectedVersion) {
+  if (state.updateReconnectPending) return;
+  state.updateReconnectPending = true;
+
+  const deadline = Date.now() + 2 * 60 * 1000;
+  let sawDisconnect = false;
+  setFeedback("Installing update. This dashboard will reconnect automatically…", "success");
+
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    try {
+      const response = await fetch("/api/status", { cache: "no-store" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const status = await response.json();
+
+      const expectedVersionReached =
+        expectedVersion && status.version === expectedVersion;
+      const versionChanged =
+        previousVersion && status.version !== previousVersion;
+
+      if (expectedVersionReached || (sawDisconnect && versionChanged)) {
+        window.location.reload();
+        return;
+      }
+    } catch {
+      sawDisconnect = true;
+      elements.connectionStatus.textContent = "Updating…";
+      elements.connectionStatus.classList.remove("online");
+    }
+  }
+
+  state.updateReconnectPending = false;
+  setFeedback(
+    "The update was started, but the dashboard did not reconnect automatically. Reload this page after ALRemastered finishes updating.",
+    "error",
+  );
+}
+
 async function refreshUpdate() {
   try {
     const response = await fetch("/api/update", { cache: "no-store" });
@@ -803,8 +843,14 @@ elements.installUpdate.addEventListener("click", async () => {
   state.update = { ...state.update, status: "downloading", progressPercent: 0 };
   renderUpdate();
   try {
+    const previousVersion = state.status?.version ?? state.update?.currentVersion;
     const update = await updateAction("/api/update/install");
-    setFeedback(update.message ?? "Update verified. Starting installer…", "success");
+    const expectedVersion = update.latestVersion;
+    setFeedback(
+      update.message ?? "Update verified. Installing automatically…",
+      "success",
+    );
+    void waitForUpdatedDashboard(previousVersion, expectedVersion);
   } catch (error) {
     setFeedback(`Update installation failed: ${error.message}`, "error");
     await refreshUpdate();
