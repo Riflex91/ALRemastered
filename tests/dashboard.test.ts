@@ -478,3 +478,13 @@ test("dashboard script renders account connection state and clears password inpu
   assert.match(script, /\/api\/account\/login/);
   assert.match(script, /\/api\/account\/disconnect/);
 });
+
+
+test("dashboard keeps the current tab during automatic updates and reloads after restart", () => {
+  const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
+  assert.match(script, /alremastered-update-target/);
+  assert.match(script, /sessionStorage\.setItem/);
+  assert.match(script, /Installing update\. Keep this dashboard open/);
+  assert.match(script, /window\.location\.reload\(\)/);
+  assert.match(script, /Update did not complete/);
+});

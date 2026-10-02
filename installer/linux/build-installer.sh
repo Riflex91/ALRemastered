@@ -82,6 +82,7 @@ DEFAULT_DIR="\$HOME/.local/opt/ALRemastered"
 INSTALL_DIR=""
 ASSUME_YES=0
 CREATE_DESKTOP=1
+RESTART_AFTER_INSTALL=0
 
 mkdir -p "\$CONFIG_ROOT" "\$DATA_ROOT/logs"
 if [ -f "\$INSTALL_RECORD" ]; then
@@ -94,6 +95,7 @@ while [ "\$#" -gt 0 ]; do
     --install-dir) INSTALL_DIR="\${2:-}"; shift 2 ;;
     --yes) ASSUME_YES=1; shift ;;
     --no-desktop) CREATE_DESKTOP=0; shift ;;
+    --restart) RESTART_AFTER_INSTALL=1; shift ;;
     --version) echo "\$VERSION"; exit 0 ;;
     *) echo "Unknown option: \$1" >&2; exit 2 ;;
   esac
@@ -137,6 +139,9 @@ rollback() {
     [ -f "\$PREVIOUS_DIR/alremastered" ] && mv "\$PREVIOUS_DIR/alremastered" "\$INSTALL_DIR/alremastered"
     [ -f "\$PREVIOUS_DIR/uninstall.sh" ] && mv "\$PREVIOUS_DIR/uninstall.sh" "\$INSTALL_DIR/uninstall.sh"
     printf 'event=install_rollback version=%s path=%s\n' "\$VERSION" "\$INSTALL_DIR" >> "\$DATA_ROOT/logs/installer.log"
+    if [ "\$RESTART_AFTER_INSTALL" -eq 1 ] && [ -x "\$INSTALL_DIR/alremastered" ]; then
+      nohup "\$INSTALL_DIR/alremastered" --no-open-dashboard --post-update-rollback >/dev/null 2>&1 &
+    fi
   fi
   rm -rf "\$UPDATE_DIR" "\$TMP_ROOT"
 }
@@ -184,6 +189,10 @@ DESKTOP
 fi
 
 printf 'event=install_success version=%s path=%s\n' "\$VERSION" "\$INSTALL_DIR" >> "\$DATA_ROOT/logs/installer.log"
+if [ "\$RESTART_AFTER_INSTALL" -eq 1 ]; then
+  printf 'event=auto_restart version=%s path=%s\n' "\$VERSION" "\$INSTALL_DIR" >> "\$DATA_ROOT/logs/installer.log"
+  nohup "\$INSTALL_DIR/alremastered" --no-open-dashboard --post-update >/dev/null 2>&1 &
+fi
 printf 'ALRemastered %s was installed successfully.\n' "\$VERSION"
 printf 'Installation folder: %s\n' "\$INSTALL_DIR"
 printf 'User data folder: %s\n' "\$DATA_ROOT"

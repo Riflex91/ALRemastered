@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { Logger } from "../src/logging/logger.ts";
+import { automaticUpdateInstallerArguments } from "../src/update/installer-launcher.ts";
 import type { UpdateManifest } from "../src/update/model.ts";
 import { UpdatePreferenceStore } from "../src/update/preferences.ts";
 import { UpdateService } from "../src/update/service.ts";
@@ -110,4 +111,16 @@ test("a newer version overrides a snoozed older version", async () => {
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+
+test("dashboard updates use silent automatic installer arguments", () => {
+  assert.deepEqual(
+    automaticUpdateInstallerArguments("win32"),
+    ["/S", "/ALRUPDATE=1"],
+  );
+  assert.deepEqual(
+    automaticUpdateInstallerArguments("linux"),
+    ["--yes", "--no-desktop", "--restart"],
+  );
 });

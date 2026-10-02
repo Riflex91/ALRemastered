@@ -80,6 +80,8 @@ When a newer version is available, the dashboard shows:
 
 Updates are never installed without an explicit **Install update** action. The Core selects the installer for the current operating system and architecture, downloads it from the official `Riflex91/ALRemastered` GitHub Release, and verifies its exact file size and SHA-256 digest before scheduling installation. A checksum mismatch blocks installation and is written to the Debug Console.
 
+After **Install update** is confirmed in the dashboard, ALRemastered closes the old local process, runs the installer automatically without another installation prompt, restarts the newly installed client without opening a second dashboard tab, and keeps the existing dashboard page waiting for the local server to return. When the new version is reachable, the existing page reloads itself. If installation rolls back, the previous client is restarted so the dashboard can reconnect.
+
 **Skip this version** applies only to that exact version. **Remind me tomorrow** suppresses the same version for 24 hours. A newer version overrides either choice.
 
 Release publication is handled by the `Publish release` GitHub Actions workflow so Windows, Linux and `ALRemastered-update.json` are produced from one commit.

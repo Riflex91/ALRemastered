@@ -1,5 +1,6 @@
 Unicode true
 LoadLanguageFile "${NSISDIR}\Contrib\Language files\English.nlf"
+!include "FileFunc.nsh"
 
 !ifndef APP_VERSION
   !define APP_VERSION "0.0.0-dev"
@@ -17,6 +18,17 @@ InstallDir "$LOCALAPPDATA\Programs\ALRemastered"
 InstallDirRegKey HKCU "Software\ALRemastered" "InstallLocation"
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
+
+Var AutoUpdate
+
+Function .onInit
+  StrCpy $AutoUpdate "0"
+  ${GetParameters} $R0
+  ClearErrors
+  ${GetOptions} $R0 "/ALRUPDATE=" $R1
+  IfErrors +2
+    StrCpy $AutoUpdate $R1
+FunctionEnd
 
 Page directory
 Page instfiles
@@ -74,6 +86,12 @@ Section "ALRemastered" SEC_CORE
   FileOpen $0 "$LOCALAPPDATA\ALRemastered\logs\installer.log" a
   FileWrite $0 "event=install_success version=${APP_VERSION} path=$INSTDIR$\r$\n"
   FileClose $0
+
+  StrCmp $AutoUpdate "1" 0 install_done
+  FileOpen $0 "$LOCALAPPDATA\ALRemastered\logs\installer.log" a
+  FileWrite $0 "event=auto_restart version=${APP_VERSION} path=$INSTDIR$\r$\n"
+  FileClose $0
+  Exec '"$INSTDIR\ALRemastered.exe" --no-open-dashboard --post-update'
   Goto install_done
 
 upgrade_failed:
@@ -90,7 +108,16 @@ upgrade_failed:
   FileOpen $0 "$LOCALAPPDATA\ALRemastered\logs\installer.log" a
   FileWrite $0 "event=install_rollback version=${APP_VERSION} path=$INSTDIR$\r$\n"
   FileClose $0
+
+  StrCmp $AutoUpdate "1" 0 upgrade_failed_message
+  Exec '"$INSTDIR\ALRemastered.exe" --no-open-dashboard --post-update-rollback'
+
+upgrade_failed_message:
+  IfSilent upgrade_failed_abort
   MessageBox MB_ICONSTOP|MB_OK "ALRemastered could not be updated. The previous version was restored."
+
+upgrade_failed_abort:
+  SetErrorLevel 1
   Abort
 
 install_done:

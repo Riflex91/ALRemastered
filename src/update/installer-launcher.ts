@@ -2,35 +2,83 @@ import { spawn } from "node:child_process";
 import { chmodSync } from "node:fs";
 import type { Logger } from "../logging/logger.ts";
 
+export function automaticUpdateInstallerArguments(
+  platform: NodeJS.Platform,
+): readonly string[] {
+  if (platform === "win32") return ["/S", "/ALRUPDATE=1"];
+  if (platform === "linux") return ["--yes", "--no-desktop", "--restart"];
+  return [];
+}
+
 export async function scheduleInstallerAfterCurrentProcess(
   installerPath: string,
   logger: Logger,
   platform: NodeJS.Platform = process.platform,
   parentPid: number = process.pid,
-  installerArguments: readonly string[] = [],
+  installerArguments: readonly string[] = automaticUpdateInstallerArguments(platform),
 ): Promise<void> {
   if (platform === "win32") {
-    await spawnConfirmed(installerPath, [...installerArguments], {
-      detached: true,
-      stdio: "ignore",
-      windowsHide: false,
+    const script = [
+      "$ErrorActionPreference = 'Stop'",
+      "$targetPid = [int]$env:ALR_UPDATE_PARENT_PID",
+      "try { Wait-Process -Id $targetPid -ErrorAction SilentlyContinue } catch {}",
+      "Start-Sleep -Milliseconds 1200",
+      "$installerArgs = @()",
+      "if ($env:ALR_UPDATE_ARGS_JSON) { $installerArgs = @(ConvertFrom-Json -InputObject $env:ALR_UPDATE_ARGS_JSON) }",
+      "$process = Start-Process -FilePath $env:ALR_UPDATE_INSTALLER -ArgumentList $installerArgs -Wait -PassThru -WindowStyle Hidden",
+      "exit $process.ExitCode",
+    ].join("; ");
+
+    await spawnConfirmed(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script],
+      {
+        detached: true,
+        stdio: "ignore",
+        windowsHide: true,
+        env: {
+          ...process.env,
+          ALR_UPDATE_PARENT_PID: String(parentPid),
+          ALR_UPDATE_INSTALLER: installerPath,
+          ALR_UPDATE_ARGS_JSON: JSON.stringify([...installerArguments]),
+        },
+      },
+    );
+    logger.info("Verified Windows update handoff started.", {
+      installerPath,
+      automatic: installerArguments.includes("/ALRUPDATE=1"),
     });
-    logger.info("Verified Windows update installer process started.", { installerPath });
     return;
   }
 
   if (platform === "linux") {
     chmodSync(installerPath, 0o755);
-    const script = 'while kill -0 "$1" 2>/dev/null; do sleep 0.2; done; sleep 1.2; chmod +x "$2"; exec "$2"';
+    const script = [
+      'while kill -0 "$1" 2>/dev/null; do sleep 0.2; done',
+      "sleep 1.2",
+      'installer="$2"',
+      "shift 2",
+      'exec "$installer" "$@"',
+    ].join("; ");
     await spawnConfirmed(
       "/bin/sh",
-      ["-c", script, "alremastered-updater", String(parentPid), installerPath],
+      [
+        "-c",
+        script,
+        "alremastered-updater",
+        String(parentPid),
+        installerPath,
+        ...installerArguments,
+      ],
       {
         detached: true,
         stdio: "ignore",
       },
     );
-    logger.info("Verified Linux update installer handoff started.", { installerPath });
+    logger.info("Verified Linux update installer handoff started.", {
+      installerPath,
+      automatic: installerArguments.includes("--restart"),
+    });
     return;
   }
 

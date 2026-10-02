@@ -58,6 +58,12 @@ logger.info("ALRemastered starting.", {
   releaseChannel: getReleaseMetadata().channel,
   platform: process.platform,
 });
+if (args.has("--post-update")) {
+  logger.info("ALRemastered restarted automatically after update.");
+}
+if (args.has("--post-update-rollback")) {
+  logger.warn("ALRemastered restarted automatically after update rollback.");
+}
 runtime.start();
 logger.info("Core started.", runtime.health());
 

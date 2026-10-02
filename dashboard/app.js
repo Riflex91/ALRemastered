@@ -10,6 +10,7 @@ const state = {
   gameData: null,
   diagnostics: null,
   source: null,
+  updateRestartDisconnected: false,
 };
 
 const elements = {
@@ -65,6 +66,32 @@ const elements = {
   copySnapshot: document.querySelector("#copy-snapshot"),
   downloadPackage: document.querySelector("#download-package"),
 };
+
+const UPDATE_RESTART_STORAGE_KEY = "alremastered-update-target";
+
+function readUpdateRestartTarget() {
+  try {
+    return sessionStorage.getItem(UPDATE_RESTART_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function rememberUpdateRestartTarget(version) {
+  try {
+    sessionStorage.setItem(UPDATE_RESTART_STORAGE_KEY, version);
+  } catch {
+    // The in-memory reconnect state still works when session storage is unavailable.
+  }
+}
+
+function clearUpdateRestartTarget() {
+  try {
+    sessionStorage.removeItem(UPDATE_RESTART_STORAGE_KEY);
+  } catch {
+    // Nothing else is required when session storage is unavailable.
+  }
+}
 
 function setFeedback(message, kind = "") {
   elements.feedback.textContent = message;
@@ -437,10 +464,40 @@ async function refreshStatus() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     state.status = await response.json();
     updateStatusView();
+
+    const restartTarget = readUpdateRestartTarget();
+    if (restartTarget && state.status.version === restartTarget) {
+      clearUpdateRestartTarget();
+      state.updateRestartDisconnected = false;
+      setFeedback(
+        `ALRemastered ${restartTarget} installed successfully. Reloading dashboard…`,
+        "success",
+      );
+      window.location.reload();
+      return;
+    }
+
+    if (restartTarget && state.updateRestartDisconnected) {
+      clearUpdateRestartTarget();
+      state.updateRestartDisconnected = false;
+      setFeedback(
+        `Update did not complete. ALRemastered ${state.status.version} is still running.`,
+        "error",
+      );
+    }
+
     elements.connectionStatus.textContent = "Dashboard connected";
     elements.connectionStatus.classList.add("online");
   } catch {
-    elements.connectionStatus.textContent = "Dashboard disconnected";
+    if (readUpdateRestartTarget()) {
+      state.updateRestartDisconnected = true;
+      elements.connectionStatus.textContent = "Installing update…";
+      setFeedback(
+        "Installing update. Keep this dashboard open; it will reload automatically.",
+      );
+    } else {
+      elements.connectionStatus.textContent = "Dashboard disconnected";
+    }
     elements.connectionStatus.classList.remove("online");
   }
 }
@@ -518,7 +575,9 @@ function connectStream() {
   });
 
   source.addEventListener("error", () => {
-    elements.connectionStatus.textContent = "Reconnecting…";
+    elements.connectionStatus.textContent = readUpdateRestartTarget()
+      ? "Installing update…"
+      : "Reconnecting…";
     elements.connectionStatus.classList.remove("online");
   });
 }
@@ -804,8 +863,19 @@ elements.installUpdate.addEventListener("click", async () => {
   renderUpdate();
   try {
     const update = await updateAction("/api/update/install");
-    setFeedback(update.message ?? "Update verified. Starting installer…", "success");
+    if (update.status === "installing" && update.latestVersion) {
+      rememberUpdateRestartTarget(update.latestVersion);
+      state.updateRestartDisconnected = false;
+      setFeedback(
+        `ALRemastered ${update.latestVersion} is installing. Keep this dashboard open; it will reload automatically.`,
+        "success",
+      );
+    } else {
+      setFeedback(update.message ?? "Update verified. Starting installer…", "success");
+    }
   } catch (error) {
+    clearUpdateRestartTarget();
+    state.updateRestartDisconnected = false;
     setFeedback(`Update installation failed: ${error.message}`, "error");
     await refreshUpdate();
   }
