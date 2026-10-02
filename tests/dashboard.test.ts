@@ -101,7 +101,61 @@ test("dashboard user interface contains the required English controls", () => {
     "Copy filtered log",
     "Download log",
     "Clear log",
+    "Check for updates",
+    "Install update",
+    "Skip this version",
+    "Remind me tomorrow",
+    "Release notes",
   ]) {
     assert.equal(html.includes(label), true, `Missing dashboard label: ${label}`);
+  }
+});
+
+
+test("dashboard update API delegates update actions", async () => {
+  const runtime = new CoreRuntime();
+  runtime.start();
+  const logger = new Logger({ component: "dashboard-update-test" });
+  const available = {
+    status: "available",
+    currentVersion: "0.1.0-alpha.4",
+    latestVersion: "0.1.0-alpha.5",
+    publishedAt: "2026-10-02T14:00:00.000Z",
+    releaseNotesUrl: "https://github.com/Riflex91/ALRemastered/releases/tag/v0.1.0-alpha.5",
+  };
+  const fakeUpdateService = {
+    state: () => available,
+    checkNow: async () => available,
+    skipVersion: () => ({ ...available, status: "deferred", message: "This version will be skipped." }),
+    remindTomorrow: () => ({ ...available, status: "deferred", message: "This update will be shown again tomorrow." }),
+    installUpdate: async () => ({ ...available, status: "installing", progressPercent: 100 }),
+  };
+  const dashboard = new DashboardServer({
+    logger,
+    runtime,
+    updateService: fakeUpdateService,
+    host: "127.0.0.1",
+    port: 0,
+  });
+
+  const url = await dashboard.start();
+  try {
+    const current = await fetch(`${url}/api/update`);
+    assert.equal((await current.json()).status, "available");
+
+    const checked = await fetch(`${url}/api/update/check`, { method: "POST" });
+    assert.equal((await checked.json()).latestVersion, "0.1.0-alpha.5");
+
+    const skipped = await fetch(`${url}/api/update/skip`, { method: "POST" });
+    assert.equal((await skipped.json()).status, "deferred");
+
+    const reminded = await fetch(`${url}/api/update/remind`, { method: "POST" });
+    assert.equal((await reminded.json()).status, "deferred");
+
+    const installing = await fetch(`${url}/api/update/install`, { method: "POST" });
+    assert.equal((await installing.json()).status, "installing");
+  } finally {
+    await dashboard.stop();
+    runtime.stop();
   }
 });
