@@ -99,19 +99,19 @@ export class DashboardServer {
     }
     if (method === "POST" && path === "/api/update/check") {
       if (!this.#updateService) return this.#json(response, { error: "Update service is unavailable." }, 503);
-      return this.#json(response, await this.#updateService.checkNow(true));
+      return this.#runUpdateAction(response, () => this.#updateService!.checkNow(true));
     }
     if (method === "POST" && path === "/api/update/skip") {
       if (!this.#updateService) return this.#json(response, { error: "Update service is unavailable." }, 503);
-      return this.#json(response, this.#updateService.skipVersion());
+      return this.#runUpdateAction(response, () => this.#updateService!.skipVersion());
     }
     if (method === "POST" && path === "/api/update/remind") {
       if (!this.#updateService) return this.#json(response, { error: "Update service is unavailable." }, 503);
-      return this.#json(response, this.#updateService.remindTomorrow());
+      return this.#runUpdateAction(response, () => this.#updateService!.remindTomorrow());
     }
     if (method === "POST" && path === "/api/update/install") {
       if (!this.#updateService) return this.#json(response, { error: "Update service is unavailable." }, 503);
-      return this.#json(response, await this.#updateService.installUpdate());
+      return this.#runUpdateAction(response, () => this.#updateService!.installUpdate());
     }
 
     if (method === "GET" && path === "/api/logs") {
@@ -175,6 +175,15 @@ export class DashboardServer {
       "Referrer-Policy": "no-referrer",
     });
     createReadStream(filePath).pipe(response);
+  }
+
+  async #runUpdateAction(response: ServerResponse, action: () => unknown | Promise<unknown>): Promise<void> {
+    try {
+      this.#json(response, await action());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.#json(response, { error: message }, 400);
+    }
   }
 
   #json(response: ServerResponse, payload: unknown, statusCode = 200): void {
