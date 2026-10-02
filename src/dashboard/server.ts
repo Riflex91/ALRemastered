@@ -9,6 +9,7 @@ import type {
   MovementDirection,
   MovementMode,
 } from "../action/movement.ts";
+import type { AdventureLandAttackService } from "../action/attack.ts";
 import type { AdventureLandSelectionService } from "../account/selection-service.ts";
 import type { AdventureLandCharacterService } from "../character/service.ts";
 import type { CoreRuntime, HealthSnapshot } from "../core/app.ts";
@@ -28,6 +29,7 @@ export interface DashboardServerOptions {
   readonly characterService?: AdventureLandCharacterService;
   readonly actionGateway?: ActionGateway;
   readonly movementService?: AdventureLandMovementService;
+  readonly attackService?: AdventureLandAttackService;
   readonly updateService?: UpdateService;
   readonly diagnostics?: DiagnosticsService;
   readonly gameVersionService?: AdventureLandVersionService;
@@ -44,6 +46,7 @@ export class DashboardServer {
   readonly #characterService?: AdventureLandCharacterService;
   readonly #actionGateway?: ActionGateway;
   readonly #movementService?: AdventureLandMovementService;
+  readonly #attackService?: AdventureLandAttackService;
   readonly #updateService?: UpdateService;
   readonly #diagnostics?: DiagnosticsService;
   readonly #gameVersionService?: AdventureLandVersionService;
@@ -63,6 +66,7 @@ export class DashboardServer {
     this.#characterService = options.characterService;
     this.#actionGateway = options.actionGateway;
     this.#movementService = options.movementService;
+    this.#attackService = options.attackService;
     this.#updateService = options.updateService;
     this.#diagnostics = options.diagnostics;
     this.#gameVersionService = options.gameVersionService;
@@ -272,6 +276,33 @@ export class DashboardServer {
       const result = await this.#movementService.runDashboardTest({
         mode,
         direction,
+      });
+      return this.#json(response, result, gatewayStatusCode(result));
+    }
+
+    if (method === "POST" && path === "/api/action-gateway/attack-test") {
+      if (!this.#attackService) {
+        return this.#json(response, { error: "Attack test service is unavailable." }, 503);
+      }
+
+      let body: Record<string, unknown>;
+      try {
+        body = await this.#readJsonObject(request);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Invalid request body.";
+        return this.#json(response, { error: message }, 400);
+      }
+
+      if (typeof body.targetId !== "string" || !body.targetId.trim()) {
+        return this.#json(
+          response,
+          { error: "Attack test requires one visible monster target ID." },
+          400,
+        );
+      }
+
+      const result = await this.#attackService.runDashboardTest({
+        targetId: body.targetId,
       });
       return this.#json(response, result, gatewayStatusCode(result));
     }
