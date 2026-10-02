@@ -155,7 +155,7 @@ function applyEntityList(
   if (!Array.isArray(value)) return;
   for (const raw of value) {
     if (!isRecord(raw)) continue;
-    const id = stringValue(raw.id) ?? stringValue(raw.name);
+    const id = entityIdValue(raw.id) ?? stringValue(raw.name);
     if (!id) continue;
     const parsed = parseEntity(raw, kind, entities.get(id));
     if (!parsed) continue;
@@ -168,7 +168,7 @@ function parseEntity(
   kind: AdventureLandEntityKind,
   previous?: AdventureLandVisibleEntity,
 ): AdventureLandVisibleEntity | undefined {
-  const id = stringValue(raw.id) ?? stringValue(raw.name);
+  const id = entityIdValue(raw.id) ?? stringValue(raw.name);
   if (!id) return undefined;
 
   const rawType = kind === "monster"
@@ -200,6 +200,14 @@ function emptyPartyState(): AdventureLandPartyState {
     members: Object.freeze([]),
     details: Object.freeze({}),
   });
+}
+
+function entityIdValue(value: unknown): string | undefined {
+  if (typeof value === "string" && value) return value;
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) {
+    return String(value);
+  }
+  return undefined;
 }
 
 function stringValue(value: unknown): string | undefined {
