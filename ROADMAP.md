@@ -217,7 +217,7 @@ Erst nach Benutzer-Livetest → Slice 0.3.
 
 ## Slice 0.3 – Logging-Core und Secret-Sanitizer
 
-**Status: IN PROGRESS**
+**Status: MERGED – AWAITING USER TEST**
 
 **Dieser Slice kommt absichtlich sehr früh.**
 
