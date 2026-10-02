@@ -108,7 +108,7 @@ test("headless transport follows welcome-loaded-auth-start without automation ev
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(socket.sent.at(-1), "3server-ping");
 
-  socket.message('42["start",{"id":"RangerOne","name":"RangerOne","ctype":"ranger","level":45,"xp":12345,"max_xp":50000,"map":"main","x":12,"y":34,"hp":4000,"max_hp":4000,"mp":900,"max_mp":1000,"angle":0,"target":null,"rip":false,"items":[{"name":"hpot0","q":20},null,{"name":"scroll0","level":0}],"slots":{"mainhand":{"name":"bow","level":3},"helmet":null,"trade1":{"name":"hpot0","q":5}},"gold":123456,"m":7,"s":{"mluck":{"ms":5000,"f":"Merchant"}},"party":"RangerOne","entities":{"type":"all","players":[{"id":"MageStart","name":"MageStart","ctype":"mage","level":49,"x":18,"y":36}],"monsters":[{"id":"goo-start","type":"goo","x":22,"y":38}]}}]');
+  socket.message('42["start",{"id":"RangerOne","name":"RangerOne","ctype":"ranger","level":45,"xp":12345,"max_xp":50000,"map":"main","x":12,"y":34,"hp":4000,"max_hp":4000,"mp":900,"max_mp":1000,"range":120,"angle":0,"target":null,"rip":false,"items":[{"name":"hpot0","q":20},null,{"name":"scroll0","level":0}],"slots":{"mainhand":{"name":"bow","level":3},"helmet":null,"trade1":{"name":"hpot0","q":5}},"gold":123456,"m":7,"s":{"mluck":{"ms":5000,"f":"Merchant"}},"party":"RangerOne","entities":{"type":"all","players":[{"id":"MageStart","name":"MageStart","ctype":"mage","level":49,"x":18,"y":36}],"monsters":[{"id":"goo-start","type":"goo","x":22,"y":38}]}}]');
   const connection = await connecting;
   assert.equal(connection.character.id, "CH_1");
   assert.equal(connection.character.name, "RangerOne");
@@ -128,6 +128,7 @@ test("headless transport follows welcome-loaded-auth-start without automation ev
   assert.equal(connection.character.gold, 123456);
   assert.equal(connection.character.conditions?.mluck?.ms, 5000);
   assert.equal(connection.character.movementSequence, 7);
+  assert.equal(connection.character.range, 120);
 
   const moveReceipt = connection.sendMove({ x: 44, y: 34 });
   assert.deepEqual(moveReceipt, {
@@ -144,6 +145,31 @@ test("headless transport follows welcome-loaded-auth-start without automation ev
     "move",
     { x: 12, y: 34, going_x: 44, going_y: 34, m: 7 },
   ]);
+
+  const attackPromise = connection.sendAttack({ targetId: "goo-start" });
+  const attackPacket = socket.sent.find((packet) =>
+    packet.startsWith('42["attack"')
+  );
+  assert.ok(attackPacket);
+  assert.deepEqual(JSON.parse(attackPacket.slice(2)), [
+    "attack",
+    { id: "goo-start" },
+  ]);
+  socket.message('42["skill_timeout",{"name":"attack","ms":800}]');
+  socket.message('42["game_response",{"response":"data","place":"attack","success":true}]');
+  const attackReceipt = await attackPromise;
+  assert.equal(attackReceipt.targetId, "goo-start");
+  assert.equal(attackReceipt.success, true);
+  assert.ok((attackReceipt.cooldownMs ?? 0) > 0);
+  assert.ok((attackReceipt.cooldownMs ?? 0) <= 800);
+  assert.ok(connection.attackCooldownRemainingMs() > 0);
+
+  const cooldownPromise = connection.sendAttack({ targetId: "goo-start" });
+  socket.message('42["game_response",{"response":"data","place":"attack","failed":true,"reason":"cooldown","ms":450}]');
+  const cooldownReceipt = await cooldownPromise;
+  assert.equal(cooldownReceipt.success, false);
+  assert.equal(cooldownReceipt.reason, "cooldown");
+  assert.equal(cooldownReceipt.cooldownMs, 450);
 
   let liveState = connection.snapshot();
   assert.equal(liveState.entities.length, 2);
@@ -258,6 +284,7 @@ test("character service allows exactly one connection and disconnects controllab
       gold: 123456,
       conditions: { mluck: { ms: 5000 } },
       movementSequence: 7,
+      range: 120,
     },
     pingMs: undefined,
     snapshot() {
@@ -292,6 +319,16 @@ test("character service allows exactly one connection and disconnects controllab
         targetX: input.x,
         targetY: input.y,
       };
+    },
+    async sendAttack(input) {
+      return {
+        targetId: input.targetId,
+        success: true,
+        cooldownMs: 750,
+      };
+    },
+    attackCooldownRemainingMs() {
+      return 0;
     },
     async close() {
       closeCalls += 1;
@@ -330,6 +367,12 @@ test("character service allows exactly one connection and disconnects controllab
     targetX: 44,
     targetY: 34,
   });
+  assert.deepEqual(await service.sendAttack({ targetId: "goo-1" }), {
+    targetId: "goo-1",
+    success: true,
+    cooldownMs: 750,
+  });
+  assert.equal(service.attackCooldownRemainingMs(), 0);
 
   liveListener?.({
     character: {
