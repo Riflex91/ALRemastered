@@ -62,6 +62,25 @@ The first dashboard slice includes:
 
 The dashboard server listens only on the local loopback interface. Diagnostic log exports are produced from already sanitized records.
 
+## Automatic updates
+
+ALRemastered checks the repository's public GitHub Releases at startup and periodically while running. The dashboard also provides **Check for updates**.
+
+When a newer version is available, the dashboard shows:
+
+- **Install update**
+- **Skip this version**
+- **Remind me tomorrow**
+- release notes
+- current/new version
+- download progress
+
+Updates are never installed without an explicit **Install update** action. The Core selects the installer for the current operating system and architecture, downloads it from the official `Riflex91/ALRemastered` GitHub Release, and verifies its exact file size and SHA-256 digest before scheduling installation. A checksum mismatch blocks installation and is written to the Debug Console.
+
+**Skip this version** applies only to that exact version. **Remind me tomorrow** suppresses the same version for 24 hours. A newer version overrides either choice.
+
+Release publication is handled by the `Publish release` GitHub Actions workflow so Windows, Linux and `ALRemastered-update.json` are produced from one commit.
+
 ## Diagnostics
 
 ALRemastered writes structured client logs to the platform user-data location:
