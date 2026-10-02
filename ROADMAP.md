@@ -505,9 +505,11 @@ Character verbinden, einige Minuten stehen lassen, stoppen; bei Problemen Gesamt
 
 ## Slice 2.4 – Basis-Live-State
 
-**Status: MERGED – AWAITING USER TEST**
+**Status: VERIFIED**
 
 > 2026-10-02: Base live state merged in `0.1.0-alpha.18`. The headless character API/dashboard now exposes HP/MP, level/XP, map, position, direction, target, death state, and measured server ping from read-only Adventure Land events. Automated Windows/Linux CI passed. Real-account live validation is still required before VERIFIED.
+>
+> 2026-10-02: VERIFIED on Windows with `0.1.0-alpha.18`. A real ranger character connected headlessly to EU II for almost three minutes and disconnected cleanly from the dashboard. Live diagnostics retained the canonical `CH_…` character ID, showed HP changing from 4182 to 4135 while level/XP/map/position/death state remained coherent, measured 12 ms server ping, confirmed `automation:false`, and reported `Secrets sanitized: yes`. Target was unset and no direction value was emitted by the server during this stationary live run; both target transitions and direction updates from `player`/`new_map` events are covered by the passing automated transport tests.
 
 - HP / MP
 - Level / XP
