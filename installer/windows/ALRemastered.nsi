@@ -20,14 +20,30 @@ RequestExecutionLevel user
 SetCompressor /SOLID lzma
 
 Var AutoUpdate
+Var WaitPid
 
 Function .onInit
   StrCpy $AutoUpdate "0"
+  StrCpy $WaitPid ""
   ${GetParameters} $R0
+
   ClearErrors
   ${GetOptions} $R0 "/ALRUPDATE=" $R1
   IfErrors +2
     StrCpy $AutoUpdate $R1
+
+  ClearErrors
+  ${GetOptions} $R0 "/ALRWAITPID=" $R2
+  IfErrors +2
+    StrCpy $WaitPid $R2
+
+  StrCmp $AutoUpdate "1" 0 update_wait_done
+  StrCmp $WaitPid "" update_wait_done
+  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -WindowStyle Hidden -Command "try { Wait-Process -Id $WaitPid -ErrorAction SilentlyContinue } catch {}; Start-Sleep -Milliseconds 1200"'
+  Pop $R3
+  Pop $R4
+
+update_wait_done:
 FunctionEnd
 
 Page directory

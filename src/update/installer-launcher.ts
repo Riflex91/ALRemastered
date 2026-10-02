@@ -10,6 +10,20 @@ export function automaticUpdateInstallerArguments(
   return [];
 }
 
+export function installerHandoffArguments(
+  platform: NodeJS.Platform,
+  parentPid: number,
+  installerArguments: readonly string[],
+): readonly string[] {
+  if (
+    platform === "win32" &&
+    installerArguments.includes("/ALRUPDATE=1")
+  ) {
+    return [...installerArguments, `/ALRWAITPID=${parentPid}`];
+  }
+  return [...installerArguments];
+}
+
 export async function scheduleInstallerAfterCurrentProcess(
   installerPath: string,
   logger: Logger,
@@ -17,36 +31,24 @@ export async function scheduleInstallerAfterCurrentProcess(
   parentPid: number = process.pid,
   installerArguments: readonly string[] = automaticUpdateInstallerArguments(platform),
 ): Promise<void> {
-  if (platform === "win32") {
-    const script = [
-      "$ErrorActionPreference = 'Stop'",
-      "$targetPid = [int]$env:ALR_UPDATE_PARENT_PID",
-      "try { Wait-Process -Id $targetPid -ErrorAction SilentlyContinue } catch {}",
-      "Start-Sleep -Milliseconds 1200",
-      "$installerArgs = @()",
-      "if ($env:ALR_UPDATE_ARGS_JSON) { $installerArgs = @(ConvertFrom-Json -InputObject $env:ALR_UPDATE_ARGS_JSON) }",
-      "$process = Start-Process -FilePath $env:ALR_UPDATE_INSTALLER -ArgumentList $installerArgs -Wait -PassThru -WindowStyle Hidden",
-      "exit $process.ExitCode",
-    ].join("; ");
+  const handoffArguments = installerHandoffArguments(
+    platform,
+    parentPid,
+    installerArguments,
+  );
 
-    await spawnConfirmed(
-      "powershell.exe",
-      ["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script],
-      {
-        detached: true,
-        stdio: "ignore",
-        windowsHide: true,
-        env: {
-          ...process.env,
-          ALR_UPDATE_PARENT_PID: String(parentPid),
-          ALR_UPDATE_INSTALLER: installerPath,
-          ALR_UPDATE_ARGS_JSON: JSON.stringify([...installerArguments]),
-        },
-      },
-    );
-    logger.info("Verified Windows update handoff started.", {
+  if (platform === "win32") {
+    await spawnConfirmed(installerPath, handoffArguments, {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+    });
+    logger.info("Verified Windows update installer handoff started.", {
       installerPath,
       automatic: installerArguments.includes("/ALRUPDATE=1"),
+      waitsForCurrentProcess: handoffArguments.some((value) =>
+        value.startsWith("/ALRWAITPID=")
+      ),
     });
     return;
   }
@@ -68,7 +70,7 @@ export async function scheduleInstallerAfterCurrentProcess(
         "alremastered-updater",
         String(parentPid),
         installerPath,
-        ...installerArguments,
+        ...handoffArguments,
       ],
       {
         detached: true,

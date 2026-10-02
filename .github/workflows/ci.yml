@@ -186,8 +186,12 @@ jobs:
           $installer = Get-ChildItem "artifacts\ALRemastered-Windows-*-Setup.exe" | Select-Object -First 1
           $testDir = Join-Path $env:RUNNER_TEMP "ALRemastered Custom Path"
           $dataDir = Get-Content "$env:RUNNER_TEMP\alremastered-data-dir.txt" -Raw
-          $upgradeProcess = Start-Process -FilePath $installer.FullName -ArgumentList @("/S", "/ALRUPDATE=1") -Wait -PassThru
+          $waitProbe = Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 2") -WindowStyle Hidden -PassThru
+          $waitStartedAt = Get-Date
+          $upgradeProcess = Start-Process -FilePath $installer.FullName -ArgumentList @("/S", "/ALRUPDATE=1", "/ALRWAITPID=$($waitProbe.Id)") -Wait -PassThru
+          $waitElapsed = (Get-Date) - $waitStartedAt
           if ($upgradeProcess.ExitCode -ne 0) { throw "Version B installer returned exit code $($upgradeProcess.ExitCode)" }
+          if ($waitElapsed.TotalMilliseconds -lt 1800) { throw "Automatic update installer did not wait for the previous client process." }
           $version = & "$testDir\ALRemastered.exe" --version
           if ($version.Trim() -ne "0.1.0-alpha.14") { throw "Expected version B, got $version" }
           if ((Get-Content (Join-Path $dataDir "upgrade-sentinel.txt") -Raw) -ne "keep-me") { throw "User data was not preserved." }
