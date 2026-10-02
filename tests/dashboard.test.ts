@@ -586,3 +586,85 @@ test("dashboard script renders character and server selection without a characte
   assert.match(script, /\/api\/selection\/server/);
   assert.doesNotMatch(script, /\/api\/selection\/start/);
 });
+
+
+test("dashboard character API starts and stops one headless connection without automation", async () => {
+  const runtime = new CoreRuntime();
+  runtime.start();
+  const logger = new Logger({ component: "dashboard-character-test" });
+  let state = {
+    status: "disconnected",
+    message: "No headless Adventure Land character is connected.",
+  };
+  let startedCharacterId = "";
+  let stopReason = "";
+  const fakeCharacterService = {
+    state: () => state,
+    start: async (characterId: string) => {
+      startedCharacterId = characterId;
+      state = {
+        status: "connected",
+        characterId,
+        characterName: "RangerOne",
+        serverKey: "SR_EUII",
+        serverRegion: "EU",
+        serverName: "II",
+        connectedAt: "2026-10-02T20:05:00.000Z",
+        message: "RangerOne is connected headlessly. No automation is running.",
+      } as typeof state;
+      return state;
+    },
+    stop: async (reason: string) => {
+      stopReason = reason;
+      state = {
+        status: "disconnected",
+        message: "No headless Adventure Land character is connected.",
+      };
+      return state;
+    },
+  };
+
+  const dashboard = new DashboardServer({
+    logger,
+    runtime,
+    characterService: fakeCharacterService as any,
+    host: "127.0.0.1",
+    port: 0,
+  });
+
+  const url = await dashboard.start();
+  try {
+    const initial = await fetch(`${url}/api/character`);
+    assert.equal((await initial.json()).status, "disconnected");
+
+    const started = await fetch(`${url}/api/character/start`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ characterId: "CH_1" }),
+    });
+    assert.equal(started.status, 200);
+    assert.equal((await started.json()).status, "connected");
+    assert.equal(startedCharacterId, "CH_1");
+
+    const automationAttempt = await fetch(`${url}/api/character/automation`, {
+      method: "POST",
+    });
+    assert.equal(automationAttempt.status, 405);
+
+    const stopped = await fetch(`${url}/api/character/stop`, { method: "POST" });
+    assert.equal((await stopped.json()).status, "disconnected");
+    assert.equal(stopReason, "dashboard");
+  } finally {
+    await dashboard.stop();
+    runtime.stop();
+  }
+});
+
+test("dashboard script exposes only headless character start and disconnect controls", () => {
+  const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
+  assert.match(script, /refreshCharacterConnection/);
+  assert.match(script, /\/api\/character\/start/);
+  assert.match(script, /\/api\/character\/stop/);
+  assert.match(script, /No automation is running/);
+  assert.doesNotMatch(script, /\/api\/character\/automation/);
+});

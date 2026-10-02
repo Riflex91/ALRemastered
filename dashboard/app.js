@@ -6,6 +6,7 @@ const state = {
   status: null,
   account: null,
   selection: null,
+  character: null,
   update: null,
   gameVersion: null,
   gameData: null,
@@ -38,6 +39,13 @@ const elements = {
   serverSelect: document.querySelector("#server-select"),
   selectServer: document.querySelector("#select-server"),
   refreshSelection: document.querySelector("#refresh-selection"),
+  characterConnectionStatus: document.querySelector("#character-connection-status"),
+  activeCharacter: document.querySelector("#active-character"),
+  characterServer: document.querySelector("#character-server"),
+  characterConnectedAt: document.querySelector("#character-connected-at"),
+  characterSelect: document.querySelector("#character-select"),
+  startCharacter: document.querySelector("#start-character"),
+  stopCharacter: document.querySelector("#stop-character"),
   gameVersion: document.querySelector("#game-version"),
   gameVersionStatus: document.querySelector("#game-version-status"),
   gameLastDeploy: document.querySelector("#game-last-deploy"),
@@ -217,6 +225,48 @@ function renderAccount() {
   elements.accountConnect.disabled = account.status === "connecting";
 }
 
+function renderCharacterConnection() {
+  const connection = state.character;
+  if (!connection) return;
+
+  const labels = {
+    disconnected: "Disconnected",
+    connecting: "Connecting…",
+    connected: "Connected",
+    disconnecting: "Disconnecting…",
+    error: "Connection failed",
+  };
+  elements.characterConnectionStatus.textContent =
+    labels[connection.status] ?? connection.status;
+  elements.characterConnectionStatus.title = connection.message ?? "";
+  elements.activeCharacter.textContent =
+    connection.characterName ?? connection.character?.name ?? "—";
+  elements.characterServer.textContent =
+    connection.serverRegion && connection.serverName
+      ? `${connection.serverRegion} ${connection.serverName}`
+      : "—";
+  elements.characterConnectedAt.textContent =
+    connection.connectedAt ? formatPublished(connection.connectedAt) : "—";
+
+  const busy = ["connecting", "connected", "disconnecting"].includes(connection.status);
+  const canStart =
+    state.account?.status === "connected" &&
+    state.selection?.status === "ready" &&
+    Boolean(state.selection?.selectedServerKey) &&
+    Boolean(elements.characterSelect.value) &&
+    !busy;
+  elements.startCharacter.disabled = !canStart;
+  elements.stopCharacter.hidden =
+    connection.status !== "connected" && connection.status !== "connecting";
+  elements.stopCharacter.disabled = connection.status === "disconnecting";
+  elements.characterSelect.disabled = busy;
+  elements.serverSelect.disabled = busy || state.selection?.status !== "ready";
+  elements.selectServer.disabled =
+    busy ||
+    state.selection?.status !== "ready" ||
+    (state.selection?.servers?.length ?? 0) === 0;
+}
+
 function renderSelection() {
   const selection = state.selection;
   const connected = state.account?.status === "connected";
@@ -245,6 +295,31 @@ function renderSelection() {
 
   elements.characterList.replaceChildren();
   const characters = selection.characters ?? [];
+
+  const previousCharacter = elements.characterSelect.value;
+  elements.characterSelect.replaceChildren();
+  if (characters.length === 0) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "No characters available";
+    elements.characterSelect.append(option);
+  } else {
+    for (const character of characters) {
+      const option = document.createElement("option");
+      option.value = character.id;
+      option.textContent =
+        `${character.name} · ${character.type} · Level ${character.level}`;
+      elements.characterSelect.append(option);
+    }
+    const activeId = state.character?.characterId;
+    elements.characterSelect.value =
+      activeId && characters.some((character) => character.id === activeId)
+        ? activeId
+        : characters.some((character) => character.id === previousCharacter)
+          ? previousCharacter
+          : characters[0].id;
+  }
+
   if (characters.length === 0) {
     const empty = document.createElement("div");
     empty.className = "empty";
@@ -299,8 +374,13 @@ function renderSelection() {
     elements.serverSelect.value = preferred;
   }
 
+  const characterBusy = ["connecting", "connected", "disconnecting"].includes(
+    state.character?.status,
+  );
   elements.selectServer.disabled =
-    selection.status !== "ready" || servers.length === 0;
+    characterBusy || selection.status !== "ready" || servers.length === 0;
+  elements.serverSelect.disabled =
+    characterBusy || selection.status !== "ready" || servers.length === 0;
   elements.refreshSelection.disabled = selection.status === "loading";
 
   elements.serverList.replaceChildren();
@@ -333,6 +413,8 @@ function renderSelection() {
       elements.serverList.append(card);
     }
   }
+
+  renderCharacterConnection();
 }
 
 function renderGameVersion() {
@@ -597,6 +679,17 @@ async function refreshSelection() {
   }
 }
 
+async function refreshCharacterConnection() {
+  try {
+    const response = await fetch("/api/character", { cache: "no-store" });
+    if (!response.ok) return;
+    state.character = await response.json();
+    renderCharacterConnection();
+  } catch {
+    // Dashboard connectivity is reported separately.
+  }
+}
+
 async function refreshGameData() {
   try {
     const response = await fetch("/api/game-data", { cache: "no-store" });
@@ -734,6 +827,19 @@ async function selectionAction(path, body) {
   if (!response.ok) throw new Error(payload.error ?? payload.message ?? `HTTP ${response.status}`);
   state.selection = payload;
   renderSelection();
+  return payload;
+}
+
+async function characterAction(path, body) {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: body ? { "Content-Type": "application/json; charset=utf-8" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error ?? payload.message ?? `HTTP ${response.status}`);
+  state.character = payload;
+  renderCharacterConnection();
   return payload;
 }
 
@@ -924,7 +1030,12 @@ elements.accountDisconnect.addEventListener("click", async () => {
       servers: [],
       message: "Connect an Adventure Land account to load characters and servers.",
     };
+    state.character = {
+      status: "disconnected",
+      message: "No headless Adventure Land character is connected.",
+    };
     renderSelection();
+    renderCharacterConnection();
     elements.accountEmail.value = "";
     elements.accountPassword.value = "";
     setFeedback("Adventure Land account disconnected.", "success");
@@ -966,6 +1077,40 @@ elements.selectServer.addEventListener("click", async () => {
     setFeedback(`Server selection failed: ${error.message}`, "error");
   } finally {
     elements.selectServer.disabled = false;
+  }
+});
+
+elements.startCharacter.addEventListener("click", async () => {
+  const characterId = elements.characterSelect.value;
+  if (!characterId) return;
+  elements.startCharacter.disabled = true;
+  setFeedback("Starting headless Adventure Land character connection…");
+  try {
+    const connection = await characterAction("/api/character/start", { characterId });
+    if (connection.status === "connected") {
+      setFeedback(
+        `${connection.characterName} connected headlessly to ${connection.serverRegion} ${connection.serverName}. No automation is running.`,
+        "success",
+      );
+    } else {
+      setFeedback(connection.message ?? "Character connection failed.", "error");
+    }
+  } catch (error) {
+    setFeedback(`Character connection failed: ${error.message}`, "error");
+  } finally {
+    renderCharacterConnection();
+  }
+});
+
+elements.stopCharacter.addEventListener("click", async () => {
+  elements.stopCharacter.disabled = true;
+  try {
+    const connection = await characterAction("/api/character/stop");
+    setFeedback(connection.message ?? "Headless character disconnected.", "success");
+  } catch (error) {
+    setFeedback(`Character disconnect failed: ${error.message}`, "error");
+  } finally {
+    renderCharacterConnection();
   }
 });
 
@@ -1073,6 +1218,7 @@ elements.installUpdate.addEventListener("click", async () => {
 await refreshStatus();
 await refreshAccount();
 await refreshSelection();
+await refreshCharacterConnection();
 await refreshGameVersion();
 await refreshGameData();
 await refreshUpdate();
@@ -1082,6 +1228,7 @@ connectStream();
 setInterval(refreshStatus, 3000);
 setInterval(refreshAccount, 2000);
 setInterval(refreshSelection, 2000);
+setInterval(refreshCharacterConnection, 1500);
 setInterval(refreshGameVersion, 2000);
 setInterval(refreshGameData, 2000);
 setInterval(refreshUpdate, 1500);
