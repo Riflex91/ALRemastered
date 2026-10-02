@@ -391,7 +391,7 @@ Gezielt mehrere künstliche Fehler erzeugen und prüfen, ob sie sowohl verständ
 
 ## Slice 1.1 – Game-Version-Erkennung
 
-**Status: FIX IN PROGRESS**
+**Status: MERGED – AWAITING USER TEST**
 
 > 2026-10-02: During the Slice 1.2 live test, production `data.js` reported version `17397` while the GitHub `version.js` source reported `15555`. The live production data version is now treated as authoritative.
 
@@ -409,7 +409,7 @@ Onlineprüfung gegen Adventure Land und Logkontrolle.
 
 ## Slice 1.2 – Game-Daten laden
 
-**Status: USER TEST FAILED**
+**Status: MERGED – AWAITING USER TEST**
 
 > 2026-10-02: All 14 data families loaded successfully, but diagnostics correctly detected a version mismatch (`17397` live data vs `15555` stale repository version source).
 
