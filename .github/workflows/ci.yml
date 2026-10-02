@@ -41,7 +41,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ALREMASTERED_BUILD_VERSION=0.1.0-alpha.6 npm run build
+          ALREMASTERED_BUILD_VERSION=0.1.0-alpha.7 npm run build
           npm run installer:linux
           cp artifacts/ALRemastered-Linux-*.run "$RUNNER_TEMP/ALRemastered-A.run"
       - name: Install version A to a custom path
@@ -50,7 +50,7 @@ jobs:
           set -euo pipefail
           test_dir="$RUNNER_TEMP/ALRemastered Custom Path"
           "$RUNNER_TEMP/ALRemastered-A.run" --install-dir "$test_dir" --yes --no-desktop
-          test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.6"
+          test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.7"
           paths_json="$("$test_dir/alremastered" --paths)"
           data_dir="$(node -e 'console.log(JSON.parse(process.argv[1]).dataDir)' "$paths_json")"
           mkdir -p "$data_dir"
@@ -70,11 +70,11 @@ jobs:
           test_dir="$RUNNER_TEMP/ALRemastered Custom Path"
           data_dir="$(cat "$RUNNER_TEMP/alremastered-data-dir.txt")"
           "$installer" --yes --no-desktop
-          test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.7"
+          test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.8"
           test "$(cat "$data_dir/upgrade-sentinel.txt")" = "keep-me"
           previous_version="$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).version" "$test_dir/.previous/app/package.json")"
-          test "$previous_version" = "0.1.0-alpha.6"
-          grep 'event=install_success version=0.1.0-alpha.7' "$data_dir/logs/installer.log"
+          test "$previous_version" = "0.1.0-alpha.7"
+          grep 'event=install_success version=0.1.0-alpha.8' "$data_dir/logs/installer.log"
           "$test_dir/alremastered" --no-open-dashboard --no-update-check >"$RUNNER_TEMP/alremastered-linux.log" 2>&1 &
           client_pid=$!
           sleep 1
@@ -83,7 +83,7 @@ jobs:
           curl -fsS http://127.0.0.1:3210/ | grep 'Debug Console'
           curl -fsS http://127.0.0.1:3210/ | grep 'Check for updates'
           curl -fsS http://127.0.0.1:3210/api/status | grep '"status":"running"'
-          curl -fsS http://127.0.0.1:3210/api/update | grep '"currentVersion":"0.1.0-alpha.7"'
+          curl -fsS http://127.0.0.1:3210/api/update | grep '"currentVersion":"0.1.0-alpha.8"'
           curl -fsS http://127.0.0.1:3210/api/logs/export | grep '"sanitized":true'
           test -f "$data_dir/logs/client.log"
           grep '"level":"INFO"' "$data_dir/logs/client.log"
@@ -113,7 +113,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
-          $env:ALREMASTERED_BUILD_VERSION = "0.1.0-alpha.6"
+          $env:ALREMASTERED_BUILD_VERSION = "0.1.0-alpha.7"
           npm run build
           npm run installer:windows
           Copy-Item (Get-ChildItem "artifacts\ALRemastered-Windows-*-Setup.exe" | Select-Object -First 1).FullName "$env:RUNNER_TEMP\ALRemastered-A.exe"
@@ -125,7 +125,7 @@ jobs:
           $installProcess = Start-Process -FilePath "$env:RUNNER_TEMP\ALRemastered-A.exe" -ArgumentList @("/S", "/D=$testDir") -Wait -PassThru
           if ($installProcess.ExitCode -ne 0) { throw "Version A installer returned exit code $($installProcess.ExitCode)" }
           $version = & "$testDir\ALRemastered.exe" --version
-          if ($version.Trim() -ne "0.1.0-alpha.6") { throw "Expected version A, got $version" }
+          if ($version.Trim() -ne "0.1.0-alpha.7") { throw "Expected version A, got $version" }
           $paths = (& "$testDir\ALRemastered.exe" --paths) | ConvertFrom-Json
           New-Item -ItemType Directory -Path $paths.dataDir -Force | Out-Null
           Set-Content -Path (Join-Path $paths.dataDir "upgrade-sentinel.txt") -Value "keep-me" -NoNewline
@@ -159,12 +159,12 @@ jobs:
           $upgradeProcess = Start-Process -FilePath $installer.FullName -ArgumentList "/S" -Wait -PassThru
           if ($upgradeProcess.ExitCode -ne 0) { throw "Version B installer returned exit code $($upgradeProcess.ExitCode)" }
           $version = & "$testDir\ALRemastered.exe" --version
-          if ($version.Trim() -ne "0.1.0-alpha.7") { throw "Expected version B, got $version" }
+          if ($version.Trim() -ne "0.1.0-alpha.8") { throw "Expected version B, got $version" }
           if ((Get-Content (Join-Path $dataDir "upgrade-sentinel.txt") -Raw) -ne "keep-me") { throw "User data was not preserved." }
           $previous = Get-Content "$testDir\.previous\app\package.json" -Raw | ConvertFrom-Json
-          if ($previous.version -ne "0.1.0-alpha.6") { throw "Previous version was not retained for rollback." }
+          if ($previous.version -ne "0.1.0-alpha.7") { throw "Previous version was not retained for rollback." }
           $installerLog = Get-Content "$env:LOCALAPPDATA\ALRemastered\logs\installer.log" -Raw
-          if ($installerLog -notmatch "event=install_success version=0.1.0-alpha.7") { throw "Upgrade success was not logged." }
+          if ($installerLog -notmatch "event=install_success version=0.1.0-alpha.8") { throw "Upgrade success was not logged." }
           if (Test-Path "$testDir\ALRemastered.cmd") { throw "Legacy batch launcher must not be installed." }
           $normalLog = Join-Path $env:RUNNER_TEMP "alremastered-windows.log"
           $normalError = Join-Path $env:RUNNER_TEMP "alremastered-windows-error.log"
@@ -181,7 +181,7 @@ jobs:
           $dashboardStatus = Invoke-RestMethod "http://127.0.0.1:3210/api/status"
           if ($dashboardStatus.status -ne "running") { throw "Dashboard status endpoint did not report a running core." }
           $dashboardUpdate = Invoke-RestMethod "http://127.0.0.1:3210/api/update"
-          if ($dashboardUpdate.currentVersion -ne "0.1.0-alpha.7") { throw "Update API returned the wrong client version." }
+          if ($dashboardUpdate.currentVersion -ne "0.1.0-alpha.8") { throw "Update API returned the wrong client version." }
           $dashboardExport = Invoke-RestMethod "http://127.0.0.1:3210/api/logs/export"
           if (-not $dashboardExport.sanitized) { throw "Dashboard log export was not marked as sanitized." }
           $paths = (& "$testDir\ALRemastered.exe" --paths) | ConvertFrom-Json
