@@ -3,6 +3,9 @@ import { CoreRuntime } from "./core/app.ts";
 import { openDashboard } from "./dashboard/open.ts";
 import { DashboardServer } from "./dashboard/server.ts";
 import { DiagnosticsService } from "./diagnostics/service.ts";
+import { AdventureLandVersionService } from "./game/version-service.ts";
+import { AdventureLandVersionSource } from "./game/version-source.ts";
+import { AdventureLandVersionStore } from "./game/version-store.ts";
 import { Logger } from "./logging/logger.ts";
 import { getUserPaths } from "./platform/paths.ts";
 import { getReleaseMetadata } from "./release/version-model.ts";
@@ -71,6 +74,7 @@ if (args.has("--health-check")) {
 let shuttingDown = false;
 let dashboard: DashboardServer | undefined;
 let updateService: UpdateService | undefined;
+let gameVersionService: AdventureLandVersionService | undefined;
 const keepAlive = setInterval(() => undefined, 60_000);
 
 async function shutdown(signal: NodeJS.Signals): Promise<void> {
@@ -82,6 +86,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   logger.info("Shutdown requested.", { signal });
 
   updateService?.stop();
+  gameVersionService?.stop();
 
   if (dashboard) {
     try {
@@ -122,11 +127,27 @@ diagnostics.registerComponent("updater", () => {
   };
 });
 
+gameVersionService = new AdventureLandVersionService({
+  logger,
+  source: new AdventureLandVersionSource(),
+  store: new AdventureLandVersionStore(join(userPaths.dataDir, "game", "version.json")),
+});
+
+diagnostics.registerComponent("game-version", () => {
+  const state = gameVersionService!.state();
+  return {
+    name: "game-version",
+    status: state.status === "error" ? "degraded" : "healthy",
+    message: state.message ?? "Adventure Land game version status is available.",
+  };
+});
+
 dashboard = new DashboardServer({
   logger,
   runtime,
   updateService,
   diagnostics,
+  gameVersionService,
   host: "127.0.0.1",
   port: 3210,
 });
@@ -166,6 +187,12 @@ if (!args.has("--no-update-check")) {
   updateService.start();
 } else {
   logger.debug("Automatic update check disabled for this process.");
+}
+
+if (!args.has("--no-game-version-check")) {
+  gameVersionService.start();
+} else {
+  logger.debug("Automatic Adventure Land version check disabled for this process.");
 }
 
 process.stdout.write(`ALRemastered ${getAppVersion()}\n`);

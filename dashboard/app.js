@@ -5,6 +5,7 @@ const state = {
   autoScroll: true,
   status: null,
   update: null,
+  gameVersion: null,
   diagnostics: null,
   source: null,
 };
@@ -15,6 +16,10 @@ const elements = {
   version: document.querySelector("#client-version"),
   uptime: document.querySelector("#uptime"),
   platform: document.querySelector("#platform"),
+  gameVersion: document.querySelector("#game-version"),
+  gameVersionStatus: document.querySelector("#game-version-status"),
+  gameLastDeploy: document.querySelector("#game-last-deploy"),
+  checkGameVersion: document.querySelector("#check-game-version"),
   console: document.querySelector("#log-console"),
   feedback: document.querySelector("#feedback"),
   level: document.querySelector("#level-filter"),
@@ -159,6 +164,32 @@ function updateStatusView() {
   elements.uptime.textContent = formatDuration(Date.now() - started);
 }
 
+function renderGameVersion() {
+  const gameVersion = state.gameVersion;
+  if (!gameVersion) return;
+
+  elements.gameVersion.textContent =
+    gameVersion.currentVersion === undefined ? "Not checked" : String(gameVersion.currentVersion);
+  elements.gameLastDeploy.textContent = gameVersion.lastDeploy ?? "—";
+
+  if (gameVersion.status === "checking") {
+    elements.gameVersionStatus.textContent = "Checking…";
+  } else if (gameVersion.status === "current") {
+    elements.gameVersionStatus.textContent = "Current";
+  } else if (gameVersion.status === "changed") {
+    elements.gameVersionStatus.textContent =
+      gameVersion.previousVersion === undefined
+        ? "Changed"
+        : `Changed from ${gameVersion.previousVersion}`;
+  } else if (gameVersion.status === "error") {
+    elements.gameVersionStatus.textContent = "Check failed";
+  } else {
+    elements.gameVersionStatus.textContent = "Waiting";
+  }
+
+  elements.gameVersionStatus.title = gameVersion.message ?? "";
+}
+
 function renderUpdate() {
   const update = state.update;
   const visible = update && ["available", "downloading", "installing"].includes(update.status);
@@ -300,6 +331,17 @@ async function refreshStatus() {
   }
 }
 
+async function refreshGameVersion() {
+  try {
+    const response = await fetch("/api/game-version", { cache: "no-store" });
+    if (!response.ok) return;
+    state.gameVersion = await response.json();
+    renderGameVersion();
+  } catch {
+    // Dashboard connectivity is reported separately.
+  }
+}
+
 async function refreshUpdate() {
   try {
     const response = await fetch("/api/update", { cache: "no-store" });
@@ -343,6 +385,15 @@ function connectStream() {
     elements.connectionStatus.textContent = "Reconnecting…";
     elements.connectionStatus.classList.remove("online");
   });
+}
+
+async function gameVersionAction(path) {
+  const response = await fetch(path, { method: "POST" });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error ?? payload.message ?? `HTTP ${response.status}`);
+  state.gameVersion = payload;
+  renderGameVersion();
+  return payload;
 }
 
 async function updateAction(path) {
@@ -469,6 +520,28 @@ elements.downloadPackage.addEventListener("click", async () => {
   }
 });
 
+elements.checkGameVersion.addEventListener("click", async () => {
+  elements.checkGameVersion.disabled = true;
+  setFeedback("Checking Adventure Land game version…");
+  try {
+    const gameVersion = await gameVersionAction("/api/game-version/check");
+    if (gameVersion.status === "changed") {
+      setFeedback(gameVersion.message ?? "Adventure Land game version changed.", "success");
+    } else if (gameVersion.status === "current") {
+      setFeedback(
+        `Adventure Land version ${gameVersion.currentVersion} is current and stored locally.`,
+        "success",
+      );
+    } else if (gameVersion.status === "error") {
+      setFeedback(`Game version check failed: ${gameVersion.message}`, "error");
+    }
+  } catch (error) {
+    setFeedback(`Game version check failed: ${error.message}`, "error");
+  } finally {
+    elements.checkGameVersion.disabled = false;
+  }
+});
+
 elements.checkUpdates.addEventListener("click", async () => {
   elements.checkUpdates.disabled = true;
   setFeedback("Checking for updates…");
@@ -522,11 +595,13 @@ elements.installUpdate.addEventListener("click", async () => {
 });
 
 await refreshStatus();
+await refreshGameVersion();
 await refreshUpdate();
 await refreshDiagnostics();
 await loadLogs();
 connectStream();
 setInterval(refreshStatus, 3000);
+setInterval(refreshGameVersion, 2000);
 setInterval(refreshUpdate, 1500);
 setInterval(refreshDiagnostics, 1500);
 setInterval(updateStatusView, 1000);

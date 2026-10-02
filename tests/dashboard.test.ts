@@ -111,6 +111,10 @@ test("dashboard user interface contains the required English controls", () => {
     "Recent errors",
     "Copy diagnostic snapshot",
     "Download diagnostic package",
+    "Check game version",
+    "Adventure Land version",
+    "Game version status",
+    "Last deploy",
   ]) {
     assert.equal(html.includes(label), true, `Missing dashboard label: ${label}`);
   }
@@ -218,4 +222,60 @@ test("dashboard script provides technical details and Copy full log on error car
   assert.match(script, /Technical details/);
   assert.match(script, /copy\.textContent = "Copy full log"/);
   assert.match(script, /refreshDiagnostics/);
+});
+
+
+test("dashboard game version API exposes state and manual checks", async () => {
+  const runtime = new CoreRuntime();
+  runtime.start();
+  const logger = new Logger({ component: "dashboard-game-version-test" });
+  const current = {
+    status: "current",
+    currentVersion: 15555,
+    storedVersion: 15555,
+    lastDeploy: "[10/09/26]",
+    checkedAt: "2026-10-02T16:30:00.000Z",
+    sourceUrl: "https://example.test/version.js",
+    message: "Stored Adventure Land version matches the current online version.",
+  };
+  let checks = 0;
+  const fakeGameVersionService = {
+    state: () => current,
+    checkNow: async () => {
+      checks += 1;
+      return current;
+    },
+  };
+
+  const dashboard = new DashboardServer({
+    logger,
+    runtime,
+    gameVersionService: fakeGameVersionService,
+    host: "127.0.0.1",
+    port: 0,
+  });
+
+  const url = await dashboard.start();
+  try {
+    const stateResponse = await fetch(`${url}/api/game-version`);
+    assert.equal(stateResponse.status, 200);
+    const state = await stateResponse.json();
+    assert.equal(state.currentVersion, 15555);
+    assert.equal(state.status, "current");
+
+    const checkResponse = await fetch(`${url}/api/game-version/check`, { method: "POST" });
+    assert.equal(checkResponse.status, 200);
+    assert.equal((await checkResponse.json()).currentVersion, 15555);
+    assert.equal(checks, 1);
+  } finally {
+    await dashboard.stop();
+    runtime.stop();
+  }
+});
+
+test("dashboard script renders Adventure Land version state", () => {
+  const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
+  assert.match(script, /refreshGameVersion/);
+  assert.match(script, /Changed from/);
+  assert.match(script, /Checking Adventure Land game version/);
 });

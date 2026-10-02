@@ -158,6 +158,9 @@ export class DiagnosticsService {
 function friendlySummary(record: LogRecord): string {
   const message = record.message.toLowerCase();
 
+  if (message.includes("adventure land version check failed")) {
+    return "ALRemastered could not verify the Adventure Land game version online. The last stored version remains available.";
+  }
   if (message.includes("update check failed")) {
     return "ALRemastered could not check for updates. You can keep using the current version and try again later.";
   }

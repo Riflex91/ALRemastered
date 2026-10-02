@@ -4,6 +4,7 @@ import { extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { CoreRuntime, HealthSnapshot } from "../core/app.ts";
 import type { DiagnosticsService } from "../diagnostics/service.ts";
+import type { AdventureLandVersionService } from "../game/version-service.ts";
 import type { Logger, LogRecord } from "../logging/logger.ts";
 import type { UpdateService } from "../update/service.ts";
 
@@ -14,6 +15,7 @@ export interface DashboardServerOptions {
   readonly port?: number;
   readonly updateService?: UpdateService;
   readonly diagnostics?: DiagnosticsService;
+  readonly gameVersionService?: AdventureLandVersionService;
 }
 
 export class DashboardServer {
@@ -23,6 +25,7 @@ export class DashboardServer {
   readonly #port: number;
   readonly #updateService?: UpdateService;
   readonly #diagnostics?: DiagnosticsService;
+  readonly #gameVersionService?: AdventureLandVersionService;
   #server?: Server;
   #url?: string;
   readonly #clients = new Set<ServerResponse>();
@@ -35,6 +38,7 @@ export class DashboardServer {
     this.#port = options.port ?? 3210;
     this.#updateService = options.updateService;
     this.#diagnostics = options.diagnostics;
+    this.#gameVersionService = options.gameVersionService;
   }
 
   get url(): string {
@@ -113,6 +117,15 @@ export class DashboardServer {
     if (method === "GET" && path === "/api/status") {
       return this.#json(response, this.#runtime.health());
     }
+    if (method === "GET" && path === "/api/game-version") {
+      if (!this.#gameVersionService) return this.#json(response, { status: "unavailable" }, 503);
+      return this.#json(response, this.#gameVersionService.state());
+    }
+    if (method === "POST" && path === "/api/game-version/check") {
+      if (!this.#gameVersionService) return this.#json(response, { error: "Game version service is unavailable." }, 503);
+      return this.#runGameVersionAction(response, () => this.#gameVersionService!.checkNow(true));
+    }
+
     if (method === "GET" && path === "/api/update") {
       if (!this.#updateService) return this.#json(response, { status: "unavailable" }, 503);
       return this.#json(response, this.#updateService.state());
@@ -195,6 +208,15 @@ export class DashboardServer {
       "Referrer-Policy": "no-referrer",
     });
     createReadStream(filePath).pipe(response);
+  }
+
+  async #runGameVersionAction(response: ServerResponse, action: () => unknown | Promise<unknown>): Promise<void> {
+    try {
+      this.#json(response, await action());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.#json(response, { error: message }, 400);
+    }
   }
 
   async #runUpdateAction(response: ServerResponse, action: () => unknown | Promise<unknown>): Promise<void> {
