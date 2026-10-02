@@ -108,7 +108,7 @@ test("headless transport follows welcome-loaded-auth-start without automation ev
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(socket.sent.at(-1), "3server-ping");
 
-  socket.message('42["start",{"id":"RangerOne","name":"RangerOne","ctype":"ranger","level":45,"xp":12345,"max_xp":50000,"map":"main","x":12,"y":34,"hp":4000,"max_hp":4000,"mp":900,"max_mp":1000,"angle":0,"target":null,"rip":false,"items":[{"name":"hpot0","q":20},null,{"name":"scroll0","level":0}],"slots":{"mainhand":{"name":"bow","level":3},"helmet":null,"trade1":{"name":"hpot0","q":5}},"gold":123456,"s":{"mluck":{"ms":5000,"f":"Merchant"}}}]');
+  socket.message('42["start",{"id":"RangerOne","name":"RangerOne","ctype":"ranger","level":45,"xp":12345,"max_xp":50000,"map":"main","x":12,"y":34,"hp":4000,"max_hp":4000,"mp":900,"max_mp":1000,"angle":0,"target":null,"rip":false,"items":[{"name":"hpot0","q":20},null,{"name":"scroll0","level":0}],"slots":{"mainhand":{"name":"bow","level":3},"helmet":null,"trade1":{"name":"hpot0","q":5}},"gold":123456,"s":{"mluck":{"ms":5000,"f":"Merchant"}},"party":"RangerOne","entities":{"type":"all","players":[{"id":"MageStart","name":"MageStart","ctype":"mage","level":49,"x":18,"y":36}],"monsters":[{"id":"goo-start","type":"goo","x":22,"y":38}]}}]');
   const connection = await connecting;
   assert.equal(connection.character.id, "CH_1");
   assert.equal(connection.character.name, "RangerOne");
@@ -129,6 +129,12 @@ test("headless transport follows welcome-loaded-auth-start without automation ev
   assert.equal(connection.character.conditions?.mluck?.ms, 5000);
 
   let liveState = connection.snapshot();
+  assert.equal(liveState.entities.length, 2);
+  assert.equal(liveState.entities.find((entity) => entity.id === "MageStart")?.type, "mage");
+  assert.equal(liveState.entities.find((entity) => entity.id === "goo-start")?.type, "goo");
+  assert.equal(liveState.party.inParty, true);
+  assert.equal(liveState.party.leader, "RangerOne");
+  assert.deepEqual(liveState.party.members, []);
   connection.onState((next) => {
     liveState = next;
   });
