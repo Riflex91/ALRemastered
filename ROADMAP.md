@@ -469,9 +469,9 @@ Login/Verbindung auf echtem Account.
 
 ## Slice 2.2 – Character-Liste und Serverauswahl
 
-**Status: MERGED – AWAITING USER TEST**
+**Status: VERIFIED**
 
-> 2026-10-02: Character list and in-process server selection merged in `0.1.0-alpha.15`. Automated Windows/Linux CI passed. Real-account dashboard validation is still required before VERIFIED. No character start or game socket connection is included in this slice.
+> 2026-10-02: VERIFIED on Windows with `0.1.0-alpha.15`. The live account loaded 8 characters and 13 servers, refresh succeeded, server selection was exercised repeatedly across EU I/II, and every selection confirmed `characterStarted:false`. The same live run also confirmed automatic post-update restart into `0.1.0-alpha.15`.
 
 - Charaktere anzeigen
 - Klasse/Level, soweit verfügbar
