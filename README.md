@@ -64,6 +64,9 @@ The dashboard server listens only on the local loopback interface. Diagnostic lo
 
 ## Automatic updates
 
+> Bootstrap note: automatic updates can only be used by a client version that already contains the updater. Therefore the first updater-enabled build (`0.1.0-alpha.5`) must be installed manually once. From that point onward, later releases are discovered and installed through the in-client update flow.
+
+
 ALRemastered checks the repository's public GitHub Releases at startup and periodically while running. The dashboard also provides **Check for updates**.
 
 When a newer version is available, the dashboard shows:
