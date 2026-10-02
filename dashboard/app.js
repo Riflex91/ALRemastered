@@ -78,6 +78,8 @@ const elements = {
   runActionGatewayProbe: document.querySelector("#run-action-gateway-probe"),
   movementMode: document.querySelector("#movement-mode"),
   movementButtons: document.querySelectorAll("[data-movement-direction]"),
+  attackTarget: document.querySelector("#attack-target"),
+  runAttackTest: document.querySelector("#run-attack-test"),
   gameVersion: document.querySelector("#game-version"),
   gameVersionStatus: document.querySelector("#game-version-status"),
   gameLastDeploy: document.querySelector("#game-last-deploy"),
@@ -352,6 +354,7 @@ function renderCharacterConnection() {
   renderEquipmentState(equipment);
   renderConditionState(conditions);
   renderEntityState(entities);
+  renderAttackTargets(nearbyMonsters, character, connection.status === "connected");
   renderPartyState(party);
 
   const busy = ["connecting", "connected", "disconnecting"].includes(connection.status);
@@ -472,6 +475,50 @@ function renderEntityState(entities) {
     if (entity.target) details.push(`Target: ${entity.target}`);
     appendStateCard(elements.characterEntities, entity.name, details.join(" · "));
   }
+}
+
+function renderAttackTargets(monsters, character, connected) {
+  const previous = elements.attackTarget.value;
+  elements.attackTarget.replaceChildren();
+
+  if (!connected || !character || character.dead || !monsters.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = !connected
+      ? "Connect a character first"
+      : character?.dead
+        ? "Character is dead"
+        : "No visible monsters";
+    elements.attackTarget.append(option);
+    elements.runAttackTest.disabled = true;
+    return;
+  }
+
+  for (const monster of monsters) {
+    const option = document.createElement("option");
+    option.value = monster.id;
+    const details = [monster.type || "monster", `ID ${monster.id}`];
+    if (
+      typeof character.x === "number" &&
+      typeof character.y === "number" &&
+      typeof monster.x === "number" &&
+      typeof monster.y === "number"
+    ) {
+      details.push(
+        `Distance ${Math.hypot(monster.x - character.x, monster.y - character.y).toFixed(1)}`,
+      );
+    }
+    if (typeof monster.hp === "number") {
+      details.push(`HP ${monster.hp}${typeof monster.maxHp === "number" ? `/${monster.maxHp}` : ""}`);
+    }
+    option.textContent = details.join(" · ");
+    elements.attackTarget.append(option);
+  }
+
+  elements.attackTarget.value = monsters.some((monster) => monster.id === previous)
+    ? previous
+    : monsters[0].id;
+  elements.runAttackTest.disabled = !elements.attackTarget.value;
 }
 
 function renderPartyState(party) {
@@ -1176,6 +1223,32 @@ async function movementTest(direction) {
   return payload;
 }
 
+async function attackTest() {
+  const targetId = elements.attackTarget.value;
+  if (!targetId) throw new Error("Select a visible monster first.");
+
+  const response = await fetch("/api/action-gateway/attack-test", {
+    method: "POST",
+    headers: { "Content-Type": "application/json; charset=utf-8" },
+    body: JSON.stringify({ targetId }),
+  });
+  const payload = await response.json();
+  await refreshActionGateway();
+  if (!response.ok) {
+    const retry = typeof payload.retryAfterMs === "number"
+      ? ` Retry after ${payload.retryAfterMs} ms.`
+      : "";
+    throw new Error(
+      (payload.error?.message ??
+        payload.error ??
+        `Attack test failed with HTTP ${response.status}`) + retry,
+    );
+  }
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  await refreshCharacterConnection();
+  return payload;
+}
+
 async function gameDataAction(path) {
   const response = await fetch(path, { method: "POST" });
   const payload = await response.json();
@@ -1492,6 +1565,31 @@ for (const button of elements.movementButtons) {
     }
   });
 }
+
+elements.attackTarget.addEventListener("change", () => {
+  elements.runAttackTest.disabled = !elements.attackTarget.value;
+});
+
+elements.runAttackTest.addEventListener("click", async () => {
+  const targetId = elements.attackTarget.value;
+  if (!targetId) return;
+  elements.runAttackTest.disabled = true;
+  setFeedback(`Attacking selected monster ${targetId} once…`);
+  try {
+    const result = await attackTest();
+    const cooldown = typeof result.result?.cooldownMs === "number"
+      ? ` Cooldown: ${result.result.cooldownMs} ms.`
+      : "";
+    setFeedback(
+      `Attack confirmed by server. Request ID: ${result.requestId}. Outcome: ${result.outcome}. Target: ${result.result?.targetType ?? targetId} (${targetId}).${cooldown}`,
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Attack test failed: ${error.message}`, "error");
+  } finally {
+    renderCharacterConnection();
+  }
+});
 
 elements.reloadGameData.addEventListener("click", async () => {
   elements.reloadGameData.disabled = true;
