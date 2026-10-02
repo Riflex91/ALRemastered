@@ -7,6 +7,7 @@ const state = {
   account: null,
   selection: null,
   character: null,
+  actionGateway: null,
   update: null,
   gameVersion: null,
   gameData: null,
@@ -69,6 +70,12 @@ const elements = {
   characterSelect: document.querySelector("#character-select"),
   startCharacter: document.querySelector("#start-character"),
   stopCharacter: document.querySelector("#stop-character"),
+  actionGatewayStatus: document.querySelector("#action-gateway-status"),
+  actionGatewayActive: document.querySelector("#action-gateway-active"),
+  actionGatewayTotal: document.querySelector("#action-gateway-total"),
+  actionGatewayRequestId: document.querySelector("#action-gateway-request-id"),
+  actionGatewayOutcome: document.querySelector("#action-gateway-outcome"),
+  runActionGatewayProbe: document.querySelector("#run-action-gateway-probe"),
   gameVersion: document.querySelector("#game-version"),
   gameVersionStatus: document.querySelector("#game-version-status"),
   gameLastDeploy: document.querySelector("#game-last-deploy"),
@@ -679,6 +686,20 @@ function renderSelection() {
   renderCharacterConnection();
 }
 
+function renderActionGateway() {
+  const gateway = state.actionGateway;
+  if (!gateway) return;
+
+  elements.actionGatewayStatus.textContent =
+    gateway.status === "ready" ? "Ready" : gateway.status ?? "Unavailable";
+  elements.actionGatewayActive.textContent = String(gateway.active ?? 0);
+  elements.actionGatewayTotal.textContent = String(gateway.totalRequests ?? 0);
+  elements.actionGatewayRequestId.textContent =
+    gateway.lastResult?.requestId ?? "—";
+  elements.actionGatewayOutcome.textContent =
+    gateway.lastResult?.outcome ?? "—";
+}
+
 function renderGameVersion() {
   const gameVersion = state.gameVersion;
   if (!gameVersion) return;
@@ -952,6 +973,17 @@ async function refreshCharacterConnection() {
   }
 }
 
+async function refreshActionGateway() {
+  try {
+    const response = await fetch("/api/action-gateway", { cache: "no-store" });
+    if (!response.ok) return;
+    state.actionGateway = await response.json();
+    renderActionGateway();
+  } catch {
+    // Dashboard connectivity is reported separately.
+  }
+}
+
 async function refreshGameData() {
   try {
     const response = await fetch("/api/game-data", { cache: "no-store" });
@@ -1102,6 +1134,20 @@ async function characterAction(path, body) {
   if (!response.ok) throw new Error(payload.error ?? payload.message ?? `HTTP ${response.status}`);
   state.character = payload;
   renderCharacterConnection();
+  return payload;
+}
+
+async function actionGatewayProbe() {
+  const response = await fetch("/api/action-gateway/probe", { method: "POST" });
+  const payload = await response.json();
+  await refreshActionGateway();
+  if (!response.ok) {
+    throw new Error(
+      payload.error?.message ??
+      payload.error ??
+      `Gateway probe failed with HTTP ${response.status}`,
+    );
+  }
   return payload;
 }
 
@@ -1376,6 +1422,22 @@ elements.stopCharacter.addEventListener("click", async () => {
   }
 });
 
+elements.runActionGatewayProbe.addEventListener("click", async () => {
+  elements.runActionGatewayProbe.disabled = true;
+  setFeedback("Running local action gateway probe…");
+  try {
+    const result = await actionGatewayProbe();
+    setFeedback(
+      `Action gateway probe completed. Request ID: ${result.requestId}. Outcome: ${result.outcome}.`,
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Action gateway probe failed: ${error.message}`, "error");
+  } finally {
+    elements.runActionGatewayProbe.disabled = false;
+  }
+});
+
 elements.reloadGameData.addEventListener("click", async () => {
   elements.reloadGameData.disabled = true;
   setFeedback("Reloading Adventure Land game data…");
@@ -1481,6 +1543,7 @@ await refreshStatus();
 await refreshAccount();
 await refreshSelection();
 await refreshCharacterConnection();
+await refreshActionGateway();
 await refreshGameVersion();
 await refreshGameData();
 await refreshUpdate();
@@ -1491,6 +1554,7 @@ setInterval(refreshStatus, 3000);
 setInterval(refreshAccount, 2000);
 setInterval(refreshSelection, 2000);
 setInterval(refreshCharacterConnection, 1500);
+setInterval(refreshActionGateway, 2000);
 setInterval(refreshGameVersion, 2000);
 setInterval(refreshGameData, 2000);
 setInterval(refreshUpdate, 1500);
