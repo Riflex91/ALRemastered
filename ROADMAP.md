@@ -391,7 +391,7 @@ Gezielt mehrere künstliche Fehler erzeugen und prüfen, ob sie sowohl verständ
 
 ## Slice 1.1 – Game-Version-Erkennung
 
-**Status: IN PROGRESS**
+**Status: MERGED – AWAITING USER TEST**
 
 - aktuelle Adventure-Land-Version erkennen
 - lokale Version speichern
