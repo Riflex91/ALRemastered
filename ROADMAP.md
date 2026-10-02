@@ -217,7 +217,7 @@ Erst nach Benutzer-Livetest → Slice 0.3.
 
 ## Slice 0.3 – Logging-Core und Secret-Sanitizer
 
-**Status: MERGED – AWAITING USER TEST**
+**Status: VERIFIED**
 
 **Dieser Slice kommt absichtlich sehr früh.**
 
@@ -265,6 +265,8 @@ Erst nach Benutzer-Livetest → Slice 0.4.
 ---
 
 ## Slice 0.4 – Minimales lokales Dashboard + Debug-Konsole
+
+**Status: IN PROGRESS**
 
 ### Inhalt
 
