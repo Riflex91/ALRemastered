@@ -53,6 +53,13 @@ const elements = {
   characterTarget: document.querySelector("#character-target"),
   characterDeathState: document.querySelector("#character-death-state"),
   characterPing: document.querySelector("#character-ping"),
+  characterGold: document.querySelector("#character-gold"),
+  characterInventorySummary: document.querySelector("#character-inventory-summary"),
+  characterEquipmentSummary: document.querySelector("#character-equipment-summary"),
+  characterConditionsSummary: document.querySelector("#character-conditions-summary"),
+  characterInventory: document.querySelector("#character-inventory"),
+  characterEquipment: document.querySelector("#character-equipment"),
+  characterConditions: document.querySelector("#character-conditions"),
   characterSelect: document.querySelector("#character-select"),
   startCharacter: document.querySelector("#start-character"),
   stopCharacter: document.querySelector("#stop-character"),
@@ -289,6 +296,27 @@ function renderCharacterConnection() {
       ? (connection.status === "connected" ? "Measuring…" : "—")
       : `${Math.round(connection.pingMs)} ms`;
 
+  const inventory = character?.inventory;
+  const inventoryUsed = inventory?.filter(Boolean).length;
+  const equipment = character?.equipment;
+  const equipmentUsed = equipment
+    ? Object.values(equipment).filter(Boolean).length
+    : undefined;
+  const conditions = character?.conditions;
+  const conditionCount = conditions ? Object.keys(conditions).length : undefined;
+
+  elements.characterGold.textContent =
+    character?.gold === undefined ? "—" : character.gold.toLocaleString("en-US");
+  elements.characterInventorySummary.textContent =
+    inventory === undefined ? "—" : `${inventoryUsed} / ${inventory.length} used`;
+  elements.characterEquipmentSummary.textContent =
+    equipment === undefined ? "—" : `${equipmentUsed} equipped`;
+  elements.characterConditionsSummary.textContent =
+    conditions === undefined ? "—" : `${conditionCount} active`;
+  renderInventoryState(inventory);
+  renderEquipmentState(equipment);
+  renderConditionState(conditions);
+
   const busy = ["connecting", "connected", "disconnecting"].includes(connection.status);
   const canStart =
     state.account?.status === "connected" &&
@@ -306,6 +334,105 @@ function renderCharacterConnection() {
     busy ||
     state.selection?.status !== "ready" ||
     (state.selection?.servers?.length ?? 0) === 0;
+}
+
+function renderInventoryState(inventory) {
+  elements.characterInventory.replaceChildren();
+  if (!inventory) {
+    appendStateEmpty(elements.characterInventory, "Inventory state is not available.");
+    return;
+  }
+
+  let rendered = 0;
+  inventory.forEach((item, index) => {
+    if (!item) return;
+    appendStateCard(
+      elements.characterInventory,
+      `Slot ${index + 1}`,
+      formatItemState(item),
+    );
+    rendered += 1;
+  });
+  if (!rendered) appendStateEmpty(elements.characterInventory, "Inventory is empty.");
+}
+
+function renderEquipmentState(equipment) {
+  elements.characterEquipment.replaceChildren();
+  if (!equipment) {
+    appendStateEmpty(elements.characterEquipment, "Equipment state is not available.");
+    return;
+  }
+
+  const equipped = Object.entries(equipment)
+    .filter(([, item]) => Boolean(item))
+    .sort(([left], [right]) => left.localeCompare(right));
+  if (!equipped.length) {
+    appendStateEmpty(elements.characterEquipment, "No equipment is currently equipped.");
+    return;
+  }
+  for (const [slot, item] of equipped) {
+    appendStateCard(elements.characterEquipment, slot, formatItemState(item));
+  }
+}
+
+function renderConditionState(conditions) {
+  elements.characterConditions.replaceChildren();
+  if (!conditions) {
+    appendStateEmpty(elements.characterConditions, "Condition state is not available.");
+    return;
+  }
+
+  const entries = Object.entries(conditions).sort(([left], [right]) =>
+    left.localeCompare(right)
+  );
+  if (!entries.length) {
+    appendStateEmpty(elements.characterConditions, "No active conditions.");
+    return;
+  }
+  for (const [name, condition] of entries) {
+    const details = [];
+    if (typeof condition.ms === "number") {
+      details.push(`${Math.max(0, Math.ceil(condition.ms / 1000))}s remaining`);
+    }
+    if (typeof condition.f === "string" && condition.f) {
+      details.push(`Source: ${condition.f}`);
+    }
+    appendStateCard(
+      elements.characterConditions,
+      name,
+      details.join(" · ") || "Active",
+    );
+  }
+}
+
+function appendStateCard(container, titleText, detailText) {
+  const card = document.createElement("article");
+  card.className = "selection-card";
+
+  const title = document.createElement("strong");
+  title.textContent = titleText;
+
+  const details = document.createElement("span");
+  details.textContent = detailText;
+
+  card.append(title, details);
+  container.append(card);
+}
+
+function appendStateEmpty(container, message) {
+  const empty = document.createElement("div");
+  empty.className = "empty";
+  empty.textContent = message;
+  container.append(empty);
+}
+
+function formatItemState(item) {
+  if (!item) return "Empty";
+  const name = typeof item.name === "string" ? item.name : "Unknown item";
+  const details = [];
+  if (typeof item.level === "number") details.push(`Level ${item.level}`);
+  if (typeof item.q === "number") details.push(`Qty ${item.q}`);
+  return details.length ? `${name} · ${details.join(" · ")}` : name;
 }
 
 function renderSelection() {
