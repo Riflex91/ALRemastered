@@ -16,6 +16,11 @@ export function openDashboard(url: string, logger: Logger): void {
     }
 
     if (platform === "linux") {
+      if (!process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
+        logger.info("Automatic dashboard opening skipped because no graphical session was detected.", { url });
+        return;
+      }
+
       const child = spawn("xdg-open", [url], {
         detached: true,
         stdio: "ignore",
