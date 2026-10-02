@@ -809,6 +809,7 @@ test("dashboard exposes a fixed local-only Action Gateway probe", async () => {
   const actionGateway = new ActionGateway({
     logger,
     idFactory: () => `act-dashboard-${++requestNumber}`,
+    nowMs: () => 1_000,
   });
   const fakeCharacterService = {
     state: () => ({
