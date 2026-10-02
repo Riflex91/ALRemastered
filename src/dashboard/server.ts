@@ -3,6 +3,7 @@ import { createServer, type Server, type ServerResponse } from "node:http";
 import { extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { CoreRuntime, HealthSnapshot } from "../core/app.ts";
+import type { DiagnosticsService } from "../diagnostics/service.ts";
 import type { Logger, LogRecord } from "../logging/logger.ts";
 import type { UpdateService } from "../update/service.ts";
 
@@ -12,6 +13,7 @@ export interface DashboardServerOptions {
   readonly host?: string;
   readonly port?: number;
   readonly updateService?: UpdateService;
+  readonly diagnostics?: DiagnosticsService;
 }
 
 export class DashboardServer {
@@ -20,6 +22,7 @@ export class DashboardServer {
   readonly #host: string;
   readonly #port: number;
   readonly #updateService?: UpdateService;
+  readonly #diagnostics?: DiagnosticsService;
   #server?: Server;
   #url?: string;
   readonly #clients = new Set<ServerResponse>();
@@ -31,6 +34,7 @@ export class DashboardServer {
     this.#host = options.host ?? "127.0.0.1";
     this.#port = options.port ?? 3210;
     this.#updateService = options.updateService;
+    this.#diagnostics = options.diagnostics;
   }
 
   get url(): string {
@@ -89,6 +93,22 @@ export class DashboardServer {
 
   async #handleRequest(pathWithQuery: string, method: string, response: ServerResponse): Promise<void> {
     const path = pathWithQuery.split("?", 1)[0];
+
+    if (method === "GET" && path === "/api/diagnostics/snapshot") {
+      if (!this.#diagnostics) return this.#json(response, { error: "Diagnostics service is unavailable." }, 503);
+      return this.#json(response, this.#diagnostics.snapshot());
+    }
+    if (method === "GET" && path === "/api/diagnostics/package") {
+      if (!this.#diagnostics) return this.#json(response, { error: "Diagnostics service is unavailable." }, 503);
+      const diagnosticPackage = this.#diagnostics.package();
+      response.writeHead(200, {
+        "Content-Type": "application/json; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${diagnosticPackage.fileName}"`,
+        "Cache-Control": "no-store",
+      });
+      response.end(diagnosticPackage.content);
+      return;
+    }
 
     if (method === "GET" && path === "/api/status") {
       return this.#json(response, this.#runtime.health());
