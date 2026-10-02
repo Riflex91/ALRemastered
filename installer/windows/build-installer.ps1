@@ -31,12 +31,11 @@ set "BASE=%~dp0"
 '@
 Set-Content -Path (Join-Path $Stage "ALRemastered.cmd") -Value $Launcher -Encoding Ascii
 
-$Candidates = @(
+$MakeNsis = @(
   "$env:ProgramFiles\NSIS\makensis.exe",
   "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
-) | Where-Object { $_ -and (Test-Path $_) }
-if ($Candidates.Count -eq 0) { throw "NSIS makensis.exe was not found." }
-$MakeNsis = $Candidates[0]
+) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+if (-not $MakeNsis) { throw "NSIS makensis.exe was not found." }
 
 & $MakeNsis "/DAPP_VERSION=$Version" "/DSTAGE_DIR=$Stage" "/DOUT_FILE=$OutFile" "installer\windows\ALRemastered.nsi"
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path $OutFile)) { throw "NSIS installer build failed." }
