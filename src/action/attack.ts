@@ -5,6 +5,7 @@ import {
   type ActionOrigin,
 } from "./gateway.ts";
 import type { AdventureLandCharacterService } from "../character/service.ts";
+import type { Logger } from "../logging/logger.ts";
 
 export interface DashboardAttackRequest {
   readonly targetId: string;
@@ -22,6 +23,7 @@ export interface AttackActionResult {
 
 export interface AdventureLandAttackServiceOptions {
   readonly gateway: ActionGateway;
+  readonly logger: Logger;
   readonly character: Pick<
     AdventureLandCharacterService,
     "state" | "sendAttack" | "attackCooldownRemainingMs"
@@ -32,6 +34,7 @@ const ATTACK_RATE_INTERVAL_MS = 500;
 
 export class AdventureLandAttackService {
   readonly #gateway: ActionGateway;
+  readonly #logger: Logger;
   readonly #character: Pick<
     AdventureLandCharacterService,
     "state" | "sendAttack" | "attackCooldownRemainingMs"
@@ -39,6 +42,7 @@ export class AdventureLandAttackService {
 
   constructor(options: AdventureLandAttackServiceOptions) {
     this.#gateway = options.gateway;
+    this.#logger = options.logger;
     this.#character = options.character;
   }
 
@@ -67,7 +71,7 @@ export class AdventureLandAttackService {
         characterId ?? "-",
         "character.attack",
       ].join(":"),
-      execute: async ({ signal }) => {
+      execute: async ({ signal, requestId, characterId: executionCharacterId }) => {
         if (!targetId) {
           throw new ActionGatewayExecutionError(
             "Select a visible monster before running the attack test.",
@@ -174,18 +178,51 @@ export class AdventureLandAttackService {
           signal,
         });
         if (!receipt.success) {
+          this.#logger.warn(
+            "Attack server response rejected.",
+            {
+              action: "character.attack",
+              origin,
+              targetId,
+              targetType: target.type,
+              reason: receipt.reason,
+              cooldownMs: receipt.cooldownMs,
+            },
+            {
+              requestId,
+              characterId: executionCharacterId,
+            },
+          );
           throw serverAttackFailure(receipt.reason, receipt.cooldownMs);
         }
 
-        return {
+        const result = {
           targetId,
           targetName: target.name,
           targetType: target.type,
           distance: roundOne(distance),
           range: roundOne(range),
-          serverAccepted: true,
+          serverAccepted: true as const,
           cooldownMs: receipt.cooldownMs,
         };
+        this.#logger.info(
+          "Attack server response confirmed.",
+          {
+            action: "character.attack",
+            origin,
+            targetId: result.targetId,
+            targetType: result.targetType,
+            distance: result.distance,
+            range: result.range,
+            cooldownMs: result.cooldownMs,
+            serverAccepted: true,
+          },
+          {
+            requestId,
+            characterId: executionCharacterId,
+          },
+        );
+        return result;
       },
     });
   }
