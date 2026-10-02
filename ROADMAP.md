@@ -469,6 +469,10 @@ Login/Verbindung auf echtem Account.
 
 ## Slice 2.2 – Character-Liste und Serverauswahl
 
+**Status: MERGED – AWAITING USER TEST**
+
+> 2026-10-02: Character list and in-process server selection merged in `0.1.0-alpha.15`. Automated Windows/Linux CI passed. Real-account dashboard validation is still required before VERIFIED. No character start or game socket connection is included in this slice.
+
 - Charaktere anzeigen
 - Klasse/Level, soweit verfügbar
 - Serverliste
