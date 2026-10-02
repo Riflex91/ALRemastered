@@ -40,7 +40,7 @@ Function .onInit
   StrCmp $AutoUpdate "1" 0 update_wait_done
   StrCmp $WaitPid "" update_wait_done
   System::Call 'kernel32::OpenProcess(i 0x00100000, i 0, i $WaitPid) p .r3'
-  StrCmp $R3 0 update_wait_sleep
+  StrCmp $3 0 update_wait_sleep
   System::Call 'kernel32::WaitForSingleObject(p r3, i 30000) i .r4'
   System::Call 'kernel32::CloseHandle(p r3)'
 
