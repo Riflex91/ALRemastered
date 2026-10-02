@@ -73,12 +73,12 @@ jobs:
           $installer = Get-ChildItem "artifacts\ALRemastered-Windows-*-Setup.exe" | Select-Object -First 1
           if (-not $installer) { throw "Installer artifact was not found." }
           $testDir = Join-Path $env:RUNNER_TEMP "ALRemastered Custom Path"
-          & $installer.FullName /S "/D=$testDir"
-          if ($LASTEXITCODE -ne 0) { throw "Installer returned exit code $LASTEXITCODE" }
+          $installProcess = Start-Process -FilePath $installer.FullName -ArgumentList @("/S", "/D=$testDir") -Wait -PassThru
+          if ($installProcess.ExitCode -ne 0) { throw "Installer returned exit code $($installProcess.ExitCode)" }
           $health = & "$testDir\ALRemastered.cmd" --health-check
           if ($LASTEXITCODE -ne 0 -or $health -notmatch '"application":"ALRemastered"') { throw "Installed client health check failed." }
-          & "$testDir\Uninstall.exe" /S
-          if ($LASTEXITCODE -ne 0) { throw "Uninstaller returned exit code $LASTEXITCODE" }
+          $uninstallProcess = Start-Process -FilePath "$testDir\Uninstall.exe" -ArgumentList "/S" -Wait -PassThru
+          if ($uninstallProcess.ExitCode -ne 0) { throw "Uninstaller returned exit code $($uninstallProcess.ExitCode)" }
           Start-Sleep -Seconds 1
           if (Test-Path $testDir) { throw "Uninstaller did not remove the custom installation directory." }
       - uses: actions/upload-artifact@v4
