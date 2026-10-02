@@ -333,7 +333,7 @@ function parseConnectedCharacter(
   fallback: AdventureLandCharacterSummary,
 ): AdventureLandConnectedCharacter {
   return Object.freeze({
-    id: typeof data.id === "string" ? data.id : fallback.id,
+    id: fallback.id,
     name: typeof data.name === "string" ? data.name : fallback.name,
     type:
       typeof data.ctype === "string"
