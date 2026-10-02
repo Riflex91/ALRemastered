@@ -187,7 +187,7 @@ Erst nach Benutzer-Livetest → Slice 0.2.
 
 ## Slice 0.2 – Cross-Platform Installer-Upgradepfad und Versionsmodell
 
-**Status: IN PROGRESS**
+**Status: VERIFIED**
 
 ### Inhalt
 
@@ -216,6 +216,8 @@ Erst nach Benutzer-Livetest → Slice 0.3.
 ---
 
 ## Slice 0.3 – Logging-Core und Secret-Sanitizer
+
+**Status: IN PROGRESS**
 
 **Dieser Slice kommt absichtlich sehr früh.**
 
