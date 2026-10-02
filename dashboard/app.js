@@ -76,6 +76,8 @@ const elements = {
   actionGatewayRequestId: document.querySelector("#action-gateway-request-id"),
   actionGatewayOutcome: document.querySelector("#action-gateway-outcome"),
   runActionGatewayProbe: document.querySelector("#run-action-gateway-probe"),
+  movementMode: document.querySelector("#movement-mode"),
+  movementButtons: document.querySelectorAll("[data-movement-direction]"),
   gameVersion: document.querySelector("#game-version"),
   gameVersionStatus: document.querySelector("#game-version-status"),
   gameLastDeploy: document.querySelector("#game-last-deploy"),
@@ -1151,6 +1153,29 @@ async function actionGatewayProbe() {
   return payload;
 }
 
+async function movementTest(direction) {
+  const response = await fetch("/api/action-gateway/movement-test", {
+    method: "POST",
+    headers: { "Content-Type": "application/json; charset=utf-8" },
+    body: JSON.stringify({
+      mode: elements.movementMode.value,
+      direction,
+    }),
+  });
+  const payload = await response.json();
+  await refreshActionGateway();
+  if (!response.ok) {
+    throw new Error(
+      payload.error?.message ??
+      payload.error ??
+      `Movement test failed with HTTP ${response.status}`,
+    );
+  }
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  await refreshCharacterConnection();
+  return payload;
+}
+
 async function gameDataAction(path) {
   const response = await fetch(path, { method: "POST" });
   const payload = await response.json();
@@ -1437,6 +1462,36 @@ elements.runActionGatewayProbe.addEventListener("click", async () => {
     elements.runActionGatewayProbe.disabled = false;
   }
 });
+
+for (const button of elements.movementButtons) {
+  button.addEventListener("click", async () => {
+    const direction = button.dataset.movementDirection;
+    if (!direction) return;
+
+    for (const movementButton of elements.movementButtons) {
+      movementButton.disabled = true;
+    }
+    setFeedback(
+      `Running ${elements.movementMode.value} ${direction} movement test…`,
+    );
+    try {
+      const result = await movementTest(direction);
+      const target = result.result
+        ? ` Target: (${result.result.targetX}, ${result.result.targetY}).`
+        : "";
+      setFeedback(
+        `Movement test sent. Request ID: ${result.requestId}. Outcome: ${result.outcome}.${target}`,
+        "success",
+      );
+    } catch (error) {
+      setFeedback(`Movement test failed: ${error.message}`, "error");
+    } finally {
+      for (const movementButton of elements.movementButtons) {
+        movementButton.disabled = false;
+      }
+    }
+  });
+}
 
 elements.reloadGameData.addEventListener("click", async () => {
   elements.reloadGameData.disabled = true;

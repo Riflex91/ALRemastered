@@ -4,6 +4,11 @@ import { extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AdventureLandAccountService } from "../account/service.ts";
 import type { ActionGateway, ActionGatewayResult } from "../action/gateway.ts";
+import type {
+  AdventureLandMovementService,
+  MovementDirection,
+  MovementMode,
+} from "../action/movement.ts";
 import type { AdventureLandSelectionService } from "../account/selection-service.ts";
 import type { AdventureLandCharacterService } from "../character/service.ts";
 import type { CoreRuntime, HealthSnapshot } from "../core/app.ts";
@@ -22,6 +27,7 @@ export interface DashboardServerOptions {
   readonly selectionService?: AdventureLandSelectionService;
   readonly characterService?: AdventureLandCharacterService;
   readonly actionGateway?: ActionGateway;
+  readonly movementService?: AdventureLandMovementService;
   readonly updateService?: UpdateService;
   readonly diagnostics?: DiagnosticsService;
   readonly gameVersionService?: AdventureLandVersionService;
@@ -37,6 +43,7 @@ export class DashboardServer {
   readonly #selectionService?: AdventureLandSelectionService;
   readonly #characterService?: AdventureLandCharacterService;
   readonly #actionGateway?: ActionGateway;
+  readonly #movementService?: AdventureLandMovementService;
   readonly #updateService?: UpdateService;
   readonly #diagnostics?: DiagnosticsService;
   readonly #gameVersionService?: AdventureLandVersionService;
@@ -55,6 +62,7 @@ export class DashboardServer {
     this.#selectionService = options.selectionService;
     this.#characterService = options.characterService;
     this.#actionGateway = options.actionGateway;
+    this.#movementService = options.movementService;
     this.#updateService = options.updateService;
     this.#diagnostics = options.diagnostics;
     this.#gameVersionService = options.gameVersionService;
@@ -233,6 +241,39 @@ export class DashboardServer {
         result,
         gatewayStatusCode(result),
       );
+    }
+
+    if (method === "POST" && path === "/api/action-gateway/movement-test") {
+      if (!this.#movementService) {
+        return this.#json(response, { error: "Movement test service is unavailable." }, 503);
+      }
+
+      let body: Record<string, unknown>;
+      try {
+        body = await this.#readJsonObject(request);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Invalid request body.";
+        return this.#json(response, { error: message }, 400);
+      }
+
+      const mode = parseMovementMode(body.mode);
+      const direction = parseMovementDirection(body.direction);
+      if (!mode || !direction) {
+        return this.#json(
+          response,
+          {
+            error:
+              "Movement test requires mode move/xmove and direction left/right/up/down.",
+          },
+          400,
+        );
+      }
+
+      const result = await this.#movementService.runDashboardTest({
+        mode,
+        direction,
+      });
+      return this.#json(response, result, gatewayStatusCode(result));
     }
 
     if (method === "GET" && path === "/api/diagnostics/snapshot") {
@@ -497,4 +538,19 @@ function gatewayStatusCode(result: ActionGatewayResult): number {
     case "timeout": return 504;
     case "error": return 400;
   }
+}
+
+function parseMovementMode(value: unknown): MovementMode | undefined {
+  return value === "move" || value === "xmove" ? value : undefined;
+}
+
+function parseMovementDirection(
+  value: unknown,
+): MovementDirection | undefined {
+  return value === "left" ||
+      value === "right" ||
+      value === "up" ||
+      value === "down"
+    ? value
+    : undefined;
 }

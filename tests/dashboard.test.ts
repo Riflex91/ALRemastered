@@ -820,11 +820,36 @@ test("dashboard exposes a fixed local-only Action Gateway probe", async () => {
     }),
   };
 
+  const movementService = {
+    runDashboardTest: async (request: { mode: "move" | "xmove"; direction: string }) => ({
+      requestId: "act-movement-test",
+      action: request.mode === "xmove" ? "character.xmove" : "character.move",
+      origin: "dashboard",
+      characterId: "CH_probe",
+      startedAt: 1_000,
+      completedAt: 1_001,
+      durationMs: 1,
+      outcome: "success",
+      result: {
+        mode: request.mode,
+        direction: request.direction,
+        map: "main",
+        fromX: 100,
+        fromY: 100,
+        targetX: 132,
+        targetY: 100,
+        transport: "move",
+        path: "direct",
+      },
+    }),
+  };
+
   const dashboard = new DashboardServer({
     logger,
     runtime,
     actionGateway,
     characterService: fakeCharacterService as any,
+    movementService: movementService as any,
     host: "127.0.0.1",
     port: 0,
   });
@@ -862,6 +887,30 @@ test("dashboard exposes a fixed local-only Action Gateway probe", async () => {
     assert.equal(limitedPayload.outcome, "rate_limited");
     assert.equal(limitedPayload.error.code, "ACTION_RATE_LIMITED");
 
+    const movement = await fetch(
+      `${url}/api/action-gateway/movement-test`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "move", direction: "right" }),
+      },
+    );
+    assert.equal(movement.status, 200);
+    const movementPayload = await movement.json();
+    assert.equal(movementPayload.requestId, "act-movement-test");
+    assert.equal(movementPayload.action, "character.move");
+    assert.equal(movementPayload.result.targetX, 132);
+
+    const invalidMovement = await fetch(
+      `${url}/api/action-gateway/movement-test`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "teleport", direction: "right" }),
+      },
+    );
+    assert.equal(invalidMovement.status, 400);
+
     const arbitrary = await fetch(
       `${url}/api/action-gateway/action`,
       {
@@ -882,7 +931,7 @@ test("dashboard exposes a fixed local-only Action Gateway probe", async () => {
   }
 });
 
-test("dashboard renders Slice 3.1 Action Gateway status and local probe only", () => {
+test("dashboard renders fixed Slice 3.1 probe and Slice 3.2 movement controls", () => {
   const html = readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
   const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
 
@@ -893,6 +942,7 @@ test("dashboard renders Slice 3.1 Action Gateway status and local probe only", (
     "action-gateway-request-id",
     "action-gateway-outcome",
     "run-action-gateway-probe",
+    "movement-mode",
   ]) {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
@@ -901,8 +951,13 @@ test("dashboard renders Slice 3.1 Action Gateway status and local probe only", (
   assert.match(script, /\/api\/action-gateway/);
   assert.match(script, /\/api\/action-gateway\/probe/);
   assert.match(script, /Action gateway probe completed/);
+  assert.match(script, /\/api\/action-gateway\/movement-test/);
+  assert.match(html, /data-movement-direction="left"/);
+  assert.match(html, /data-movement-direction="right"/);
+  assert.match(html, /fixed 32-unit same-map step/);
+  assert.doesNotMatch(script, /\/api\/action-gateway\/action/);
   assert.doesNotMatch(
     script,
-    /\/api\/action-gateway\/(move|xmove|attack|skill|loot|use|buy|sell|party)/,
+    /\/api\/action-gateway\/(attack|skill|loot|use|buy|sell|party)/,
   );
 });

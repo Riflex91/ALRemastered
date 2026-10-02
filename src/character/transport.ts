@@ -52,6 +52,20 @@ export interface AdventureLandConnectedCharacter {
   readonly equipment?: AdventureLandEquipmentState;
   readonly gold?: number;
   readonly conditions?: AdventureLandConditionState;
+  readonly movementSequence?: number;
+}
+
+export interface AdventureLandDirectMovementInput {
+  readonly x: number;
+  readonly y: number;
+  readonly signal?: AbortSignal;
+}
+
+export interface AdventureLandDirectMovementReceipt {
+  readonly fromX: number;
+  readonly fromY: number;
+  readonly targetX: number;
+  readonly targetY: number;
 }
 
 export interface AdventureLandCharacterLiveState {
@@ -68,6 +82,7 @@ export interface AdventureLandCharacterConnection {
   snapshot(): AdventureLandCharacterLiveState;
   onState(listener: (state: AdventureLandCharacterLiveState) => void): void;
   onUnexpectedClose(listener: (reason?: string) => void): void;
+  sendMove(input: AdventureLandDirectMovementInput): AdventureLandDirectMovementReceipt;
   close(): Promise<void>;
 }
 
@@ -414,6 +429,66 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
     this.#touch();
   }
 
+  sendMove(
+    input: AdventureLandDirectMovementInput,
+  ): AdventureLandDirectMovementReceipt {
+    if (input.signal?.aborted) {
+      throw new AdventureLandCharacterTransportError(
+        "Adventure Land movement was cancelled before it was sent.",
+        "movement_aborted",
+      );
+    }
+    if (this.#closed || this.#socket.readyState !== 1) {
+      throw new AdventureLandCharacterTransportError(
+        "Adventure Land character transport is not ready for movement.",
+        "movement_transport_unavailable",
+      );
+    }
+
+    const fromX = this.#character.x;
+    const fromY = this.#character.y;
+    const movementSequence = this.#character.movementSequence;
+    if (
+      typeof fromX !== "number" ||
+      !Number.isFinite(fromX) ||
+      typeof fromY !== "number" ||
+      !Number.isFinite(fromY) ||
+      typeof movementSequence !== "number" ||
+      !Number.isFinite(movementSequence)
+    ) {
+      throw new AdventureLandCharacterTransportError(
+        "Adventure Land movement state is incomplete.",
+        "movement_state_unavailable",
+      );
+    }
+    if (!Number.isFinite(input.x) || !Number.isFinite(input.y)) {
+      throw new AdventureLandCharacterTransportError(
+        "Adventure Land movement target is invalid.",
+        "movement_target_invalid",
+      );
+    }
+
+    const receipt = Object.freeze({
+      fromX,
+      fromY,
+      targetX: input.x,
+      targetY: input.y,
+    });
+    this.#socket.send(
+      "42" + JSON.stringify([
+        "move",
+        {
+          x: receipt.fromX,
+          y: receipt.fromY,
+          going_x: receipt.targetX,
+          going_y: receipt.targetY,
+          m: movementSequence,
+        },
+      ]),
+    );
+    return receipt;
+  }
+
   async close(): Promise<void> {
     if (this.#closed || this.#socket.readyState === 3) return;
     this.#intentional = true;
@@ -532,6 +607,7 @@ function parseConnectedCharacter(
     equipment: parseEquipment(data.slots),
     gold: finiteNumber(data.gold),
     conditions: parseConditions(data.s),
+    movementSequence: finiteNumber(data.m),
   });
 }
 
@@ -577,6 +653,9 @@ function mergeConnectedCharacter(
     equipment: "slots" in data ? (equipment ?? current.equipment) : current.equipment,
     gold: "gold" in data ? (finiteNumber(data.gold) ?? current.gold) : current.gold,
     conditions: "s" in data ? (conditions ?? current.conditions) : current.conditions,
+    movementSequence: "m" in data
+      ? (finiteNumber(data.m) ?? current.movementSequence)
+      : current.movementSequence,
   });
 }
 

@@ -339,6 +339,28 @@
       <p class="selection-note">
         The gateway probe is local-only and does not send movement, combat, skill, item, party, or other gameplay actions to Adventure Land.
       </p>
+
+      <div class="selection-content">
+        <div>
+          <h3>Movement test controls</h3>
+          <div class="server-picker">
+            <label>
+              <span class="label">Movement mode</span>
+              <select id="movement-mode" aria-label="Movement test mode">
+                <option value="move">Move</option>
+                <option value="xmove">XMove</option>
+              </select>
+            </label>
+            <button type="button" data-movement-direction="left">Move left</button>
+            <button type="button" data-movement-direction="up">Move up</button>
+            <button type="button" data-movement-direction="down">Move down</button>
+            <button type="button" data-movement-direction="right">Move right</button>
+          </div>
+          <small class="selection-note">
+            Slice 3.2 only sends a fixed 32-unit same-map step after Adventure Land geometry validation. XMove uses the direct path only; if pathfinding would be required, the test is rejected instead of starting hidden navigation.
+          </small>
+        </div>
+      </div>
     </section>
 
     <section class="game-data-panel">
