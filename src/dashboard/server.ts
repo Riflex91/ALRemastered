@@ -1,4 +1,4 @@
-import { createReadStream, existsSync, readFileSync } from "node:fs";
+import { createReadStream, existsSync } from "node:fs";
 import { createServer, type Server, type ServerResponse } from "node:http";
 import { extname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -108,8 +108,20 @@ export class DashboardServer {
       return;
     }
 
-    const assetPath = path === "/" ? "/index.html" : path;
-    const assetUrl = new URL(`../../dashboard${assetPath}`, import.meta.url);
+    const assets: Readonly<Record<string, string>> = {
+      "/": "index.html",
+      "/index.html": "index.html",
+      "/styles.css": "styles.css",
+      "/app.js": "app.js",
+    };
+    const assetName = assets[path];
+    if (!assetName) {
+      response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+      response.end("Not found.");
+      return;
+    }
+
+    const assetUrl = new URL(`../../dashboard/${assetName}`, import.meta.url);
     const filePath = fileURLToPath(assetUrl);
     if (!existsSync(filePath)) {
       response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
@@ -120,6 +132,9 @@ export class DashboardServer {
     response.writeHead(200, {
       "Content-Type": contentType(filePath),
       "Cache-Control": "no-store",
+      "Content-Security-Policy": "default-src 'self'; connect-src 'self'; script-src 'self'; style-src 'self'; base-uri 'none'; frame-ancestors 'none'",
+      "X-Content-Type-Options": "nosniff",
+      "Referrer-Policy": "no-referrer",
     });
     createReadStream(filePath).pipe(response);
   }
