@@ -97,7 +97,8 @@ jobs:
           }
           $normalOutput = Get-Content $normalLog -Raw
           if ($normalOutput -notmatch "Core is running\.") { throw "Installed client did not report a running core. Output: $normalOutput" }
-          Stop-Process -Id $client.Id -Force
+          & taskkill.exe /PID $client.Id /T /F | Out-Null
+          Start-Sleep -Milliseconds 500
           $uninstallProcess = Start-Process -FilePath "$testDir\Uninstall.exe" -ArgumentList "/S" -Wait -PassThru
           if ($uninstallProcess.ExitCode -ne 0) { throw "Uninstaller returned exit code $($uninstallProcess.ExitCode)" }
           Start-Sleep -Seconds 1
