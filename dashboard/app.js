@@ -334,7 +334,9 @@ function renderCharacterConnection() {
     party === undefined
       ? "—"
       : party.inParty
-        ? `${party.members.length} members · Leader: ${party.leader ?? "Unknown"}`
+        ? party.members.length
+          ? `${party.members.length} members · Leader: ${party.leader ?? "Unknown"}`
+          : `In party · Leader: ${party.leader ?? "Unknown"} · waiting for members`
         : "Solo";
 
   renderInventoryState(inventory);
@@ -469,8 +471,16 @@ function renderPartyState(party) {
     appendStateEmpty(elements.characterParty, "Party state is not available.");
     return;
   }
-  if (!party.inParty || !party.members.length) {
+  if (!party.inParty) {
     appendStateEmpty(elements.characterParty, "Character is not in a party.");
+    return;
+  }
+  if (!party.members.length) {
+    const leader = party.leader ? ` · Leader: ${party.leader}` : "";
+    appendStateEmpty(
+      elements.characterParty,
+      `Party detected${leader}. Waiting for member details.`,
+    );
     return;
   }
 
