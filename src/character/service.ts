@@ -5,6 +5,8 @@ import {
   AdventureLandCharacterTransportError,
   type AdventureLandCharacterConnection,
   type AdventureLandCharacterLiveState,
+  type AdventureLandDirectMovementInput,
+  type AdventureLandDirectMovementReceipt,
   type AdventureLandCharacterTransport,
   type AdventureLandConnectedCharacter,
 } from "./transport.ts";
@@ -256,6 +258,19 @@ export class AdventureLandCharacterService {
     });
 
     return this.#connecting;
+  }
+
+  sendDirectMovement(
+    input: AdventureLandDirectMovementInput,
+  ): AdventureLandDirectMovementReceipt {
+    const connection = this.#connection;
+    if (!connection || this.#state.status !== "connected") {
+      throw new AdventureLandCharacterTransportError(
+        "Connect a headless character before sending movement.",
+        "movement_not_connected",
+      );
+    }
+    return connection.sendMove(input);
   }
 
   async stop(reason = "user"): Promise<AdventureLandCharacterConnectionState> {
