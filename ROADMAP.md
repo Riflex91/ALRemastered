@@ -547,9 +547,11 @@ Items im offiziellen Spiel verändern und State-Abgleich prüfen.
 
 ## Slice 2.6 – Entities und Party State
 
-**Status: MERGED – AWAITING USER TEST**
+**Status: VERIFIED**
 
 > 2026-10-02: Read-only nearby entity and party state merged for `0.1.0-alpha.20`. The headless character state consumes the server's embedded `start.entities` snapshot plus live `entities`, `disappear`, `death`, and `party_update` events, distinguishes nearby players/monsters and server-reported types, clears stale entities on map changes, and exposes party leader/member details without gameplay actions. Automated Windows/Linux CI and alpha.19 → alpha.20 installer upgrade smokes passed. Real-account movement/entity/party validation is still required before VERIFIED.
+
+> 2026-10-03: VERIFIED on Windows with `0.1.0-alpha.20`. The same canonical `CH_…` merchant connected headlessly on EU II with `automation:false`; the initial embedded entity snapshot was present immediately, live entity counts changed continuously, and a real movement/reconnect test changed position from about `(-1262.7, -195.8)` to `(-1091.5, 859.5)` while the visible world changed from crab/squig-type mobs to a distinct 12-type set including frog, kitty, puppy, squig/squigtoad, and tortoise. Controlled disconnects and ping measurement succeeded, and the diagnostic export reported `Secrets sanitized: yes`. A separate real-account party-members snapshot cannot be reproduced in this read-only slice because Adventure Land removes the character from its party when that character logs out before the headless connection; therefore the server `party_update` member/leader path is accepted from the passing automated transport tests, which cover leader/member parsing and party-state retention.
 
 - Entities in relevanter Umgebung
 - Monster/Player-Typen
