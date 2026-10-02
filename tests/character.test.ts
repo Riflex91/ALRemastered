@@ -86,6 +86,7 @@ test("headless transport follows welcome-loaded-auth-start without automation ev
   assert.ok(socket);
   socket.open();
   socket.message('0{"sid":"engine"}');
+  await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(socket.sent, ["40"]);
 
   socket.message('40{"sid":"socket"}');
