@@ -1,0 +1,263 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #0b0d10;
+  color: #f5f7fa;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top right, rgba(79, 122, 255, 0.16), transparent 32rem),
+    #0b0d10;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  border: 1px solid #343a46;
+  border-radius: 8px;
+  padding: 0.62rem 0.86rem;
+  background: #1a1f27;
+  color: #f5f7fa;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #232a35;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid #7da2ff;
+  outline-offset: 2px;
+}
+
+button.danger {
+  border-color: #6e3439;
+}
+
+.shell {
+  width: min(1480px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 1.5rem 0 2rem;
+}
+
+.topbar,
+.console-heading,
+.toolbar,
+.status-grid {
+  display: flex;
+  align-items: center;
+}
+
+.topbar,
+.console-heading {
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: clamp(1.6rem, 4vw, 2.35rem);
+}
+
+h2 {
+  font-size: 1.25rem;
+}
+
+.eyebrow,
+.label,
+.filters span {
+  color: #9aa4b2;
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.status-pill {
+  border: 1px solid #343a46;
+  border-radius: 999px;
+  padding: 0.45rem 0.78rem;
+  background: #151920;
+  color: #bbc3cf;
+  font-size: 0.85rem;
+}
+
+.status-pill.online {
+  border-color: #2f6847;
+  color: #8ee1aa;
+}
+
+.status-grid {
+  align-items: stretch;
+  gap: 0.8rem;
+  margin: 1.2rem 0;
+  flex-wrap: wrap;
+}
+
+.card {
+  min-width: 180px;
+  flex: 1 1 200px;
+  border: 1px solid #242a33;
+  border-radius: 12px;
+  padding: 1rem;
+  background: rgba(18, 22, 28, 0.88);
+}
+
+.card strong {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 1.05rem;
+}
+
+.console-panel {
+  border: 1px solid #242a33;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(18, 22, 28, 0.92);
+}
+
+.console-heading {
+  padding: 1rem;
+  border-bottom: 1px solid #242a33;
+}
+
+.toolbar {
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.filters {
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid #242a33;
+}
+
+.filters label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.filters select,
+.filters input[type="search"] {
+  border: 1px solid #343a46;
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  background: #0f1318;
+  color: #f5f7fa;
+}
+
+.search-field {
+  flex: 1 1 260px;
+}
+
+.search-field input {
+  width: 100%;
+}
+
+.check-field {
+  padding: 0 0.3rem;
+}
+
+.feedback {
+  min-height: 2.35rem;
+  padding: 0.6rem 1rem;
+  color: #aab4c2;
+  font-size: 0.88rem;
+  border-bottom: 1px solid #242a33;
+}
+
+.feedback.success {
+  color: #8ee1aa;
+}
+
+.feedback.error {
+  color: #ff9aa3;
+}
+
+.log-console {
+  height: min(62vh, 700px);
+  min-height: 340px;
+  overflow: auto;
+  padding: 0.7rem 0;
+  background: #080a0d;
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.48;
+}
+
+.log-line {
+  display: grid;
+  grid-template-columns: 190px 58px 100px minmax(0, 1fr);
+  gap: 0.65rem;
+  padding: 0.16rem 1rem;
+  border-left: 3px solid transparent;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.log-line:hover {
+  background: #10141a;
+}
+
+.log-line[data-level="WARN"] {
+  border-left-color: #dfaf4f;
+}
+
+.log-line[data-level="ERROR"],
+.log-line[data-level="FATAL"] {
+  border-left-color: #df5b66;
+}
+
+.log-line[data-level="DEBUG"],
+.log-line[data-level="TRACE"] {
+  color: #929baa;
+}
+
+.log-time,
+.log-level,
+.log-component {
+  color: #8f99a7;
+}
+
+.empty {
+  padding: 1rem;
+  color: #7f8997;
+}
+
+@media (max-width: 800px) {
+  .topbar,
+  .console-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .log-line {
+    grid-template-columns: 1fr;
+    gap: 0.1rem;
+    padding: 0.5rem 0.8rem;
+    border-bottom: 1px solid #141920;
+  }
+
+  .primary-actions {
+    width: 100%;
+  }
+}
