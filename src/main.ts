@@ -131,9 +131,11 @@ diagnostics.registerComponent("updater", () => {
   };
 });
 
+const liveGameDataSource = new AdventureLandGameDataSource();
+
 gameVersionService = new AdventureLandVersionService({
   logger,
-  source: new AdventureLandVersionSource(),
+  source: new AdventureLandVersionSource(liveGameDataSource),
   store: new AdventureLandVersionStore(join(userPaths.dataDir, "game", "version.json")),
 });
 
@@ -148,7 +150,7 @@ diagnostics.registerComponent("game-version", () => {
 
 gameDataService = new AdventureLandGameDataService({
   logger,
-  source: new AdventureLandGameDataSource(),
+  source: liveGameDataSource,
 });
 
 diagnostics.registerComponent("game-data", () => {
