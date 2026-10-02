@@ -1,0 +1,22 @@
+{
+  "name": "alremastered",
+  "version": "0.1.0-alpha.1",
+  "private": true,
+  "description": "A resource-efficient Adventure Land client with headless and browser modes.",
+  "type": "module",
+  "engines": {
+    "node": ">=24.12.0 <25"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "lint": "node scripts/check-style.mjs",
+    "format": "node scripts/format.mjs",
+    "format:check": "node scripts/check-format.mjs",
+    "test": "npm run build && node --test build/package/tests/core.test.js",
+    "check": "npm run lint && npm run format:check && npm test",
+    "start": "node src/main.ts",
+    "health": "node src/main.ts --health-check",
+    "installer:linux": "bash installer/linux/build-installer.sh",
+    "installer:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File installer/windows/build-installer.ps1"
+  }
+}
