@@ -311,7 +311,7 @@ Ab diesem Slice ist die Debug-Konsole Teil **jedes** folgenden Livetests.
 
 ## Slice 0.5 – Automatische Update-Erkennung + Update-Banner
 
-**Status: IN PROGRESS**
+**Status: MERGED – AWAITING USER TEST**
 
 ### Inhalt
 
