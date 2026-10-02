@@ -2,6 +2,17 @@ import { spawn } from "node:child_process";
 import { chmodSync } from "node:fs";
 import type { Logger } from "../logging/logger.ts";
 
+export function dashboardUpdateInstallerArguments(
+  platform: NodeJS.Platform,
+  parentPid: number = process.pid,
+): readonly string[] {
+  if (platform === "win32") {
+    return ["/S", "/ALRUPDATE=1", `/ALRWAITPID=${parentPid}`];
+  }
+  if (platform === "linux") return ["--yes", "--no-desktop", "--restart"];
+  return [];
+}
+
 export async function scheduleInstallerAfterCurrentProcess(
   installerPath: string,
   logger: Logger,
@@ -13,24 +24,47 @@ export async function scheduleInstallerAfterCurrentProcess(
     await spawnConfirmed(installerPath, [...installerArguments], {
       detached: true,
       stdio: "ignore",
-      windowsHide: false,
+      windowsHide: true,
     });
-    logger.info("Verified Windows update installer process started.", { installerPath });
+    logger.info("Verified Windows update installer handoff started.", {
+      installerPath,
+      automatic: installerArguments.includes("/ALRUPDATE=1"),
+      waitsForCurrentProcess: installerArguments.some((value) =>
+        value.startsWith("/ALRWAITPID=")
+      ),
+    });
     return;
   }
 
   if (platform === "linux") {
     chmodSync(installerPath, 0o755);
-    const script = 'while kill -0 "$1" 2>/dev/null; do sleep 0.2; done; sleep 1.2; chmod +x "$2"; exec "$2"';
+    const script = [
+      'parent_pid="$1"',
+      'installer="$2"',
+      "shift 2",
+      'while kill -0 "$parent_pid" 2>/dev/null; do sleep 0.2; done',
+      "sleep 0.5",
+      'exec "$installer" "$@"',
+    ].join("; ");
     await spawnConfirmed(
       "/bin/sh",
-      ["-c", script, "alremastered-updater", String(parentPid), installerPath],
+      [
+        "-c",
+        script,
+        "alremastered-updater",
+        String(parentPid),
+        installerPath,
+        ...installerArguments,
+      ],
       {
         detached: true,
         stdio: "ignore",
       },
     );
-    logger.info("Verified Linux update installer handoff started.", { installerPath });
+    logger.info("Verified Linux update installer handoff started.", {
+      installerPath,
+      automatic: installerArguments.includes("--restart"),
+    });
     return;
   }
 
