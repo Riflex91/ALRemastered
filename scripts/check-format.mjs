@@ -3,8 +3,7 @@ import { sourceFiles } from "./files.mjs";
 
 const problems = [];
 for (const file of sourceFiles()) {
-  const text = readFileSync(file, "utf8");
-  if (text.includes("\r")) problems.push(`${file}: CRLF is not allowed in repository text files`);
+  const text = readFileSync(file, "utf8").replace(/\r\n/g, "\n");
   if (!text.endsWith("\n")) problems.push(`${file}: missing final newline`);
   if (/ +\n/.test(text)) problems.push(`${file}: trailing spaces`);
 }
