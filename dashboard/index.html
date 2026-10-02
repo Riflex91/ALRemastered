@@ -71,6 +71,41 @@
       </article>
     </section>
 
+    <section class="game-data-panel">
+      <div class="diagnostics-heading">
+        <div>
+          <p class="eyebrow">Adventure Land data</p>
+          <h2>Game data</h2>
+        </div>
+        <div class="toolbar">
+          <button id="reload-game-data" type="button">Reload game data</button>
+        </div>
+      </div>
+
+      <div class="status-grid game-data-summary" aria-label="Game data status">
+        <article class="card">
+          <span class="label">Game data status</span>
+          <strong id="game-data-status">Waiting</strong>
+        </article>
+        <article class="card">
+          <span class="label">Game data version</span>
+          <strong id="game-data-version">—</strong>
+        </article>
+        <article class="card">
+          <span class="label">Loaded families</span>
+          <strong id="game-data-family-total">0 / 0</strong>
+        </article>
+        <article class="card">
+          <span class="label">Loaded at</span>
+          <strong id="game-data-loaded-at">—</strong>
+        </article>
+      </div>
+
+      <div id="game-data-families" class="game-data-families" aria-label="Game data families">
+        <div class="empty">Game data has not been loaded yet.</div>
+      </div>
+    </section>
+
     <section class="diagnostics-overview">
       <div class="diagnostics-heading">
         <div>
