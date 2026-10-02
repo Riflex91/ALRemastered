@@ -1,8 +1,8 @@
 import { readdirSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
 
-const roots = ["src", "tests", "scripts", "installer", ".github"];
-const extensions = new Set([".ts", ".mjs", ".sh", ".ps1", ".nsi", ".cs", ".yml", ".yaml"]);
+const roots = ["src", "tests", "scripts", "installer", "dashboard", ".github"];
+const extensions = new Set([".ts", ".mjs", ".js", ".css", ".html", ".sh", ".ps1", ".nsi", ".cs", ".yml", ".yaml"]);
 
 export function sourceFiles() {
   const files = [];

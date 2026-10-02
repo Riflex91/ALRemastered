@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ALRemastered</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Adventure Land Client</p>
+        <h1>ALRemastered</h1>
+      </div>
+      <div class="status-pill" id="connection-status">Connecting…</div>
+    </header>
+
+    <section class="status-grid" aria-label="Client status">
+      <article class="card">
+        <span class="label">Core status</span>
+        <strong id="core-status">Unknown</strong>
+      </article>
+      <article class="card">
+        <span class="label">Client version</span>
+        <strong id="client-version">—</strong>
+      </article>
+      <article class="card">
+        <span class="label">Uptime</span>
+        <strong id="uptime">—</strong>
+      </article>
+      <article class="card">
+        <span class="label">Platform</span>
+        <strong id="platform">—</strong>
+      </article>
+    </section>
+
+    <section class="console-panel">
+      <div class="console-heading">
+        <div>
+          <p class="eyebrow">Diagnostics</p>
+          <h2>Debug Console</h2>
+        </div>
+        <div class="toolbar primary-actions">
+          <button id="copy-full" type="button">Copy full log</button>
+          <button id="copy-filtered" type="button">Copy filtered log</button>
+          <button id="download-log" type="button">Download log</button>
+          <button id="clear-log" class="danger" type="button">Clear log</button>
+        </div>
+      </div>
+
+      <div class="toolbar filters">
+        <label>
+          <span>Level</span>
+          <select id="level-filter">
+            <option value="ALL">All levels</option>
+            <option value="TRACE">TRACE</option>
+            <option value="DEBUG">DEBUG</option>
+            <option value="INFO">INFO</option>
+            <option value="WARN">WARN</option>
+            <option value="ERROR">ERROR</option>
+            <option value="FATAL">FATAL</option>
+          </select>
+        </label>
+
+        <label class="search-field">
+          <span>Search</span>
+          <input id="search" type="search" placeholder="Search logs">
+        </label>
+
+        <label class="check-field">
+          <input id="auto-scroll" type="checkbox" checked>
+          <span>Auto-scroll</span>
+        </label>
+
+        <button id="pause" type="button" aria-pressed="false">Pause</button>
+      </div>
+
+      <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
+      <div id="log-console" class="log-console" role="log" aria-live="off" aria-label="Live diagnostic log"></div>
+    </section>
+  </main>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

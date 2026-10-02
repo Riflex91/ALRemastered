@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 import { dirname, join, relative } from "node:path";
 
@@ -40,6 +40,7 @@ function compileTree(sourceRoot) {
 
 compileTree("src");
 compileTree("tests");
+cpSync("dashboard", join(buildRoot, "dashboard"), { recursive: true });
 
 const stagedPackage = { ...sourcePackage, version: buildVersion };
 writeFileSync(join(buildRoot, "package.json"), `${JSON.stringify(stagedPackage, null, 2)}\n`, "utf8");

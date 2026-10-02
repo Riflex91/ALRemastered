@@ -27,6 +27,7 @@ export interface LogMeta {
 }
 
 export interface LogRecord {
+  readonly id: number;
   readonly timestamp: string;
   readonly level: LogLevel;
   readonly component: string;
@@ -61,6 +62,8 @@ export class Logger {
   readonly #maxArchives: number;
   readonly #clock: () => Date;
   readonly #buffer: LogRecord[] = [];
+  readonly #listeners = new Set<(record: LogRecord) => void>();
+  #nextId = 1;
 
   constructor(options: LoggerOptions) {
     this.#component = options.component;
@@ -102,6 +105,7 @@ export class Logger {
     if (levelWeight[level] < levelWeight[this.#minLevel]) return;
 
     const record: LogRecord = sanitizeRecord({
+      id: this.#nextId,
       timestamp: this.#clock().toISOString(),
       level,
       component: this.#component,
@@ -113,6 +117,7 @@ export class Logger {
       error: error === undefined ? undefined : normalizeError(error),
     });
 
+    this.#nextId += 1;
     this.#buffer.push(record);
     if (this.#buffer.length > this.#ringSize) {
       this.#buffer.splice(0, this.#buffer.length - this.#ringSize);
@@ -123,6 +128,13 @@ export class Logger {
       this.#rotateIfNeeded(Buffer.byteLength(line, "utf8"));
       appendFileSync(this.#logFile, line, "utf8");
     }
+
+    for (const listener of this.#listeners) listener(structuredClone(record));
+  }
+
+  subscribe(listener: (record: LogRecord) => void): () => void {
+    this.#listeners.add(listener);
+    return () => this.#listeners.delete(listener);
   }
 
   records(): readonly LogRecord[] {
