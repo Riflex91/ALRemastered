@@ -4,6 +4,7 @@ import { extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { CoreRuntime, HealthSnapshot } from "../core/app.ts";
 import type { DiagnosticsService } from "../diagnostics/service.ts";
+import type { AdventureLandGameDataService } from "../game/data-service.ts";
 import type { AdventureLandVersionService } from "../game/version-service.ts";
 import type { Logger, LogRecord } from "../logging/logger.ts";
 import type { UpdateService } from "../update/service.ts";
@@ -16,6 +17,7 @@ export interface DashboardServerOptions {
   readonly updateService?: UpdateService;
   readonly diagnostics?: DiagnosticsService;
   readonly gameVersionService?: AdventureLandVersionService;
+  readonly gameDataService?: AdventureLandGameDataService;
 }
 
 export class DashboardServer {
@@ -26,6 +28,7 @@ export class DashboardServer {
   readonly #updateService?: UpdateService;
   readonly #diagnostics?: DiagnosticsService;
   readonly #gameVersionService?: AdventureLandVersionService;
+  readonly #gameDataService?: AdventureLandGameDataService;
   #server?: Server;
   #url?: string;
   readonly #clients = new Set<ServerResponse>();
@@ -39,6 +42,7 @@ export class DashboardServer {
     this.#updateService = options.updateService;
     this.#diagnostics = options.diagnostics;
     this.#gameVersionService = options.gameVersionService;
+    this.#gameDataService = options.gameDataService;
   }
 
   get url(): string {
@@ -117,6 +121,15 @@ export class DashboardServer {
     if (method === "GET" && path === "/api/status") {
       return this.#json(response, this.#runtime.health());
     }
+    if (method === "GET" && path === "/api/game-data") {
+      if (!this.#gameDataService) return this.#json(response, { status: "unavailable" }, 503);
+      return this.#json(response, this.#gameDataService.state());
+    }
+    if (method === "POST" && path === "/api/game-data/reload") {
+      if (!this.#gameDataService) return this.#json(response, { error: "Game data service is unavailable." }, 503);
+      return this.#runGameDataAction(response, () => this.#gameDataService!.loadNow(true));
+    }
+
     if (method === "GET" && path === "/api/game-version") {
       if (!this.#gameVersionService) return this.#json(response, { status: "unavailable" }, 503);
       return this.#json(response, this.#gameVersionService.state());
@@ -208,6 +221,15 @@ export class DashboardServer {
       "Referrer-Policy": "no-referrer",
     });
     createReadStream(filePath).pipe(response);
+  }
+
+  async #runGameDataAction(response: ServerResponse, action: () => unknown | Promise<unknown>): Promise<void> {
+    try {
+      this.#json(response, await action());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.#json(response, { error: message }, 400);
+    }
   }
 
   async #runGameVersionAction(response: ServerResponse, action: () => unknown | Promise<unknown>): Promise<void> {
