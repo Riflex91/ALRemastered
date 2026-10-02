@@ -432,6 +432,10 @@ Dashboard-Diagnose zeigt Anzahl und Ladezustand der Datenfamilien.
 
 ## Slice 1.3 – Game-Daten-Cache
 
+**Status: MERGED – AWAITING USER TEST**
+
+> 2026-10-02: Persistent versioned game-data cache merged in `0.1.0-alpha.13`. Automated Windows/Linux CI passed. Live validation is still required before this slice can be marked VERIFIED.
+
 - persistenter Cache
 - Cache-Version
 - Invalidierung bei Update
