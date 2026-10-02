@@ -407,7 +407,7 @@ Onlineprüfung gegen Adventure Land und Logkontrolle.
 
 ## Slice 1.2 – Game-Daten laden
 
-**Status: IN PROGRESS**
+**Status: MERGED – AWAITING USER TEST**
 
 Zentral verfügbar machen:
 
