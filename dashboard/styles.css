@@ -204,6 +204,115 @@ h2 {
   font-size: 1.05rem;
 }
 
+
+.diagnostics-overview {
+  margin: 1.2rem 0;
+  border: 1px solid #242a33;
+  border-radius: 14px;
+  background: rgba(18, 22, 28, 0.92);
+  overflow: hidden;
+}
+
+.diagnostics-heading,
+.recent-errors-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.component-health {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.7rem;
+  padding: 0 1rem 1rem;
+}
+
+.health-card {
+  border: 1px solid #2c333d;
+  border-radius: 10px;
+  padding: 0.85rem;
+  background: #0f1318;
+}
+
+.health-card strong {
+  display: block;
+  margin: 0.2rem 0;
+  text-transform: capitalize;
+}
+
+.health-card[data-status="healthy"] strong {
+  color: #8ee1aa;
+}
+
+.health-card[data-status="degraded"] strong {
+  color: #f0c76b;
+}
+
+.health-card[data-status="unavailable"] strong {
+  color: #ff9aa3;
+}
+
+.health-card p,
+.error-card p {
+  margin: 0.35rem 0 0;
+  color: #aab4c2;
+  font-size: 0.9rem;
+}
+
+.recent-errors {
+  border-top: 1px solid #242a33;
+}
+
+.error-list {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0 1rem 1rem;
+}
+
+.error-card {
+  border: 1px solid #63353a;
+  border-left: 4px solid #df5b66;
+  border-radius: 10px;
+  padding: 0.9rem;
+  background: #151014;
+}
+
+.error-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.error-card-meta {
+  color: #9aa4b2;
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.78rem;
+}
+
+.error-card details {
+  margin-top: 0.75rem;
+  border-top: 1px solid #3a2a2d;
+  padding-top: 0.65rem;
+}
+
+.error-card summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.error-card pre {
+  margin: 0.65rem 0 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #c5ccd7;
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.8rem;
+}
+
 .console-panel {
   border: 1px solid #242a33;
   border-radius: 14px;
@@ -322,6 +431,8 @@ h2 {
 @media (max-width: 800px) {
   .topbar,
   .console-heading,
+  .diagnostics-heading,
+  .error-card-header,
   .update-banner {
     align-items: flex-start;
     flex-direction: column;

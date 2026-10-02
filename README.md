@@ -84,6 +84,20 @@ Updates are never installed without an explicit **Install update** action. The C
 
 Release publication is handled by the `Publish release` GitHub Actions workflow so Windows, Linux and `ALRemastered-update.json` are produced from one commit.
 
+## Diagnostics foundation
+
+The dashboard includes a diagnostics overview with component health for the Core, dashboard and updater, plus highlighted recent error cards. Error cards use an understandable English summary and expose **Technical details** separately.
+
+Available diagnostic actions include:
+
+- **Copy diagnostic snapshot**
+- **Download diagnostic package**
+- **Copy full log** directly from each recent error card
+
+Diagnostic snapshots and packages are generated only from already sanitized runtime/log data.
+
+For live validation during development, start ALRemastered with `--diagnostic-test-mode`. This opt-in flag generates three synthetic diagnostic errors without changing normal client behavior. Restart without the flag to return to the normal error-free state.
+
 ## Diagnostics
 
 ALRemastered writes structured client logs to the platform user-data location:

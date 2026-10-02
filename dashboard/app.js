@@ -5,6 +5,7 @@ const state = {
   autoScroll: true,
   status: null,
   update: null,
+  diagnostics: null,
   source: null,
 };
 
@@ -35,6 +36,10 @@ const elements = {
   installUpdate: document.querySelector("#install-update"),
   skipUpdate: document.querySelector("#skip-update"),
   remindUpdate: document.querySelector("#remind-update"),
+  componentHealth: document.querySelector("#component-health"),
+  recentErrors: document.querySelector("#recent-errors-list"),
+  copySnapshot: document.querySelector("#copy-snapshot"),
+  downloadPackage: document.querySelector("#download-package"),
 };
 
 function setFeedback(message, kind = "") {
@@ -184,6 +189,103 @@ function renderUpdate() {
   }
 }
 
+function renderDiagnostics() {
+  const diagnostics = state.diagnostics;
+  if (!diagnostics) return;
+
+  elements.componentHealth.replaceChildren();
+  const healthFragment = document.createDocumentFragment();
+  for (const component of diagnostics.components) {
+    const card = document.createElement("article");
+    card.className = "health-card";
+    card.dataset.status = component.status;
+
+    const name = document.createElement("span");
+    name.className = "label";
+    name.textContent = component.name;
+
+    const status = document.createElement("strong");
+    status.textContent = component.status;
+
+    const message = document.createElement("p");
+    message.textContent = component.message;
+
+    card.append(name, status, message);
+    healthFragment.append(card);
+  }
+  elements.componentHealth.append(healthFragment);
+
+  elements.recentErrors.replaceChildren();
+  if (diagnostics.recentErrors.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = "No recent errors.";
+    elements.recentErrors.append(empty);
+    return;
+  }
+
+  const errorFragment = document.createDocumentFragment();
+  for (const diagnosticError of [...diagnostics.recentErrors].reverse()) {
+    const card = document.createElement("article");
+    card.className = "error-card";
+
+    const header = document.createElement("div");
+    header.className = "error-card-header";
+
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.textContent = "Copy full log";
+    copy.addEventListener("click", () => void copyFullLog());
+
+    const summaryGroup = document.createElement("div");
+    const meta = document.createElement("div");
+    meta.className = "error-card-meta";
+    meta.textContent = `${diagnosticError.timestamp} · ${diagnosticError.level} · ${diagnosticError.component}`;
+
+    const summary = document.createElement("p");
+    summary.textContent = diagnosticError.summary;
+    summaryGroup.append(meta, summary);
+    header.append(summaryGroup, copy);
+
+    const details = document.createElement("details");
+    const detailsSummary = document.createElement("summary");
+    detailsSummary.textContent = "Technical details";
+    const technical = document.createElement("pre");
+    technical.textContent = JSON.stringify(diagnosticError.technical, null, 2);
+    details.append(detailsSummary, technical);
+
+    card.append(header, details);
+    errorFragment.append(card);
+  }
+  elements.recentErrors.append(errorFragment);
+}
+
+async function refreshDiagnostics() {
+  try {
+    const response = await fetch("/api/diagnostics/snapshot", { cache: "no-store" });
+    if (!response.ok) return;
+    state.diagnostics = await response.json();
+    renderDiagnostics();
+  } catch {
+    // Dashboard connectivity is reported separately.
+  }
+}
+
+async function copyFullLog() {
+  try {
+    const response = await fetch("/api/logs/export", { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const payload = await response.json();
+    await writeClipboard(payload.text);
+    setFeedback(
+      `Copied ${payload.lineCount} log lines. Version: ${state.status?.version ?? "unknown"}. Platform: ${state.status?.platform ?? "unknown"}. Time range: ${payload.from} -> ${payload.to}. Secrets sanitized: yes.`,
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Copy failed: ${error.message}`, "error");
+  }
+}
+
 async function refreshStatus() {
   try {
     const response = await fetch("/api/status", { cache: "no-store" });
@@ -304,20 +406,7 @@ elements.pause.addEventListener("click", () => {
   if (!state.paused) renderLogs();
 });
 
-elements.copyFull.addEventListener("click", async () => {
-  try {
-    const response = await fetch("/api/logs/export", { cache: "no-store" });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const payload = await response.json();
-    await writeClipboard(payload.text);
-    setFeedback(
-      `Copied ${payload.lineCount} log lines. Version: ${state.status?.version ?? "unknown"}. Platform: ${state.status?.platform ?? "unknown"}. Time range: ${payload.from} -> ${payload.to}. Secrets sanitized: yes.`,
-      "success",
-    );
-  } catch (error) {
-    setFeedback(`Copy failed: ${error.message}`, "error");
-  }
-});
+elements.copyFull.addEventListener("click", () => void copyFullLog());
 
 elements.copyFiltered.addEventListener("click", async () => {
   try {
@@ -349,6 +438,34 @@ elements.clear.addEventListener("click", async () => {
     clearRecords();
   } catch (error) {
     setFeedback(`Clear failed: ${error.message}`, "error");
+  }
+});
+
+elements.copySnapshot.addEventListener("click", async () => {
+  try {
+    await refreshDiagnostics();
+    await writeClipboard(JSON.stringify(state.diagnostics, null, 2));
+    setFeedback("Copied diagnostic snapshot. Secrets sanitized: yes.", "success");
+  } catch (error) {
+    setFeedback(`Snapshot copy failed: ${error.message}`, "error");
+  }
+});
+
+elements.downloadPackage.addEventListener("click", async () => {
+  try {
+    const response = await fetch("/api/diagnostics/package", { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const blob = await response.blob();
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `ALRemastered-diagnostics-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+    document.body.append(link);
+    link.click();
+    URL.revokeObjectURL(link.href);
+    link.remove();
+    setFeedback("Diagnostic package downloaded. Secrets sanitized: yes.", "success");
+  } catch (error) {
+    setFeedback(`Diagnostic package download failed: ${error.message}`, "error");
   }
 });
 
@@ -406,8 +523,10 @@ elements.installUpdate.addEventListener("click", async () => {
 
 await refreshStatus();
 await refreshUpdate();
+await refreshDiagnostics();
 await loadLogs();
 connectStream();
 setInterval(refreshStatus, 3000);
 setInterval(refreshUpdate, 1500);
+setInterval(refreshDiagnostics, 1500);
 setInterval(updateStatusView, 1000);

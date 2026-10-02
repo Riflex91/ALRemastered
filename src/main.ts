@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { CoreRuntime } from "./core/app.ts";
 import { openDashboard } from "./dashboard/open.ts";
 import { DashboardServer } from "./dashboard/server.ts";
+import { DiagnosticsService } from "./diagnostics/service.ts";
 import { Logger } from "./logging/logger.ts";
 import { getUserPaths } from "./platform/paths.ts";
 import { getReleaseMetadata } from "./release/version-model.ts";
@@ -52,6 +53,13 @@ logger.info("ALRemastered starting.", {
 runtime.start();
 logger.info("Core started.", runtime.health());
 
+const diagnostics = new DiagnosticsService(logger, () => runtime.health());
+diagnostics.registerComponent("core", () => ({
+  name: "core",
+  status: runtime.status === "running" ? "healthy" : "degraded",
+  message: runtime.status === "running" ? "Core runtime is running." : `Core runtime status is ${runtime.status}.`,
+}));
+
 if (args.has("--health-check")) {
   logger.info("Health check completed.", runtime.health());
   process.stdout.write(`${JSON.stringify(runtime.health())}\n`);
@@ -85,6 +93,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
 
   runtime.stop();
   logger.info("Core stopped.");
+  diagnostics.dispose();
   process.exit(0);
 }
 
@@ -102,10 +111,22 @@ updateService = new UpdateService({
   },
 });
 
+diagnostics.registerComponent("updater", () => {
+  const state = updateService!.state();
+  return {
+    name: "updater",
+    status: state.status === "error" ? "degraded" : "healthy",
+    message: state.status === "error"
+      ? "Updater reported an error. Open Recent errors for details."
+      : "Updater is operational.",
+  };
+});
+
 dashboard = new DashboardServer({
   logger,
   runtime,
   updateService,
+  diagnostics,
   host: "127.0.0.1",
   port: 3210,
 });
@@ -113,8 +134,32 @@ dashboard = new DashboardServer({
 let dashboardUrl: string;
 try {
   dashboardUrl = await dashboard.start();
+  diagnostics.registerComponent("dashboard", () => ({
+    name: "dashboard",
+    status: "healthy",
+    message: "Local dashboard server is running.",
+  }));
 } catch (error) {
   stopAfterUnexpectedError("Dashboard server failed to start.", error);
+}
+
+if (args.has("--diagnostic-test-mode")) {
+  logger.warn("Diagnostic test mode enabled. Synthetic errors will be generated.");
+  logger.error(
+    "Update check failed.",
+    new Error("Synthetic update-check failure for diagnostic testing."),
+    { testMode: true, password: "synthetic-secret-must-be-redacted" },
+  );
+  logger.error(
+    "Dashboard request failed.",
+    new Error("Synthetic dashboard failure for diagnostic testing."),
+    { testMode: true, route: "/api/diagnostics/test" },
+  );
+  logger.fatal(
+    "Synthetic internal failure.",
+    new Error("Synthetic internal stack detail for diagnostic testing."),
+    { testMode: true },
+  );
 }
 
 if (!args.has("--no-update-check")) {
