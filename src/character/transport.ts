@@ -3,6 +3,16 @@ import type {
   AdventureLandCharacterSummary,
   AdventureLandServerSummary,
 } from "../account/selection-source.ts";
+import {
+  applyEntityPacket,
+  applyPartyPacket,
+  clearVisibleEntities,
+  emptyWorldState,
+  removeVisibleEntity,
+  type AdventureLandPartyState,
+  type AdventureLandVisibleEntity,
+  type AdventureLandWorldState,
+} from "./world-state.ts";
 
 export interface AdventureLandCharacterTransportInput {
   readonly session: AdventureLandAccountSession;
@@ -45,6 +55,8 @@ export interface AdventureLandConnectedCharacter {
 
 export interface AdventureLandCharacterLiveState {
   readonly character: AdventureLandConnectedCharacter;
+  readonly entities: readonly AdventureLandVisibleEntity[];
+  readonly party: AdventureLandPartyState;
   readonly pingMs?: number;
   readonly updatedAt: string;
 }
@@ -201,6 +213,18 @@ export class AdventureLandCharacterTransport {
                 liveConnection.applyPingAck(data);
                 continue;
               }
+              if (name === "entities" && isRecord(data)) {
+                liveConnection.applyEntities(data);
+                continue;
+              }
+              if ((name === "disappear" || name === "death") && isRecord(data)) {
+                liveConnection.applyDisappear(data);
+                continue;
+              }
+              if (name === "party_update" && isRecord(data)) {
+                liveConnection.applyPartyUpdate(data);
+                continue;
+              }
             }
 
             if (name === "welcome") {
@@ -287,6 +311,7 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
   readonly #pingSent = new Map<string, number>();
   readonly #pingTimer: ReturnType<typeof setInterval>;
   #character: AdventureLandConnectedCharacter;
+  #world: AdventureLandWorldState = emptyWorldState();
   #pingMs?: number;
   #updatedAt: string;
   #intentional = false;
@@ -327,6 +352,8 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
   snapshot(): AdventureLandCharacterLiveState {
     return Object.freeze({
       character: Object.freeze(structuredClone(this.#character)),
+      entities: Object.freeze(structuredClone(this.#world.entities)),
+      party: Object.freeze(structuredClone(this.#world.party)),
       pingMs: this.#pingMs,
       updatedAt: this.#updatedAt,
     });
@@ -353,6 +380,24 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
       direction: data.direction,
     };
     this.#character = mergeConnectedCharacter(this.#character, patch);
+    this.#world = clearVisibleEntities(this.#world);
+    this.#touch();
+  }
+
+  applyEntities(data: Record<string, unknown>): void {
+    this.#world = applyEntityPacket(this.#world, data);
+    this.#touch();
+  }
+
+  applyDisappear(data: Record<string, unknown>): void {
+    const next = removeVisibleEntity(this.#world, data.id);
+    if (next === this.#world) return;
+    this.#world = next;
+    this.#touch();
+  }
+
+  applyPartyUpdate(data: Record<string, unknown>): void {
+    this.#world = applyPartyPacket(this.#world, data);
     this.#touch();
   }
 
