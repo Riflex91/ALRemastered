@@ -109,13 +109,15 @@ The dashboard shows **Game data status**, **Game data version**, **Loaded famili
 
 ## Adventure Land game version
 
-ALRemastered checks the official Adventure Land source repository for the deployed game version, stores the last observed version locally, and detects when the online version changes.
+ALRemastered treats the live production `https://adventure.land/data.js` snapshot as the authoritative Adventure Land version source. Version detection and game-data loading share the same in-flight snapshot so they cannot disagree during the same refresh.
+
+The last observed production version is stored locally and changes are detected against that baseline.
 
 The dashboard shows:
 
 - **Adventure Land version**
 - **Game version status**
-- **Last deploy**
+- **Last deploy** when the authoritative source provides it; otherwise **—**
 - **Check game version**
 
 The first successful online check creates the local baseline. If a later check sees a different game version, ALRemastered reports the previous and current values and records the change in the Debug Console. A failed online check keeps the last stored version available.
