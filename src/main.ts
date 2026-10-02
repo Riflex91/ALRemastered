@@ -1,4 +1,6 @@
 import { join } from "node:path";
+import { AdventureLandAccountService } from "./account/service.ts";
+import { AdventureLandAccountSource } from "./account/source.ts";
 import { CoreRuntime } from "./core/app.ts";
 import { openDashboard } from "./dashboard/open.ts";
 import { DashboardServer } from "./dashboard/server.ts";
@@ -76,6 +78,7 @@ if (args.has("--health-check")) {
 
 let shuttingDown = false;
 let dashboard: DashboardServer | undefined;
+let accountService: AdventureLandAccountService | undefined;
 let updateService: UpdateService | undefined;
 let gameVersionService: AdventureLandVersionService | undefined;
 let gameDataService: AdventureLandGameDataService | undefined;
@@ -106,6 +109,20 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   diagnostics.dispose();
   process.exit(0);
 }
+
+accountService = new AdventureLandAccountService({
+  logger,
+  source: new AdventureLandAccountSource(),
+});
+
+diagnostics.registerComponent("account", () => {
+  const state = accountService!.state();
+  return {
+    name: "account",
+    status: state.status === "error" ? "degraded" : "healthy",
+    message: state.message,
+  };
+});
 
 const source = new GitHubReleaseSource(logger);
 const preferences = new UpdatePreferenceStore(join(userPaths.configDir, "update-preferences.json"));
@@ -183,6 +200,7 @@ diagnostics.registerComponent("game-data", () => {
 dashboard = new DashboardServer({
   logger,
   runtime,
+  accountService,
   updateService,
   diagnostics,
   gameVersionService,

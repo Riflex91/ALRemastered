@@ -71,6 +71,46 @@
       </article>
     </section>
 
+    <section class="account-panel">
+      <div class="diagnostics-heading">
+        <div>
+          <p class="eyebrow">Account</p>
+          <h2>Adventure Land account</h2>
+        </div>
+        <div class="toolbar">
+          <button id="account-disconnect" type="button" hidden>Disconnect account</button>
+        </div>
+      </div>
+
+      <div class="status-grid account-summary" aria-label="Adventure Land account status">
+        <article class="card">
+          <span class="label">Account status</span>
+          <strong id="account-status">Disconnected</strong>
+        </article>
+        <article class="card">
+          <span class="label">Account ID</span>
+          <strong id="account-user-id">—</strong>
+        </article>
+        <article class="card">
+          <span class="label">Connected at</span>
+          <strong id="account-connected-at">—</strong>
+        </article>
+      </div>
+
+      <form id="account-login-form" class="account-form">
+        <label>
+          <span class="label">Email</span>
+          <input id="account-email" type="email" autocomplete="username" maxlength="254" required>
+        </label>
+        <label>
+          <span class="label">Password</span>
+          <input id="account-password" type="password" autocomplete="current-password" maxlength="1024" required>
+        </label>
+        <button id="account-connect" type="submit">Connect account</button>
+        <small>Password and session are kept in memory only and are never written to logs.</small>
+      </form>
+    </section>
+
     <section class="game-data-panel">
       <div class="diagnostics-heading">
         <div>

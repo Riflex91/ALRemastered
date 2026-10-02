@@ -4,6 +4,7 @@ const state = {
   paused: false,
   autoScroll: true,
   status: null,
+  account: null,
   update: null,
   gameVersion: null,
   gameData: null,
@@ -17,6 +18,14 @@ const elements = {
   version: document.querySelector("#client-version"),
   uptime: document.querySelector("#uptime"),
   platform: document.querySelector("#platform"),
+  accountStatus: document.querySelector("#account-status"),
+  accountUserId: document.querySelector("#account-user-id"),
+  accountConnectedAt: document.querySelector("#account-connected-at"),
+  accountForm: document.querySelector("#account-login-form"),
+  accountEmail: document.querySelector("#account-email"),
+  accountPassword: document.querySelector("#account-password"),
+  accountConnect: document.querySelector("#account-connect"),
+  accountDisconnect: document.querySelector("#account-disconnect"),
   gameVersion: document.querySelector("#game-version"),
   gameVersionStatus: document.querySelector("#game-version-status"),
   gameLastDeploy: document.querySelector("#game-last-deploy"),
@@ -172,6 +181,28 @@ function updateStatusView() {
   elements.platform.textContent = state.status.platform;
   const started = Date.parse(state.status.startedAt);
   elements.uptime.textContent = formatDuration(Date.now() - started);
+}
+
+function renderAccount() {
+  const account = state.account;
+  if (!account) return;
+
+  const labels = {
+    disconnected: "Disconnected",
+    connecting: "Connecting…",
+    connected: "Connected",
+    error: "Connection failed",
+  };
+  elements.accountStatus.textContent = labels[account.status] ?? account.status;
+  elements.accountStatus.title = account.message ?? "";
+  elements.accountUserId.textContent = account.userId ?? "—";
+  elements.accountConnectedAt.textContent =
+    account.connectedAt ? formatPublished(account.connectedAt) : "—";
+
+  const connected = account.status === "connected";
+  elements.accountForm.hidden = connected;
+  elements.accountDisconnect.hidden = !connected;
+  elements.accountConnect.disabled = account.status === "connecting";
 }
 
 function renderGameVersion() {
@@ -414,6 +445,17 @@ async function refreshStatus() {
   }
 }
 
+async function refreshAccount() {
+  try {
+    const response = await fetch("/api/account", { cache: "no-store" });
+    if (!response.ok) return;
+    state.account = await response.json();
+    renderAccount();
+  } catch {
+    // Dashboard connectivity is reported separately.
+  }
+}
+
 async function refreshGameData() {
   try {
     const response = await fetch("/api/game-data", { cache: "no-store" });
@@ -479,6 +521,19 @@ function connectStream() {
     elements.connectionStatus.textContent = "Reconnecting…";
     elements.connectionStatus.classList.remove("online");
   });
+}
+
+async function accountAction(path, body) {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: body ? { "Content-Type": "application/json; charset=utf-8" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error ?? payload.message ?? `HTTP ${response.status}`);
+  state.account = payload;
+  renderAccount();
+  return payload;
 }
 
 async function gameDataAction(path) {
@@ -623,6 +678,43 @@ elements.downloadPackage.addEventListener("click", async () => {
   }
 });
 
+elements.accountForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  elements.accountConnect.disabled = true;
+  setFeedback("Connecting to Adventure Land…");
+  try {
+    const account = await accountAction("/api/account/login", {
+      email: elements.accountEmail.value,
+      password: elements.accountPassword.value,
+    });
+    if (account.status === "connected") {
+      elements.accountEmail.value = "";
+      setFeedback("Adventure Land account connected.", "success");
+    } else {
+      setFeedback(account.message ?? "Adventure Land account connection failed.", "error");
+    }
+  } catch (error) {
+    setFeedback(`Adventure Land account connection failed: ${error.message}`, "error");
+  } finally {
+    elements.accountPassword.value = "";
+    elements.accountConnect.disabled = false;
+  }
+});
+
+elements.accountDisconnect.addEventListener("click", async () => {
+  elements.accountDisconnect.disabled = true;
+  try {
+    await accountAction("/api/account/disconnect");
+    elements.accountEmail.value = "";
+    elements.accountPassword.value = "";
+    setFeedback("Adventure Land account disconnected.", "success");
+  } catch (error) {
+    setFeedback(`Account disconnect failed: ${error.message}`, "error");
+  } finally {
+    elements.accountDisconnect.disabled = false;
+  }
+});
+
 elements.reloadGameData.addEventListener("click", async () => {
   elements.reloadGameData.disabled = true;
   setFeedback("Reloading Adventure Land game data…");
@@ -720,6 +812,7 @@ elements.installUpdate.addEventListener("click", async () => {
 });
 
 await refreshStatus();
+await refreshAccount();
 await refreshGameVersion();
 await refreshGameData();
 await refreshUpdate();
@@ -727,6 +820,7 @@ await refreshDiagnostics();
 await loadLogs();
 connectStream();
 setInterval(refreshStatus, 3000);
+setInterval(refreshAccount, 2000);
 setInterval(refreshGameVersion, 2000);
 setInterval(refreshGameData, 2000);
 setInterval(refreshUpdate, 1500);

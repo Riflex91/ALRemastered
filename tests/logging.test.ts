@@ -11,12 +11,13 @@ test("sanitizer removes common inline secrets", () => {
     "Authorization: Bearer abc.def.ghi",
     "password=hunter2",
     "access_token=token-value",
+    "auth=adventure-land-auth",
     "Cookie: session=very-secret",
     "https://user:secret@example.com/path",
   ].join("\n");
 
   const sanitized = sanitizeString(source);
-  assert.doesNotMatch(sanitized, /hunter2|token-value|very-secret|abc\.def\.ghi|user:secret@/);
+  assert.doesNotMatch(sanitized, /hunter2|token-value|adventure-land-auth|very-secret|abc\.def\.ghi|user:secret@/);
   assert.match(sanitized, /\[REDACTED\]/);
 });
 
@@ -24,6 +25,7 @@ test("sanitizer removes nested secret fields while preserving correlation ids", 
   const sanitized = sanitizeValue({
     password: "one",
     authToken: "two",
+    auth: "adventure-land-session",
     nested: {
       cookie: "three",
       safe: "visible",
@@ -34,6 +36,7 @@ test("sanitizer removes nested secret fields while preserving correlation ids", 
 
   assert.equal(sanitized.password, REDACTED);
   assert.equal(sanitized.authToken, REDACTED);
+  assert.equal(sanitized.auth, REDACTED);
   assert.equal(sanitized.nested.cookie, REDACTED);
   assert.equal(sanitized.nested.safe, "visible");
   assert.equal(sanitized.nested.sessionId, "correlation-session");
