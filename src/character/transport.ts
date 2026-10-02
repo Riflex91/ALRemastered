@@ -15,6 +15,8 @@ export interface AdventureLandConnectedCharacter {
   readonly name: string;
   readonly type: string;
   readonly level: number;
+  readonly xp?: number;
+  readonly maxXp?: number;
   readonly map?: string;
   readonly x?: number;
   readonly y?: number;
@@ -22,10 +24,24 @@ export interface AdventureLandConnectedCharacter {
   readonly maxHp?: number;
   readonly mp?: number;
   readonly maxMp?: number;
+  readonly angle?: number;
+  readonly direction?: number;
+  readonly directionLabel?: string;
+  readonly target?: string;
+  readonly dead: boolean;
+}
+
+export interface AdventureLandCharacterLiveState {
+  readonly character: AdventureLandConnectedCharacter;
+  readonly pingMs?: number;
+  readonly updatedAt: string;
 }
 
 export interface AdventureLandCharacterConnection {
   readonly character: AdventureLandConnectedCharacter;
+  readonly pingMs?: number;
+  snapshot(): AdventureLandCharacterLiveState;
+  onState(listener: (state: AdventureLandCharacterLiveState) => void): void;
   onUnexpectedClose(listener: (reason?: string) => void): void;
   close(): Promise<void>;
 }
@@ -75,6 +91,7 @@ export class AdventureLandCharacterTransport {
       let loadedSent = false;
       let authSent = false;
       let disconnectReason: string | undefined;
+      let liveConnection: LiveAdventureLandCharacterConnection | undefined;
 
       const timeout = setTimeout(() => {
         fail(new AdventureLandCharacterTransportError(
@@ -159,6 +176,21 @@ export class AdventureLandCharacterTransport {
               continue;
             }
 
+            if (liveConnection) {
+              if (name === "player" && isRecord(data)) {
+                liveConnection.applyPlayer(data);
+                continue;
+              }
+              if (name === "new_map" && isRecord(data)) {
+                liveConnection.applyNewMap(data);
+                continue;
+              }
+              if (name === "ping_ack" && isRecord(data)) {
+                liveConnection.applyPingAck(data);
+                continue;
+              }
+            }
+
             if (name === "welcome") {
               welcomed = true;
               if (!loadedSent) {
@@ -196,12 +228,12 @@ export class AdventureLandCharacterTransport {
             }
 
             if (name === "start" && isRecord(data)) {
-              const character = parseConnectedCharacter(data, input.character);
-              finish(new LiveAdventureLandCharacterConnection(
+              liveConnection = new LiveAdventureLandCharacterConnection(
                 socket,
-                character,
+                parseConnectedCharacter(data, input.character),
                 () => disconnectReason,
-              ));
+              );
+              finish(liveConnection);
             }
           }
         }).catch(() => {
@@ -236,12 +268,18 @@ export class AdventureLandCharacterTransport {
 }
 
 class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConnection {
-  readonly character: AdventureLandConnectedCharacter;
   readonly #socket: WebSocket;
   readonly #disconnectReason: () => string | undefined;
   readonly #listeners = new Set<(reason?: string) => void>();
+  readonly #stateListeners = new Set<(state: AdventureLandCharacterLiveState) => void>();
+  readonly #pingSent = new Map<string, number>();
+  readonly #pingTimer: ReturnType<typeof setInterval>;
+  #character: AdventureLandConnectedCharacter;
+  #pingMs?: number;
+  #updatedAt: string;
   #intentional = false;
   #closed = false;
+  #pingSequence = 0;
 
   constructor(
     socket: WebSocket,
@@ -249,24 +287,77 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
     disconnectReason: () => string | undefined,
   ) {
     this.#socket = socket;
-    this.character = character;
+    this.#character = character;
+    this.#updatedAt = new Date().toISOString();
     this.#disconnectReason = disconnectReason;
 
     socket.addEventListener("close", () => {
       this.#closed = true;
+      clearInterval(this.#pingTimer);
+      this.#pingSent.clear();
       if (this.#intentional) return;
       const reason = this.#disconnectReason();
       for (const listener of this.#listeners) listener(reason);
     });
+
+    this.#sendPing();
+    this.#pingTimer = setInterval(() => this.#sendPing(), 3_200);
+  }
+
+  get character(): AdventureLandConnectedCharacter {
+    return this.#character;
+  }
+
+  get pingMs(): number | undefined {
+    return this.#pingMs;
+  }
+
+  snapshot(): AdventureLandCharacterLiveState {
+    return Object.freeze({
+      character: Object.freeze({ ...this.#character }),
+      pingMs: this.#pingMs,
+      updatedAt: this.#updatedAt,
+    });
+  }
+
+  onState(listener: (state: AdventureLandCharacterLiveState) => void): void {
+    this.#stateListeners.add(listener);
   }
 
   onUnexpectedClose(listener: (reason?: string) => void): void {
     this.#listeners.add(listener);
   }
 
+  applyPlayer(data: Record<string, unknown>): void {
+    this.#character = mergeConnectedCharacter(this.#character, data);
+    this.#touch();
+  }
+
+  applyNewMap(data: Record<string, unknown>): void {
+    const patch: Record<string, unknown> = {
+      map: typeof data.name === "string" ? data.name : this.#character.map,
+      x: data.x,
+      y: data.y,
+      direction: data.direction,
+    };
+    this.#character = mergeConnectedCharacter(this.#character, patch);
+    this.#touch();
+  }
+
+  applyPingAck(data: Record<string, unknown>): void {
+    if (typeof data.id !== "string") return;
+    const sentAt = this.#pingSent.get(data.id);
+    if (sentAt === undefined) return;
+    this.#pingSent.delete(data.id);
+    this.#pingMs = Math.max(0, Date.now() - sentAt);
+    this.#touch();
+  }
+
   async close(): Promise<void> {
     if (this.#closed || this.#socket.readyState === 3) return;
     this.#intentional = true;
+    clearInterval(this.#pingTimer);
+    this.#pingSent.clear();
 
     await new Promise<void>((resolve) => {
       let finished = false;
@@ -284,6 +375,23 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
       }
     });
     this.#closed = true;
+  }
+
+  #sendPing(): void {
+    if (this.#closed || this.#socket.readyState !== 1) return;
+    const id = "alr-" + Date.now().toString(36) + "-" + (this.#pingSequence++).toString(36);
+    this.#pingSent.set(id, Date.now());
+    if (this.#pingSent.size > 8) {
+      const oldest = this.#pingSent.keys().next().value;
+      if (typeof oldest === "string") this.#pingSent.delete(oldest);
+    }
+    this.#socket.send("42" + JSON.stringify(["ping_trig", { id }]));
+  }
+
+  #touch(): void {
+    this.#updatedAt = new Date().toISOString();
+    const snapshot = this.snapshot();
+    for (const listener of this.#stateListeners) listener(snapshot);
   }
 }
 
@@ -332,6 +440,9 @@ function parseConnectedCharacter(
   data: Record<string, unknown>,
   fallback: AdventureLandCharacterSummary,
 ): AdventureLandConnectedCharacter {
+  const angle = finiteNumber(data.angle);
+  const explicitDirection = finiteNumber(data.direction);
+  const direction = explicitDirection ?? (angle === undefined ? undefined : directionFromAngle(angle));
   return Object.freeze({
     id: fallback.id,
     name: typeof data.name === "string" ? data.name : fallback.name,
@@ -342,6 +453,8 @@ function parseConnectedCharacter(
           ? data.type
           : fallback.type,
     level: finiteNumber(data.level) ?? fallback.level,
+    xp: finiteNumber(data.xp),
+    maxXp: finiteNumber(data.max_xp),
     map: typeof data.map === "string" ? data.map : fallback.map,
     x: finiteNumber(data.x),
     y: finiteNumber(data.y),
@@ -349,7 +462,66 @@ function parseConnectedCharacter(
     maxHp: finiteNumber(data.max_hp),
     mp: finiteNumber(data.mp),
     maxMp: finiteNumber(data.max_mp),
+    angle,
+    direction,
+    directionLabel: directionLabel(direction),
+    target: typeof data.target === "string" ? data.target : undefined,
+    dead: Boolean(data.rip),
   });
+}
+
+function mergeConnectedCharacter(
+  current: AdventureLandConnectedCharacter,
+  data: Record<string, unknown>,
+): AdventureLandConnectedCharacter {
+  const angle = "angle" in data ? finiteNumber(data.angle) : current.angle;
+  let direction = current.direction;
+  if ("direction" in data) direction = finiteNumber(data.direction);
+  else if ("angle" in data && angle !== undefined) direction = directionFromAngle(angle);
+
+  return Object.freeze({
+    id: current.id,
+    name: typeof data.name === "string" ? data.name : current.name,
+    type:
+      typeof data.ctype === "string"
+        ? data.ctype
+        : typeof data.type === "string"
+          ? data.type
+          : current.type,
+    level: finiteNumber(data.level) ?? current.level,
+    xp: "xp" in data ? finiteNumber(data.xp) : current.xp,
+    maxXp: "max_xp" in data ? finiteNumber(data.max_xp) : current.maxXp,
+    map: typeof data.map === "string" ? data.map : current.map,
+    x: "x" in data ? finiteNumber(data.x) : current.x,
+    y: "y" in data ? finiteNumber(data.y) : current.y,
+    hp: "hp" in data ? finiteNumber(data.hp) : current.hp,
+    maxHp: "max_hp" in data ? finiteNumber(data.max_hp) : current.maxHp,
+    mp: "mp" in data ? finiteNumber(data.mp) : current.mp,
+    maxMp: "max_mp" in data ? finiteNumber(data.max_mp) : current.maxMp,
+    angle,
+    direction,
+    directionLabel: directionLabel(direction),
+    target: "target" in data
+      ? (typeof data.target === "string" ? data.target : undefined)
+      : current.target,
+    dead: "rip" in data ? Boolean(data.rip) : current.dead,
+  });
+}
+
+function directionFromAngle(angle: number): number {
+  const absolute = Math.abs(angle);
+  if (absolute < 70) return 2;
+  if (Math.abs(absolute - 180) < 70) return 1;
+  if (Math.abs(angle + 90) < 90) return 3;
+  return 0;
+}
+
+function directionLabel(direction: number | undefined): string | undefined {
+  if (direction === 0) return "Down";
+  if (direction === 1) return "Left";
+  if (direction === 2) return "Right";
+  if (direction === 3) return "Up";
+  return undefined;
 }
 
 async function messageText(data: unknown): Promise<string | undefined> {

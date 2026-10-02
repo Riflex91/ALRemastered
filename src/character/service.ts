@@ -4,6 +4,7 @@ import type { AdventureLandAccountSession } from "../account/source.ts";
 import {
   AdventureLandCharacterTransportError,
   type AdventureLandCharacterConnection,
+  type AdventureLandCharacterLiveState,
   type AdventureLandCharacterTransport,
   type AdventureLandConnectedCharacter,
 } from "./transport.ts";
@@ -24,6 +25,8 @@ export interface AdventureLandCharacterConnectionState {
   readonly serverRegion?: string;
   readonly serverName?: string;
   readonly connectedAt?: string;
+  readonly pingMs?: number;
+  readonly lastLiveUpdateAt?: string;
   readonly message: string;
   readonly errorCode?: string;
 }
@@ -113,6 +116,33 @@ export class AdventureLandCharacterService {
     }, controller.signal).then((connection) => {
       this.#connection = connection;
       this.#connectAbort = undefined;
+      connection.onState((liveState) => {
+        if (this.#connection !== connection) return;
+        const previous = this.#state.character;
+        this.#setState({
+          ...this.#state,
+          status: "connected",
+          character: liveState.character,
+          characterId: liveState.character.id,
+          characterName: liveState.character.name,
+          pingMs: liveState.pingMs,
+          lastLiveUpdateAt: liveState.updatedAt,
+          message: liveState.character.name +
+            " is connected headlessly. Live state is updating; no automation is running.",
+        });
+        if (
+          previous &&
+          (
+            previous.level !== liveState.character.level ||
+            previous.map !== liveState.character.map ||
+            previous.target !== liveState.character.target ||
+            previous.dead !== liveState.character.dead
+          )
+        ) {
+          this.#logger.info("Adventure Land character live state changed.", liveStateContext(liveState));
+        }
+      });
+
       connection.onUnexpectedClose((reason) => {
         if (this.#connection !== connection) return;
         this.#connection = undefined;
@@ -139,31 +169,31 @@ export class AdventureLandCharacterService {
       });
 
       const connectedAt = this.#now().toISOString();
+      const initialLiveState = connection.snapshot();
       this.#setState({
         status: "connected",
-        character: connection.character,
-        characterId: connection.character.id,
-        characterName: connection.character.name,
+        character: initialLiveState.character,
+        characterId: initialLiveState.character.id,
+        characterName: initialLiveState.character.name,
         serverKey: server.key,
         serverRegion: server.region,
         serverName: server.name,
         connectedAt,
-        message: connection.character.name +
-          " is connected headlessly. No automation is running.",
+        pingMs: initialLiveState.pingMs,
+        lastLiveUpdateAt: initialLiveState.updatedAt,
+        message: initialLiveState.character.name +
+          " is connected headlessly. Live state is updating; no automation is running.",
       });
       this.#logger.info("Adventure Land character connected headlessly.", {
-        characterId: connection.character.id,
-        characterName: connection.character.name,
-        characterType: connection.character.type,
-        level: connection.character.level,
+        characterId: initialLiveState.character.id,
+        characterName: initialLiveState.character.name,
+        characterType: initialLiveState.character.type,
         serverKey: server.key,
         region: server.region,
         name: server.name,
-        map: connection.character.map,
-        x: connection.character.x,
-        y: connection.character.y,
         connectedAt,
         automation: false,
+        ...liveStateContext(initialLiveState),
       });
       return this.state();
     }).catch((error) => {
@@ -233,6 +263,7 @@ export class AdventureLandCharacterService {
     }
 
     const connection = this.#connection;
+    const finalLiveState = connection?.snapshot();
     this.#connection = undefined;
     if (connection) {
       try {
@@ -256,6 +287,7 @@ export class AdventureLandCharacterService {
       reason,
       controlled: true,
       automation: false,
+      ...(finalLiveState ? liveStateContext(finalLiveState) : {}),
     });
     return this.state();
   }
@@ -266,6 +298,28 @@ export class AdventureLandCharacterService {
       character: state.character ? Object.freeze({ ...state.character }) : undefined,
     });
   }
+}
+
+function liveStateContext(state: AdventureLandCharacterLiveState): Record<string, unknown> {
+  return {
+    level: state.character.level,
+    xp: state.character.xp,
+    maxXp: state.character.maxXp,
+    hp: state.character.hp,
+    maxHp: state.character.maxHp,
+    mp: state.character.mp,
+    maxMp: state.character.maxMp,
+    map: state.character.map,
+    x: state.character.x,
+    y: state.character.y,
+    angle: state.character.angle,
+    direction: state.character.direction,
+    directionLabel: state.character.directionLabel,
+    target: state.character.target,
+    dead: state.character.dead,
+    pingMs: state.pingMs,
+    liveUpdatedAt: state.updatedAt,
+  };
 }
 
 function disconnectedState(): AdventureLandCharacterConnectionState {
