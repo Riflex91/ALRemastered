@@ -8,6 +8,10 @@ import {
   type AdventureLandCharacterTransport,
   type AdventureLandConnectedCharacter,
 } from "./transport.ts";
+import type {
+  AdventureLandPartyState,
+  AdventureLandVisibleEntity,
+} from "./world-state.ts";
 
 export type AdventureLandCharacterConnectionStatus =
   | "disconnected"
@@ -19,6 +23,8 @@ export type AdventureLandCharacterConnectionStatus =
 export interface AdventureLandCharacterConnectionState {
   readonly status: AdventureLandCharacterConnectionStatus;
   readonly character?: AdventureLandConnectedCharacter;
+  readonly entities?: readonly AdventureLandVisibleEntity[];
+  readonly party?: AdventureLandPartyState;
   readonly characterId?: string;
   readonly characterName?: string;
   readonly serverKey?: string;
@@ -119,10 +125,14 @@ export class AdventureLandCharacterService {
       connection.onState((liveState) => {
         if (this.#connection !== connection) return;
         const previous = this.#state.character;
+        const previousEntities = this.#state.entities;
+        const previousParty = this.#state.party;
         this.#setState({
           ...this.#state,
           status: "connected",
           character: liveState.character,
+          entities: liveState.entities,
+          party: liveState.party,
           characterId: liveState.character.id,
           characterName: liveState.character.name,
           pingMs: liveState.pingMs,
@@ -143,7 +153,9 @@ export class AdventureLandCharacterService {
             equipmentSignature(previous.equipment) !==
               equipmentSignature(liveState.character.equipment) ||
             conditionSignature(previous.conditions) !==
-              conditionSignature(liveState.character.conditions)
+              conditionSignature(liveState.character.conditions) ||
+            entitySignature(previousEntities) !== entitySignature(liveState.entities) ||
+            partySignature(previousParty) !== partySignature(liveState.party)
           )
         ) {
           this.#logger.info("Adventure Land character live state changed.", liveStateContext(liveState));
@@ -180,6 +192,8 @@ export class AdventureLandCharacterService {
       this.#setState({
         status: "connected",
         character: initialLiveState.character,
+        entities: initialLiveState.entities,
+        party: initialLiveState.party,
         characterId: initialLiveState.character.id,
         characterName: initialLiveState.character.name,
         serverKey: server.key,
@@ -302,7 +316,9 @@ export class AdventureLandCharacterService {
   #setState(state: AdventureLandCharacterConnectionState): void {
     this.#state = Object.freeze({
       ...state,
-      character: state.character ? Object.freeze({ ...state.character }) : undefined,
+      character: state.character ? Object.freeze(structuredClone(state.character)) : undefined,
+      entities: state.entities ? Object.freeze(structuredClone(state.entities)) : undefined,
+      party: state.party ? Object.freeze(structuredClone(state.party)) : undefined,
     });
   }
 }
@@ -333,9 +349,34 @@ function liveStateContext(state: AdventureLandCharacterLiveState): Record<string
     conditions: state.character.conditions
       ? Object.keys(state.character.conditions).sort()
       : undefined,
+    visibleEntities: state.entities.length,
+    visiblePlayers: state.entities.filter((entity) => entity.kind === "player").length,
+    visibleMonsters: state.entities.filter((entity) => entity.kind === "monster").length,
+    visibleMonsterTypes: [...new Set(
+      state.entities
+        .filter((entity) => entity.kind === "monster")
+        .map((entity) => entity.type),
+    )].sort(),
+    partyMembers: [...state.party.members],
+    partyLeader: state.party.leader,
     pingMs: state.pingMs,
     liveUpdatedAt: state.updatedAt,
   };
+}
+
+function entitySignature(
+  entities: readonly AdventureLandVisibleEntity[] | undefined,
+): string {
+  if (!entities) return "";
+  return JSON.stringify(
+    entities.map((entity) => [entity.id, entity.kind, entity.type]).sort(),
+  );
+}
+
+function partySignature(party: AdventureLandPartyState | undefined): string {
+  return party
+    ? JSON.stringify([party.leader ?? "", [...party.members]])
+    : "";
 }
 
 function inventorySignature(
