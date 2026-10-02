@@ -452,9 +452,9 @@ Start online, Neustart mit Cache, simuliert beschädigten Cache testen.
 
 ## Slice 2.1 – Account-Verbindungsgrundlage
 
-**Status: MERGED – AWAITING USER TEST**
+**Status: VERIFIED**
 
-> 2026-10-02: Login-only account/session foundation merged in `0.1.0-alpha.14`. Passwords are not persisted, auth sessions stay in process memory, account/auth secrets are sanitized from logs, and automated Windows/Linux CI passed. Real-account live validation is still required before VERIFIED.
+> 2026-10-02: VERIFIED on Windows with `0.1.0-alpha.14`. Real-account connect, disconnect and reconnect all succeeded. The diagnostic export confirmed secrets sanitized, with no password or Adventure Land auth/session token exposed in the log.
 
 - sichere Account-/Session-Anbindung
 - keine Secrets im Log
