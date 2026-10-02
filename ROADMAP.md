@@ -266,7 +266,7 @@ Erst nach Benutzer-Livetest → Slice 0.4.
 
 ## Slice 0.4 – Minimales lokales Dashboard + Debug-Konsole
 
-**Status: MERGED – AWAITING USER TEST**
+**Status: VERIFIED**
 
 ### Inhalt
 
@@ -310,6 +310,8 @@ Ab diesem Slice ist die Debug-Konsole Teil **jedes** folgenden Livetests.
 ---
 
 ## Slice 0.5 – Automatische Update-Erkennung + Update-Banner
+
+**Status: IN PROGRESS**
 
 ### Inhalt
 
