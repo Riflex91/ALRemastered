@@ -391,9 +391,9 @@ Gezielt mehrere künstliche Fehler erzeugen und prüfen, ob sie sowohl verständ
 
 ## Slice 1.1 – Game-Version-Erkennung
 
-**Status: MERGED – AWAITING USER TEST**
+**Status: VERIFIED**
 
-> 2026-10-02: During the Slice 1.2 live test, production `data.js` reported version `17397` while the GitHub `version.js` source reported `15555`. The live production data version is now treated as authoritative.
+> 2026-10-02: VERIFIED on Windows with `0.1.0-alpha.12`. Production `data.js` / `G.version` reported `17397`, the dashboard showed game version `17397` as `Current`, and `game-version` diagnostics were healthy.
 
 - aktuelle Adventure-Land-Version erkennen
 - lokale Version speichern
@@ -409,9 +409,9 @@ Onlineprüfung gegen Adventure Land und Logkontrolle.
 
 ## Slice 1.2 – Game-Daten laden
 
-**Status: MERGED – AWAITING USER TEST**
+**Status: VERIFIED**
 
-> 2026-10-02: All 14 data families loaded successfully, but diagnostics correctly detected a version mismatch (`17397` live data vs `15555` stale repository version source).
+> 2026-10-02: VERIFIED on Windows with `0.1.0-alpha.12`. All 14 data families loaded from production `data.js` at version `17397`; `game-data` and `game-version` diagnostics were both healthy, reload succeeded, and no recent errors were reported.
 
 Zentral verfügbar machen:
 
