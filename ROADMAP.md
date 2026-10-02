@@ -487,9 +487,9 @@ Abgleich Dashboard ↔ tatsächlicher Account.
 
 ## Slice 2.3 – Erster Headless-Character-Connect
 
-**Status: MERGED – AWAITING USER TEST**
+**Status: VERIFIED**
 
-> 2026-10-02: First single-character headless connection merged in `0.1.0-alpha.16`. The client uses a minimal Socket.IO-compatible WebSocket transport, supports controlled disconnect on demand/account disconnect/application shutdown, prevents a second concurrent character connection, and includes no gameplay automation. Automated Windows/Linux CI passed. Real-account live validation is still required before VERIFIED.
+> 2026-10-02: VERIFIED on Windows with `0.1.0-alpha.16`. A real merchant character connected headlessly to EU II, remained connected for about 80 seconds, and disconnected cleanly from the dashboard. Start, connected, and controlled-disconnect diagnostics all confirmed `automation:false`; the exported diagnostic log was sanitized.
 
 - exakt einen Character starten
 - Socket/Transport
