@@ -28,6 +28,14 @@ $Launcher = @'
 setlocal
 set "BASE=%~dp0"
 "%BASE%runtime\node.exe" "%BASE%app\src\main.js" %*
+set "EXIT_CODE=%ERRORLEVEL%"
+if not "%EXIT_CODE%"=="0" (
+  echo.
+  echo ALRemastered stopped unexpectedly with exit code %EXIT_CODE%.
+  echo Press any key to close this window.
+  pause >nul
+)
+exit /b %EXIT_CODE%
 '@
 Set-Content -Path (Join-Path $Stage "ALRemastered.cmd") -Value $Launcher -Encoding Ascii
 

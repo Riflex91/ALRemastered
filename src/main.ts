@@ -18,9 +18,13 @@ if (args.has("--health-check")) {
 }
 
 process.stdout.write(`ALRemastered ${getAppVersion()}\n`);
-process.stdout.write("Core started. Press Ctrl+C to stop.\n");
+process.stdout.write("Core is running. Dashboard is not available yet in Slice 0.1.\n");
+process.stdout.write("Press Ctrl+C to stop.\n");
+
+const keepAlive = setInterval(() => undefined, 60_000);
 
 function shutdown(signal: NodeJS.Signals): void {
+  clearInterval(keepAlive);
   process.stdout.write(`Received ${signal}. Stopping ALRemastered.\n`);
   runtime.stop();
   process.exit(0);
@@ -28,5 +32,3 @@ function shutdown(signal: NodeJS.Signals): void {
 
 process.once("SIGINT", () => shutdown("SIGINT"));
 process.once("SIGTERM", () => shutdown("SIGTERM"));
-
-await new Promise<void>(() => undefined);
