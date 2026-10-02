@@ -138,7 +138,9 @@ function applyEntityList(
   if (!Array.isArray(value)) return;
   for (const raw of value) {
     if (!isRecord(raw)) continue;
-    const parsed = parseEntity(raw, kind);
+    const id = stringValue(raw.id) ?? stringValue(raw.name);
+    if (!id) continue;
+    const parsed = parseEntity(raw, kind, entities.get(id));
     if (!parsed) continue;
     entities.set(parsed.id, parsed);
   }
@@ -147,6 +149,7 @@ function applyEntityList(
 function parseEntity(
   raw: Record<string, unknown>,
   kind: AdventureLandEntityKind,
+  previous?: AdventureLandVisibleEntity,
 ): AdventureLandVisibleEntity | undefined {
   const id = stringValue(raw.id) ?? stringValue(raw.name);
   if (!id) return undefined;
@@ -154,23 +157,23 @@ function parseEntity(
   const rawType = kind === "monster"
     ? stringValue(raw.mtype) ?? stringValue(raw.type)
     : stringValue(raw.ctype) ?? stringValue(raw.type);
-  const type = rawType && rawType !== "character" && rawType !== "monster"
+  const parsedType = rawType && rawType !== "character" && rawType !== "monster"
     ? rawType
-    : kind;
+    : undefined;
 
   return Object.freeze({
     id,
     kind,
-    name: stringValue(raw.name) ?? id,
-    type,
-    map: stringValue(raw.map),
-    x: finiteNumber(raw.x),
-    y: finiteNumber(raw.y),
-    hp: finiteNumber(raw.hp),
-    maxHp: finiteNumber(raw.max_hp),
-    level: finiteNumber(raw.level),
-    target: stringValue(raw.target),
-    party: stringValue(raw.party),
+    name: stringValue(raw.name) ?? previous?.name ?? id,
+    type: parsedType ?? previous?.type ?? kind,
+    map: "map" in raw ? stringValue(raw.map) : previous?.map,
+    x: "x" in raw ? finiteNumber(raw.x) : previous?.x,
+    y: "y" in raw ? finiteNumber(raw.y) : previous?.y,
+    hp: "hp" in raw ? finiteNumber(raw.hp) : previous?.hp,
+    maxHp: "max_hp" in raw ? finiteNumber(raw.max_hp) : previous?.maxHp,
+    level: "level" in raw ? finiteNumber(raw.level) : previous?.level,
+    target: "target" in raw ? stringValue(raw.target) : previous?.target,
+    party: "party" in raw ? stringValue(raw.party) : previous?.party,
   });
 }
 
