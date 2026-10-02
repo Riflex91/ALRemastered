@@ -369,7 +369,7 @@ Erst nach Benutzer-Livetest → Slice 0.6.
 
 ## Slice 0.6 – Diagnose-Grundlage
 
-**Status: IN PROGRESS**
+**Status: MERGED – AWAITING USER TEST**
 
 ### Inhalt
 
