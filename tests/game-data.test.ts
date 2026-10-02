@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
+import { AdventureLandGameDataCache } from "../src/game/data-cache.ts";
 import { AdventureLandGameDataService } from "../src/game/data-service.ts";
 import {
   AdventureLandGameDataSource,
@@ -155,4 +159,146 @@ test("shared live data source coalesces simultaneous version and game-data reads
   assert.equal(a.data.version, 17397);
   assert.equal(b.data.version, 17397);
   assert.equal(a, b);
+});
+
+
+test("game data cache atomically stores and restores versioned snapshots", () => {
+  const root = mkdtempSync(join(tmpdir(), "alr-game-data-cache-"));
+  try {
+    const cache = new AdventureLandGameDataCache(root);
+    const firstData = sampleData(17397);
+    cache.save({
+      data: firstData,
+      sourceUrl: "https://adventure.land/data.js",
+      bytes: 2_804_303,
+    }, "2026-10-02T17:00:00.000Z");
+
+    const first = cache.load(17397);
+    assert.equal(first.status, "loaded");
+    assert.equal(first.record?.version, 17397);
+    assert.equal(readdirSync(root).filter((name) => name.endsWith(".json")).length, 1);
+    assert.equal(readdirSync(root).some((name) => name.endsWith(".tmp")), false);
+
+    const secondData = sampleData(17398);
+    cache.save({
+      data: secondData,
+      sourceUrl: "https://adventure.land/data.js",
+      bytes: 2_804_400,
+    }, "2026-10-02T18:00:00.000Z");
+
+    assert.equal(cache.load(17398).status, "loaded");
+    assert.equal(cache.load(17397).status, "stale");
+    assert.equal(readdirSync(root).filter((name) => name.endsWith(".json")).length, 1);
+    assert.equal(readdirSync(root).some((name) => name.endsWith(".tmp")), false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("offline load restores a valid cache and retains it when live refresh fails", async () => {
+  const root = mkdtempSync(join(tmpdir(), "alr-game-data-cache-"));
+  try {
+    const cache = new AdventureLandGameDataCache(root);
+    cache.save({
+      data: sampleData(17397),
+      sourceUrl: "https://adventure.land/data.js",
+      bytes: 2_804_303,
+    }, "2026-10-02T17:00:00.000Z");
+
+    const logger = new Logger({ component: "game-data-cache-test" });
+    const service = new AdventureLandGameDataService({
+      logger,
+      cache,
+      expectedVersion: () => 17397,
+      source: {
+        fetchData: async () => {
+          throw new Error("network unavailable");
+        },
+      },
+      now: () => new Date("2026-10-02T19:00:00.000Z"),
+    });
+
+    const state = await service.loadNow(false);
+    assert.equal(state.status, "error");
+    assert.equal(state.version, 17397);
+    assert.equal(state.origin, "cache");
+    assert.equal(state.cacheStatus, "loaded");
+    assert.equal(state.cachedAt, "2026-10-02T17:00:00.000Z");
+    assert.equal(service.data()?.version, 17397);
+    assert.match(state.message ?? "", /previously loaded game data snapshot remains available/);
+    assert.match(logger.exportText(), /Adventure Land game data restored from cache/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("corrupted cache is ignored and replaced by a valid live snapshot", async () => {
+  const root = mkdtempSync(join(tmpdir(), "alr-game-data-cache-"));
+  try {
+    writeFileSync(join(root, "snapshot-corrupt.json"), "{broken", "utf8");
+    const cache = new AdventureLandGameDataCache(root);
+    const logger = new Logger({ component: "game-data-cache-test" });
+    const data = sampleData(17397);
+    const service = new AdventureLandGameDataService({
+      logger,
+      cache,
+      expectedVersion: () => 17397,
+      source: {
+        fetchData: async () => ({
+          data,
+          sourceUrl: "https://adventure.land/data.js",
+          bytes: 2_804_303,
+        }),
+      },
+      now: () => new Date("2026-10-02T19:05:00.000Z"),
+    });
+
+    const state = await service.loadNow(false);
+    assert.equal(state.status, "loaded");
+    assert.equal(state.origin, "live");
+    assert.equal(state.cacheStatus, "stored");
+    assert.equal(cache.load(17397).status, "loaded");
+    assert.equal(readdirSync(root).filter((name) => name.endsWith(".json")).length, 1);
+    assert.match(logger.exportText(), /Invalid Adventure Land game data cache entries were ignored/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("known version changes invalidate stale cache data before it can be used", async () => {
+  const root = mkdtempSync(join(tmpdir(), "alr-game-data-cache-"));
+  try {
+    const cache = new AdventureLandGameDataCache(root);
+    cache.save({
+      data: sampleData(17396),
+      sourceUrl: "https://adventure.land/data.js",
+      bytes: 2_800_000,
+    }, "2026-10-02T16:00:00.000Z");
+
+    const logger = new Logger({ component: "game-data-cache-test" });
+    const service = new AdventureLandGameDataService({
+      logger,
+      cache,
+      expectedVersion: () => 17397,
+      source: {
+        fetchData: async () => ({
+          data: sampleData(17397),
+          sourceUrl: "https://adventure.land/data.js",
+          bytes: 2_804_303,
+        }),
+      },
+      now: () => new Date("2026-10-02T19:10:00.000Z"),
+    });
+
+    const state = await service.loadNow(false);
+    assert.equal(state.status, "loaded");
+    assert.equal(state.version, 17397);
+    assert.equal(state.origin, "live");
+    assert.equal(state.cacheStatus, "stored");
+    assert.equal(cache.load(17397).status, "loaded");
+    assert.equal(cache.load(17396).status, "stale");
+    assert.match(logger.exportText(), /Stale Adventure Land game data cache entries were ignored/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

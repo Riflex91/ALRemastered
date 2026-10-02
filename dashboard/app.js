@@ -25,6 +25,9 @@ const elements = {
   gameDataVersion: document.querySelector("#game-data-version"),
   gameDataFamilyTotal: document.querySelector("#game-data-family-total"),
   gameDataLoadedAt: document.querySelector("#game-data-loaded-at"),
+  gameDataOrigin: document.querySelector("#game-data-origin"),
+  gameDataCacheStatus: document.querySelector("#game-data-cache-status"),
+  gameDataCachedAt: document.querySelector("#game-data-cached-at"),
   gameDataFamilies: document.querySelector("#game-data-families"),
   reloadGameData: document.querySelector("#reload-game-data"),
   console: document.querySelector("#log-console"),
@@ -216,6 +219,27 @@ function renderGameData() {
     `${gameData.loadedFamilyCount ?? 0} / ${gameData.familyCount ?? 0}`;
   elements.gameDataLoadedAt.textContent =
     gameData.loadedAt ? formatPublished(gameData.loadedAt) : "—";
+  elements.gameDataOrigin.textContent =
+    gameData.origin === "live"
+      ? "Live snapshot"
+      : gameData.origin === "cache"
+        ? "Local cache"
+        : "—";
+  const cacheStatusLabels = {
+    disabled: "Disabled",
+    "not-checked": "Not checked",
+    missing: "Empty",
+    loaded: "Loaded",
+    stored: "Current",
+    stale: "Stale",
+    invalid: "Invalid",
+    error: "Error",
+  };
+  elements.gameDataCacheStatus.textContent =
+    cacheStatusLabels[gameData.cacheStatus] ?? gameData.cacheStatus ?? "—";
+  elements.gameDataCacheStatus.title = gameData.cacheMessage ?? "";
+  elements.gameDataCachedAt.textContent =
+    gameData.cachedAt ? formatPublished(gameData.cachedAt) : "—";
 
   elements.gameDataFamilies.replaceChildren();
   const families = gameData.families ?? [];

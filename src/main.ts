@@ -3,6 +3,7 @@ import { CoreRuntime } from "./core/app.ts";
 import { openDashboard } from "./dashboard/open.ts";
 import { DashboardServer } from "./dashboard/server.ts";
 import { DiagnosticsService } from "./diagnostics/service.ts";
+import { AdventureLandGameDataCache } from "./game/data-cache.ts";
 import { AdventureLandGameDataService } from "./game/data-service.ts";
 import { AdventureLandGameDataSource } from "./game/data-source.ts";
 import { AdventureLandVersionService } from "./game/version-service.ts";
@@ -132,11 +133,14 @@ diagnostics.registerComponent("updater", () => {
 });
 
 const liveGameDataSource = new AdventureLandGameDataSource();
+const gameVersionStore = new AdventureLandVersionStore(
+  join(userPaths.dataDir, "game", "version.json"),
+);
 
 gameVersionService = new AdventureLandVersionService({
   logger,
   source: new AdventureLandVersionSource(liveGameDataSource),
-  store: new AdventureLandVersionStore(join(userPaths.dataDir, "game", "version.json")),
+  store: gameVersionStore,
 });
 
 diagnostics.registerComponent("game-version", () => {
@@ -151,6 +155,8 @@ diagnostics.registerComponent("game-version", () => {
 gameDataService = new AdventureLandGameDataService({
   logger,
   source: liveGameDataSource,
+  cache: new AdventureLandGameDataCache(join(userPaths.dataDir, "game", "cache")),
+  expectedVersion: () => gameVersionStore.load()?.version,
 });
 
 diagnostics.registerComponent("game-data", () => {
@@ -161,12 +167,16 @@ diagnostics.registerComponent("game-data", () => {
     gameVersion !== undefined &&
     state.version !== gameVersion;
 
+  const cacheError = state.cacheStatus === "error";
+
   return {
     name: "game-data",
-    status: state.status === "error" || versionMismatch ? "degraded" : "healthy",
+    status: state.status === "error" || versionMismatch || cacheError ? "degraded" : "healthy",
     message: versionMismatch
       ? `Loaded game data version ${state.version} does not match detected Adventure Land version ${gameVersion}.`
-      : state.message ?? "Adventure Land game data status is available.",
+      : cacheError
+        ? state.cacheMessage ?? "Adventure Land game data cache reported an error."
+        : state.message ?? "Adventure Land game data status is available.",
   };
 });
 
