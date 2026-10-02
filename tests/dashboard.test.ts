@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { ActionGateway } from "../src/action/gateway.ts";
 import { CoreRuntime } from "../src/core/app.ts";
 import { DashboardServer } from "../src/dashboard/server.ts";
 import { DiagnosticsService } from "../src/diagnostics/service.ts";
@@ -797,4 +798,111 @@ test("dashboard renders Slice 2.6 nearby entities and party state", () => {
   assert.match(script, /renderEntityState/);
   assert.match(script, /renderPartyState/);
   assert.doesNotMatch(script, /\/api\/character\/(invite|party|request|accept|leave|move|attack)/);
+});
+
+
+test("dashboard exposes a fixed local-only Action Gateway probe", async () => {
+  const runtime = new CoreRuntime();
+  runtime.start();
+  const logger = new Logger({ component: "dashboard-action-gateway-test" });
+  let requestNumber = 0;
+  const actionGateway = new ActionGateway({
+    logger,
+    idFactory: () => `act-dashboard-${++requestNumber}`,
+    nowMs: () => 1_000,
+  });
+  const fakeCharacterService = {
+    state: () => ({
+      status: "connected",
+      characterId: "CH_probe",
+      characterName: "ProbeCharacter",
+      message: "Connected.",
+    }),
+  };
+
+  const dashboard = new DashboardServer({
+    logger,
+    runtime,
+    actionGateway,
+    characterService: fakeCharacterService as any,
+    host: "127.0.0.1",
+    port: 0,
+  });
+
+  const url = await dashboard.start();
+  try {
+    const initial = await fetch(`${url}/api/action-gateway`);
+    assert.equal(initial.status, 200);
+    const initialPayload = await initial.json();
+    assert.equal(initialPayload.status, "ready");
+    assert.equal(initialPayload.active, 0);
+    assert.equal(initialPayload.totalRequests, 0);
+
+    const probe = await fetch(`${url}/api/action-gateway/probe`, { method: "POST" });
+    assert.equal(probe.status, 200);
+    const probePayload = await probe.json();
+    assert.equal(probePayload.requestId, "act-dashboard-1");
+    assert.equal(probePayload.action, "gateway.probe");
+    assert.equal(probePayload.origin, "dashboard");
+    assert.equal(probePayload.characterId, "CH_probe");
+    assert.equal(probePayload.outcome, "success");
+    assert.equal(probePayload.result.ok, true);
+
+    const current = await fetch(`${url}/api/action-gateway`);
+    const currentPayload = await current.json();
+    assert.equal(currentPayload.totalRequests, 1);
+    assert.equal(currentPayload.lastResult.requestId, "act-dashboard-1");
+
+    const rateLimited = await fetch(
+      `${url}/api/action-gateway/probe`,
+      { method: "POST" },
+    );
+    assert.equal(rateLimited.status, 429);
+    const limitedPayload = await rateLimited.json();
+    assert.equal(limitedPayload.outcome, "rate_limited");
+    assert.equal(limitedPayload.error.code, "ACTION_RATE_LIMITED");
+
+    const arbitrary = await fetch(
+      `${url}/api/action-gateway/action`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "attack" }),
+      },
+    );
+    assert.equal(arbitrary.status, 405);
+
+    const logs = logger.exportText();
+    assert.match(logs, /"requestId":"act-dashboard-1"/);
+    assert.match(logs, /"action":"gateway.probe"/);
+    assert.doesNotMatch(logs, /movement|combat|skill|attack target/i);
+  } finally {
+    await dashboard.stop();
+    runtime.stop();
+  }
+});
+
+test("dashboard renders Slice 3.1 Action Gateway status and local probe only", () => {
+  const html = readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
+  const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
+
+  for (const id of [
+    "action-gateway-status",
+    "action-gateway-active",
+    "action-gateway-total",
+    "action-gateway-request-id",
+    "action-gateway-outcome",
+    "run-action-gateway-probe",
+  ]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+
+  assert.match(html, /local-only/);
+  assert.match(script, /\/api\/action-gateway/);
+  assert.match(script, /\/api\/action-gateway\/probe/);
+  assert.match(script, /Action gateway probe completed/);
+  assert.doesNotMatch(
+    script,
+    /\/api\/action-gateway\/(move|xmove|attack|skill|loot|use|buy|sell|party)/,
+  );
 });

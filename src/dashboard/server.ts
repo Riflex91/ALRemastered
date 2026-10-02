@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AdventureLandAccountService } from "../account/service.ts";
+import type { ActionGateway, ActionGatewayResult } from "../action/gateway.ts";
 import type { AdventureLandSelectionService } from "../account/selection-service.ts";
 import type { AdventureLandCharacterService } from "../character/service.ts";
 import type { CoreRuntime, HealthSnapshot } from "../core/app.ts";
@@ -20,6 +21,7 @@ export interface DashboardServerOptions {
   readonly accountService?: AdventureLandAccountService;
   readonly selectionService?: AdventureLandSelectionService;
   readonly characterService?: AdventureLandCharacterService;
+  readonly actionGateway?: ActionGateway;
   readonly updateService?: UpdateService;
   readonly diagnostics?: DiagnosticsService;
   readonly gameVersionService?: AdventureLandVersionService;
@@ -34,6 +36,7 @@ export class DashboardServer {
   readonly #accountService?: AdventureLandAccountService;
   readonly #selectionService?: AdventureLandSelectionService;
   readonly #characterService?: AdventureLandCharacterService;
+  readonly #actionGateway?: ActionGateway;
   readonly #updateService?: UpdateService;
   readonly #diagnostics?: DiagnosticsService;
   readonly #gameVersionService?: AdventureLandVersionService;
@@ -51,6 +54,7 @@ export class DashboardServer {
     this.#accountService = options.accountService;
     this.#selectionService = options.selectionService;
     this.#characterService = options.characterService;
+    this.#actionGateway = options.actionGateway;
     this.#updateService = options.updateService;
     this.#diagnostics = options.diagnostics;
     this.#gameVersionService = options.gameVersionService;
@@ -198,6 +202,36 @@ export class DashboardServer {
       return this.#runCharacterAction(
         response,
         () => this.#characterService!.stop("dashboard"),
+      );
+    }
+
+    if (method === "GET" && path === "/api/action-gateway") {
+      if (!this.#actionGateway) {
+        return this.#json(response, { status: "unavailable" }, 503);
+      }
+      return this.#json(response, this.#actionGateway.state());
+    }
+    if (method === "POST" && path === "/api/action-gateway/probe") {
+      if (!this.#actionGateway) {
+        return this.#json(response, { error: "Action gateway is unavailable." }, 503);
+      }
+      const characterId = this.#characterService?.state().characterId;
+      const result = await this.#actionGateway.run({
+        action: "gateway.probe",
+        origin: "dashboard",
+        characterId,
+        input: { kind: "local-probe" },
+        timeoutMs: 1_000,
+        minIntervalMs: 1_000,
+        execute: () => ({
+          ok: true,
+          message: "Local action gateway probe completed.",
+        }),
+      });
+      return this.#json(
+        response,
+        result,
+        gatewayStatusCode(result),
       );
     }
 
@@ -452,5 +486,15 @@ function contentType(path: string): string {
     case ".css": return "text/css; charset=utf-8";
     case ".js": return "text/javascript; charset=utf-8";
     default: return "application/octet-stream";
+  }
+}
+
+
+function gatewayStatusCode(result: ActionGatewayResult): number {
+  switch (result.outcome) {
+    case "success": return 200;
+    case "rate_limited": return 429;
+    case "timeout": return 504;
+    case "error": return 400;
   }
 }
