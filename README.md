@@ -45,6 +45,23 @@ npm run build
 npm run installer:windows
 ```
 
+## Local dashboard
+
+Starting ALRemastered normally launches a local dashboard at `http://127.0.0.1:3210` and opens it in the default browser when a graphical desktop is available.
+
+The first dashboard slice includes:
+
+- core status, client version, platform and uptime
+- live Debug Console
+- level filtering and text search
+- pause/resume and auto-scroll
+- **Copy full log**
+- **Copy filtered log**
+- **Download log**
+- **Clear log**
+
+The dashboard server listens only on the local loopback interface. Diagnostic log exports are produced from already sanitized records.
+
 ## Diagnostics
 
 ALRemastered writes structured client logs to the platform user-data location:
