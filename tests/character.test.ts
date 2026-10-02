@@ -108,7 +108,7 @@ test("headless transport follows welcome-loaded-auth-start without automation ev
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(socket.sent.at(-1), "3server-ping");
 
-  socket.message('42["start",{"id":"RangerOne","name":"RangerOne","ctype":"ranger","level":45,"xp":12345,"max_xp":50000,"map":"main","x":12,"y":34,"hp":4000,"max_hp":4000,"mp":900,"max_mp":1000,"range":120,"angle":0,"target":null,"rip":false,"items":[{"name":"hpot0","q":20},null,{"name":"scroll0","level":0}],"slots":{"mainhand":{"name":"bow","level":3},"helmet":null,"trade1":{"name":"hpot0","q":5}},"gold":123456,"m":7,"s":{"mluck":{"ms":5000,"f":"Merchant"}},"party":"RangerOne","entities":{"type":"all","players":[{"id":"MageStart","name":"MageStart","ctype":"mage","level":49,"x":18,"y":36}],"monsters":[{"id":"goo-start","type":"goo","x":22,"y":38}]}}]');
+  socket.message('42["start",{"id":"RangerOne","name":"RangerOne","ctype":"ranger","level":45,"xp":12345,"max_xp":50000,"map":"main","x":12,"y":34,"hp":4000,"max_hp":4000,"mp":900,"max_mp":1000,"range":120,"angle":0,"target":null,"rip":false,"items":[{"name":"hpot0","q":20},null,{"name":"scroll0","level":0}],"slots":{"mainhand":{"name":"bow","level":3},"helmet":null,"trade1":{"name":"hpot0","q":5}},"gold":123456,"m":7,"s":{"mluck":{"ms":5000,"f":"Merchant"}},"party":"RangerOne","entities":{"type":"all","players":[{"id":"MageStart","name":"MageStart","ctype":"mage","level":49,"x":18,"y":36}],"monsters":[{"id":14,"type":"goo","x":22,"y":38}]}}]');
   const connection = await connecting;
   assert.equal(connection.character.id, "CH_1");
   assert.equal(connection.character.name, "RangerOne");
@@ -146,25 +146,25 @@ test("headless transport follows welcome-loaded-auth-start without automation ev
     { x: 12, y: 34, going_x: 44, going_y: 34, m: 7 },
   ]);
 
-  const attackPromise = connection.sendAttack({ targetId: "goo-start" });
+  const attackPromise = connection.sendAttack({ targetId: "14" });
   const attackPacket = socket.sent.find((packet) =>
     packet.startsWith('42["attack"')
   );
   assert.ok(attackPacket);
   assert.deepEqual(JSON.parse(attackPacket.slice(2)), [
     "attack",
-    { id: "goo-start" },
+    { id: "14" },
   ]);
   socket.message('42["skill_timeout",{"name":"attack","ms":800}]');
   socket.message('42["game_response",{"response":"data","place":"attack","success":true}]');
   const attackReceipt = await attackPromise;
-  assert.equal(attackReceipt.targetId, "goo-start");
+  assert.equal(attackReceipt.targetId, "14");
   assert.equal(attackReceipt.success, true);
   assert.ok((attackReceipt.cooldownMs ?? 0) > 0);
   assert.ok((attackReceipt.cooldownMs ?? 0) <= 800);
   assert.ok(connection.attackCooldownRemainingMs() > 0);
 
-  const cooldownPromise = connection.sendAttack({ targetId: "goo-start" });
+  const cooldownPromise = connection.sendAttack({ targetId: "14" });
   socket.message('42["game_response",{"response":"data","place":"attack","failed":true,"reason":"cooldown","ms":450}]');
   const cooldownReceipt = await cooldownPromise;
   assert.equal(cooldownReceipt.success, false);
@@ -174,7 +174,7 @@ test("headless transport follows welcome-loaded-auth-start without automation ev
   let liveState = connection.snapshot();
   assert.equal(liveState.entities.length, 2);
   assert.equal(liveState.entities.find((entity) => entity.id === "MageStart")?.type, "mage");
-  assert.equal(liveState.entities.find((entity) => entity.id === "goo-start")?.type, "goo");
+  assert.equal(liveState.entities.find((entity) => entity.id === "14")?.type, "goo");
   assert.equal(liveState.party.inParty, true);
   assert.equal(liveState.party.leader, "RangerOne");
   assert.deepEqual(liveState.party.members, []);
