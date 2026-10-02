@@ -11,6 +11,9 @@ export function openDashboard(url: string, logger: Logger): void {
         stdio: "ignore",
         windowsHide: true,
       });
+      child.once("error", (error) => {
+        logger.warn("Dashboard could not be opened automatically.", { reason: error.message, url });
+      });
       child.unref();
       return;
     }
