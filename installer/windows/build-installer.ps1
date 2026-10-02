@@ -23,21 +23,17 @@ New-Item -ItemType Directory -Path $Artifacts -Force | Out-Null
 Copy-Item "build\package\*" (Join-Path $Stage "app") -Recurse -Force
 Copy-Item $Node (Join-Path $Stage "runtime\node.exe") -Force
 
-$Launcher = @'
-@echo off
-setlocal
-set "BASE=%~dp0"
-"%BASE%runtime\node.exe" "%BASE%app\src\main.js" %*
-set "EXIT_CODE=%ERRORLEVEL%"
-if not "%EXIT_CODE%"=="0" (
-  echo.
-  echo ALRemastered stopped unexpectedly with exit code %EXIT_CODE%.
-  echo Press any key to close this window.
-  pause >nul
-)
-exit /b %EXIT_CODE%
-'@
-Set-Content -Path (Join-Path $Stage "ALRemastered.cmd") -Value $Launcher -Encoding Ascii
+$Csc = @(
+  "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe",
+  "$env:WINDIR\Microsoft.NET\Framework\v4.0.30319\csc.exe"
+) | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $Csc) { throw "The Windows C# compiler was not found." }
+
+$LauncherExe = Join-Path $Stage "ALRemastered.exe"
+& $Csc /nologo /target:exe /platform:anycpu "/out:$LauncherExe" "installer\windows\Launcher.cs"
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path $LauncherExe)) {
+  throw "ALRemastered.exe launcher build failed."
+}
 
 $MakeNsis = @(
   "$env:ProgramFiles\NSIS\makensis.exe",

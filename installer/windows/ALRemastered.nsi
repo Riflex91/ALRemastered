@@ -1,4 +1,5 @@
 Unicode true
+LoadLanguageFile "${NSISDIR}\\Contrib\\Language files\\English.nlf"
 
 !ifndef APP_VERSION
   !define APP_VERSION "0.0.0-dev"
@@ -34,13 +35,13 @@ Section "ALRemastered" SEC_CORE
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\ALRemastered" "UninstallString" '"$INSTDIR\Uninstall.exe"'
 
   CreateDirectory "$SMPROGRAMS\ALRemastered"
-  CreateShortcut "$SMPROGRAMS\ALRemastered\ALRemastered.lnk" "$INSTDIR\ALRemastered.cmd"
+  CreateShortcut "$SMPROGRAMS\ALRemastered\ALRemastered.lnk" "$INSTDIR\ALRemastered.exe"
   CreateShortcut "$SMPROGRAMS\ALRemastered\Uninstall ALRemastered.lnk" "$INSTDIR\Uninstall.exe"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 SectionEnd
 
 Section /o "Desktop shortcut" SEC_DESKTOP
-  CreateShortcut "$DESKTOP\ALRemastered.lnk" "$INSTDIR\ALRemastered.cmd"
+  CreateShortcut "$DESKTOP\ALRemastered.lnk" "$INSTDIR\ALRemastered.exe"
 SectionEnd
 
 Section "Uninstall"
