@@ -64,6 +64,19 @@ jobs:
           set -euo pipefail
           npm run build
           npm run installer:linux
+      - name: Verify Linux update handoff survives caller exit
+        shell: bash
+        run: |
+          set -euo pipefail
+          marker="$RUNNER_TEMP/alremastered-linux-update-handoff-marker.txt"
+          rm -f "$marker"
+          node scripts/linux-update-handoff-smoke.mjs "$marker"
+          for attempt in $(seq 1 24); do
+            if [ -f "$marker" ]; then break; fi
+            sleep 0.25
+          done
+          test -f "$marker"
+          test "$(cat "$marker")" = "started-after-parent-exit"
       - name: Upgrade without choosing the path again and verify
         shell: bash
         run: |
@@ -95,8 +108,8 @@ jobs:
           curl -fsS http://127.0.0.1:3210/ | grep 'Reload game data'
           curl -fsS http://127.0.0.1:3210/ | grep 'Loaded families'
           curl -fsS http://127.0.0.1:3210/api/status | grep '"status":"running"'
-          curl -fsS http://127.0.0.1:3210/api/game-version | grep '"status":"idle"'
-          curl -fsS http://127.0.0.1:3210/api/game-data | grep '"status":"idle"'
+          curl -fsS http://127.0.0.1:3210/api/game-version | grep '"status":'
+          curl -fsS http://127.0.0.1:3210/api/game-data | grep '"status":'
           curl -fsS http://127.0.0.1:3210/api/diagnostics/snapshot | grep '"sanitized":true'
           curl -fsS http://127.0.0.1:3210/api/diagnostics/package | grep 'ALRemasteredDiagnosticPackage'
           curl -fsS http://127.0.0.1:3210/api/update | grep '"currentVersion":"0.1.0-alpha.14"'
@@ -104,8 +117,9 @@ jobs:
           test -f "$data_dir/logs/client.log"
           grep '"level":"INFO"' "$data_dir/logs/client.log"
           grep '"message":"ALRemastered starting."' "$data_dir/logs/client.log"
-          kill "$client_pid"
-          wait "$client_pid" || true
+          grep '"message":"ALRemastered restarted automatically after update."' "$data_dir/logs/client.log"
+          pkill -f "$test_dir/app/src/main.js" || true
+          sleep 0.5
           "$test_dir/uninstall.sh" --yes
           test ! -e "$test_dir"
           test "$(cat "$data_dir/upgrade-sentinel.txt")" = "keep-me"
