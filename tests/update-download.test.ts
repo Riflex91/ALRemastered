@@ -52,7 +52,7 @@ test("integrity failures reject mismatched data", async () => {
   try {
     const destination = join(root, "payload.bin");
     const expected = Buffer.from("expected");
-    const actual = Buffer.from("different");
+    const actual = Buffer.from("expectEd");
     const asset = assetFor(expected);
     const fakeFetch = async () => new Response(actual, { status: 200 });
     await assert.rejects(
