@@ -528,9 +528,11 @@ Werte mit normalem Spielzustand vergleichen.
 
 ## Slice 2.5 – Inventory und Equipment State
 
-**Status: MERGED – AWAITING USER TEST**
+**Status: VERIFIED**
 
 > 2026-10-02: Read-only inventory, equipment, gold, and active-condition state merged for `0.1.0-alpha.19`. Initial state is read from Adventure Land `start` data and refreshed through `player` updates; trade listing slots are excluded from equipment. Automated Windows/Linux CI and alpha.18 → alpha.19 installer upgrade smokes passed. Real-account item/state validation is still required before VERIFIED.
+
+> 2026-10-02: VERIFIED on Windows with `0.1.0-alpha.19`. The live test connected the same canonical `CH_…` character twice on EU II with `automation:false` throughout. Read-only inventory/equipment state reflected the official-game changes between sessions (inventory used 25 → 27; equipment used 11 → 9), while gold and active conditions were exposed in both snapshots. Controlled disconnects succeeded, ping was measured, and the diagnostic export reported `Secrets sanitized: yes`.
 
 - Inventory
 - Equipment
