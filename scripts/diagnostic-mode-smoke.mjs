@@ -7,6 +7,7 @@ const child = spawn(process.execPath, [
   "--no-open-dashboard",
   "--no-update-check",
   "--no-game-version-check",
+  "--no-game-data-load",
   "--diagnostic-test-mode",
 ], {
   stdio: ["ignore", "pipe", "pipe"],
