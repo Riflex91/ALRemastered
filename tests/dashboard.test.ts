@@ -635,6 +635,19 @@ test("dashboard character API starts and stops one headless connection without a
           gold: 123456,
           conditions: { mluck: { ms: 5000, f: "Merchant" } },
         },
+        entities: [
+          { id: "MageOne", kind: "player", name: "MageOne", type: "mage", level: 50, x: 25, y: 45 },
+          { id: "goo-1", kind: "monster", name: "goo-1", type: "goo", hp: 90, maxHp: 120, x: 36, y: 46 },
+        ],
+        party: {
+          inParty: true,
+          leader: "RangerOne",
+          members: ["RangerOne", "MageOne"],
+          details: {
+            RangerOne: { name: "RangerOne", type: "ranger", level: 45, map: "main" },
+            MageOne: { name: "MageOne", type: "mage", level: 50, map: "main" },
+          },
+        },
         message: "RangerOne is connected headlessly. Live state is updating; no automation is running.",
       } as typeof state;
       return state;
@@ -674,6 +687,10 @@ test("dashboard character API starts and stops one headless connection without a
     assert.equal(startedPayload.character.inventory[0].name, "hpot0");
     assert.equal(startedPayload.character.equipment.mainhand.name, "bow");
     assert.equal(startedPayload.character.conditions.mluck.ms, 5000);
+    assert.equal(startedPayload.entities.length, 2);
+    assert.equal(startedPayload.entities[0].kind, "player");
+    assert.equal(startedPayload.party.leader, "RangerOne");
+    assert.deepEqual(startedPayload.party.members, ["RangerOne", "MageOne"]);
     assert.equal(startedCharacterId, "CH_1");
 
     const automationAttempt = await fetch(`${url}/api/character/automation`, {
@@ -753,4 +770,31 @@ test("dashboard renders Slice 2.5 inventory equipment gold and condition state",
   assert.match(script, /renderEquipmentState/);
   assert.match(script, /renderConditionState/);
   assert.doesNotMatch(script, /\/api\/character\/(buy|sell|equip|unequip|use|swap)/);
+});
+
+
+test("dashboard renders Slice 2.6 nearby entities and party state", () => {
+  const html = readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
+  const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
+
+  for (const id of [
+    "character-entities-summary",
+    "character-players-summary",
+    "character-monsters-summary",
+    "character-party-summary",
+    "character-entities",
+    "character-party",
+  ]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+
+  assert.match(script, /connection\.entities/);
+  assert.match(script, /entity\.kind === "player"/);
+  assert.match(script, /entity\.kind === "monster"/);
+  assert.match(script, /connection\.party/);
+  assert.match(script, /party\.members/);
+  assert.match(script, /party\.leader/);
+  assert.match(script, /renderEntityState/);
+  assert.match(script, /renderPartyState/);
+  assert.doesNotMatch(script, /\/api\/character\/(invite|party|request|accept|leave|move|attack)/);
 });
