@@ -45,4 +45,13 @@ npm run build
 npm run installer:windows
 ```
 
+## Diagnostics
+
+ALRemastered writes structured client logs to the platform user-data location:
+
+- Windows: `%LOCALAPPDATA%\ALRemastered\logs\client.log`
+- Linux: `$XDG_DATA_HOME/ALRemastered/logs/client.log` or `~/.local/share/ALRemastered/logs/client.log`
+
+Logs use bounded in-memory retention and file rotation. Passwords, authorization values, cookies, tokens, API keys, session secrets, and similar sensitive values are sanitized before records are stored or exported.
+
 All end-user-facing ALRemastered text is English.
