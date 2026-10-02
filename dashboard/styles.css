@@ -206,6 +206,7 @@ h2 {
 
 
 .account-panel,
+.selection-panel,
 .game-data-panel,
 .diagnostics-overview {
   margin: 1.2rem 0;
@@ -517,4 +518,74 @@ h2 {
   .primary-actions {
     width: 100%;
   }
+}
+
+
+.selection-summary {
+  margin: 0;
+  padding: 0 1rem 1rem;
+}
+
+.selection-content {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1rem;
+  padding: 0 1rem 1rem;
+}
+
+.selection-content h3 {
+  margin: 0 0 0.7rem;
+  font-size: 1rem;
+}
+
+.selection-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.selection-card {
+  display: grid;
+  gap: 0.25rem;
+  border: 1px solid #2c333d;
+  border-radius: 10px;
+  padding: 0.8rem;
+  background: #0f1318;
+}
+
+.selection-card[data-selected="true"] {
+  border-color: #4d6e9f;
+}
+
+.selection-card span,
+.selection-card small,
+.selection-note {
+  color: #9aa4b2;
+}
+
+.server-picker {
+  display: flex;
+  align-items: end;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.55rem;
+}
+
+.server-picker label {
+  display: grid;
+  gap: 0.4rem;
+  flex: 1 1 220px;
+}
+
+.server-picker select {
+  width: 100%;
+  border: 1px solid #343a46;
+  border-radius: 8px;
+  padding: 0.62rem 0.7rem;
+  background: #0f1318;
+  color: #f5f7fa;
+}
+
+.selection-note {
+  display: block;
+  margin: 0 0 0.8rem;
 }

@@ -5,6 +5,7 @@ const state = {
   autoScroll: true,
   status: null,
   account: null,
+  selection: null,
   update: null,
   gameVersion: null,
   gameData: null,
@@ -27,6 +28,16 @@ const elements = {
   accountPassword: document.querySelector("#account-password"),
   accountConnect: document.querySelector("#account-connect"),
   accountDisconnect: document.querySelector("#account-disconnect"),
+  selectionPanel: document.querySelector("#selection-panel"),
+  selectionStatus: document.querySelector("#selection-status"),
+  characterCount: document.querySelector("#character-count"),
+  serverCount: document.querySelector("#server-count"),
+  selectedServer: document.querySelector("#selected-server"),
+  characterList: document.querySelector("#character-list"),
+  serverList: document.querySelector("#server-list"),
+  serverSelect: document.querySelector("#server-select"),
+  selectServer: document.querySelector("#select-server"),
+  refreshSelection: document.querySelector("#refresh-selection"),
   gameVersion: document.querySelector("#game-version"),
   gameVersionStatus: document.querySelector("#game-version-status"),
   gameLastDeploy: document.querySelector("#game-last-deploy"),
@@ -204,6 +215,124 @@ function renderAccount() {
   elements.accountForm.hidden = connected;
   elements.accountDisconnect.hidden = !connected;
   elements.accountConnect.disabled = account.status === "connecting";
+}
+
+function renderSelection() {
+  const selection = state.selection;
+  const connected = state.account?.status === "connected";
+  elements.selectionPanel.hidden = !connected;
+  if (!connected || !selection) return;
+
+  const statusLabels = {
+    disconnected: "Disconnected",
+    loading: "Loading…",
+    ready: "Ready",
+    error: "Load failed",
+  };
+  elements.selectionStatus.textContent =
+    statusLabels[selection.status] ?? selection.status;
+  elements.selectionStatus.title = selection.message ?? "";
+  elements.characterCount.textContent = String(selection.characters?.length ?? 0);
+  elements.serverCount.textContent = String(selection.servers?.length ?? 0);
+
+  const servers = selection.servers ?? [];
+  const selected = servers.find(
+    (server) => server.key === selection.selectedServerKey,
+  );
+  elements.selectedServer.textContent = selected
+    ? `${selected.region} ${selected.name}`
+    : "Not selected";
+
+  elements.characterList.replaceChildren();
+  const characters = selection.characters ?? [];
+  if (characters.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent =
+      selection.status === "error"
+        ? selection.message ?? "Characters could not be loaded."
+        : "No characters were returned for this account.";
+    elements.characterList.append(empty);
+  } else {
+    for (const character of characters) {
+      const card = document.createElement("article");
+      card.className = "selection-card";
+
+      const name = document.createElement("strong");
+      name.textContent = character.name;
+
+      const details = document.createElement("span");
+      details.textContent = `${character.type} · Level ${character.level}`;
+
+      const presence = document.createElement("small");
+      presence.textContent = character.online
+        ? `Online${character.serverKey ? ` · ${character.serverKey}` : ""}`
+        : "Offline";
+
+      card.append(name, details, presence);
+      elements.characterList.append(card);
+    }
+  }
+
+  const previousValue = elements.serverSelect.value;
+  elements.serverSelect.replaceChildren();
+  if (servers.length === 0) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "No servers available";
+    elements.serverSelect.append(option);
+  } else {
+    for (const server of servers) {
+      const option = document.createElement("option");
+      option.value = server.key;
+      option.textContent =
+        `${server.region} ${server.name} · ${server.players} players`;
+      elements.serverSelect.append(option);
+    }
+    const preferred =
+      selection.selectedServerKey &&
+      servers.some((server) => server.key === selection.selectedServerKey)
+        ? selection.selectedServerKey
+        : servers.some((server) => server.key === previousValue)
+          ? previousValue
+          : servers[0].key;
+    elements.serverSelect.value = preferred;
+  }
+
+  elements.selectServer.disabled =
+    selection.status !== "ready" || servers.length === 0;
+  elements.refreshSelection.disabled = selection.status === "loading";
+
+  elements.serverList.replaceChildren();
+  if (servers.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent =
+      selection.status === "error"
+        ? selection.message ?? "Servers could not be loaded."
+        : "No servers are available.";
+    elements.serverList.append(empty);
+  } else {
+    for (const server of servers) {
+      const card = document.createElement("article");
+      card.className = "selection-card";
+      if (server.key === selection.selectedServerKey) {
+        card.dataset.selected = "true";
+      }
+
+      const name = document.createElement("strong");
+      name.textContent = `${server.region} ${server.name}`;
+
+      const details = document.createElement("span");
+      details.textContent = server.key;
+
+      const players = document.createElement("small");
+      players.textContent = `${server.players} players`;
+
+      card.append(name, details, players);
+      elements.serverList.append(card);
+    }
+  }
 }
 
 function renderGameVersion() {
@@ -457,6 +586,17 @@ async function refreshAccount() {
   }
 }
 
+async function refreshSelection() {
+  try {
+    const response = await fetch("/api/selection", { cache: "no-store" });
+    if (!response.ok) return;
+    state.selection = await response.json();
+    renderSelection();
+  } catch {
+    // Dashboard connectivity is reported separately.
+  }
+}
+
 async function refreshGameData() {
   try {
     const response = await fetch("/api/game-data", { cache: "no-store" });
@@ -581,6 +721,19 @@ async function accountAction(path, body) {
   if (!response.ok) throw new Error(payload.error ?? payload.message ?? `HTTP ${response.status}`);
   state.account = payload;
   renderAccount();
+  return payload;
+}
+
+async function selectionAction(path, body) {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: body ? { "Content-Type": "application/json; charset=utf-8" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error ?? payload.message ?? `HTTP ${response.status}`);
+  state.selection = payload;
+  renderSelection();
   return payload;
 }
 
@@ -737,7 +890,19 @@ elements.accountForm.addEventListener("submit", async (event) => {
     });
     if (account.status === "connected") {
       elements.accountEmail.value = "";
-      setFeedback("Adventure Land account connected.", "success");
+      await refreshSelection();
+      const selection = state.selection;
+      if (selection?.status === "ready") {
+        setFeedback(
+          `Adventure Land account connected. Loaded ${selection.characters.length} characters and ${selection.servers.length} servers.`,
+          "success",
+        );
+      } else {
+        setFeedback(
+          selection?.message ?? "Adventure Land account connected.",
+          selection?.status === "error" ? "error" : "success",
+        );
+      }
     } else {
       setFeedback(account.message ?? "Adventure Land account connection failed.", "error");
     }
@@ -753,6 +918,13 @@ elements.accountDisconnect.addEventListener("click", async () => {
   elements.accountDisconnect.disabled = true;
   try {
     await accountAction("/api/account/disconnect");
+    state.selection = {
+      status: "disconnected",
+      characters: [],
+      servers: [],
+      message: "Connect an Adventure Land account to load characters and servers.",
+    };
+    renderSelection();
     elements.accountEmail.value = "";
     elements.accountPassword.value = "";
     setFeedback("Adventure Land account disconnected.", "success");
@@ -760,6 +932,40 @@ elements.accountDisconnect.addEventListener("click", async () => {
     setFeedback(`Account disconnect failed: ${error.message}`, "error");
   } finally {
     elements.accountDisconnect.disabled = false;
+  }
+});
+
+elements.refreshSelection.addEventListener("click", async () => {
+  elements.refreshSelection.disabled = true;
+  setFeedback("Refreshing Adventure Land characters and servers…");
+  try {
+    const selection = await selectionAction("/api/selection/refresh");
+    if (selection.status === "ready") {
+      setFeedback(
+        `Loaded ${selection.characters.length} characters and ${selection.servers.length} servers.`,
+        "success",
+      );
+    } else {
+      setFeedback(selection.message ?? "Character and server refresh failed.", "error");
+    }
+  } catch (error) {
+    setFeedback(`Character and server refresh failed: ${error.message}`, "error");
+  } finally {
+    elements.refreshSelection.disabled = false;
+  }
+});
+
+elements.selectServer.addEventListener("click", async () => {
+  const serverKey = elements.serverSelect.value;
+  if (!serverKey) return;
+  elements.selectServer.disabled = true;
+  try {
+    const selection = await selectionAction("/api/selection/server", { serverKey });
+    setFeedback(selection.message ?? "Adventure Land server selected.", "success");
+  } catch (error) {
+    setFeedback(`Server selection failed: ${error.message}`, "error");
+  } finally {
+    elements.selectServer.disabled = false;
   }
 });
 
@@ -866,6 +1072,7 @@ elements.installUpdate.addEventListener("click", async () => {
 
 await refreshStatus();
 await refreshAccount();
+await refreshSelection();
 await refreshGameVersion();
 await refreshGameData();
 await refreshUpdate();
@@ -874,6 +1081,7 @@ await loadLogs();
 connectStream();
 setInterval(refreshStatus, 3000);
 setInterval(refreshAccount, 2000);
+setInterval(refreshSelection, 2000);
 setInterval(refreshGameVersion, 2000);
 setInterval(refreshGameData, 2000);
 setInterval(refreshUpdate, 1500);

@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AdventureLandAccountService } from "../account/service.ts";
+import type { AdventureLandSelectionService } from "../account/selection-service.ts";
 import type { CoreRuntime, HealthSnapshot } from "../core/app.ts";
 import type { DiagnosticsService } from "../diagnostics/service.ts";
 import type { AdventureLandGameDataService } from "../game/data-service.ts";
@@ -16,6 +17,7 @@ export interface DashboardServerOptions {
   readonly host?: string;
   readonly port?: number;
   readonly accountService?: AdventureLandAccountService;
+  readonly selectionService?: AdventureLandSelectionService;
   readonly updateService?: UpdateService;
   readonly diagnostics?: DiagnosticsService;
   readonly gameVersionService?: AdventureLandVersionService;
@@ -28,6 +30,7 @@ export class DashboardServer {
   readonly #host: string;
   readonly #port: number;
   readonly #accountService?: AdventureLandAccountService;
+  readonly #selectionService?: AdventureLandSelectionService;
   readonly #updateService?: UpdateService;
   readonly #diagnostics?: DiagnosticsService;
   readonly #gameVersionService?: AdventureLandVersionService;
@@ -43,6 +46,7 @@ export class DashboardServer {
     this.#host = options.host ?? "127.0.0.1";
     this.#port = options.port ?? 3210;
     this.#accountService = options.accountService;
+    this.#selectionService = options.selectionService;
     this.#updateService = options.updateService;
     this.#diagnostics = options.diagnostics;
     this.#gameVersionService = options.gameVersionService;
@@ -126,11 +130,42 @@ export class DashboardServer {
       if (!email.trim() || !password) {
         return this.#json(response, { error: "Email and password are required." }, 400);
       }
-      return this.#json(response, await this.#accountService.login({ email, password }));
+      const accountState = await this.#accountService.login({ email, password });
+      if (accountState.status === "connected" && this.#selectionService) {
+        await this.#selectionService.refresh();
+      }
+      return this.#json(response, accountState);
     }
     if (method === "POST" && path === "/api/account/disconnect") {
       if (!this.#accountService) return this.#json(response, { error: "Account service is unavailable." }, 503);
-      return this.#json(response, this.#accountService.disconnect());
+      const accountState = this.#accountService.disconnect();
+      this.#selectionService?.clear();
+      return this.#json(response, accountState);
+    }
+
+    if (method === "GET" && path === "/api/selection") {
+      if (!this.#selectionService) return this.#json(response, { status: "unavailable" }, 503);
+      return this.#json(response, this.#selectionService.state());
+    }
+    if (method === "POST" && path === "/api/selection/refresh") {
+      if (!this.#selectionService) return this.#json(response, { error: "Character and server service is unavailable." }, 503);
+      return this.#runSelectionAction(response, () => this.#selectionService!.refresh());
+    }
+    if (method === "POST" && path === "/api/selection/server") {
+      if (!this.#selectionService) return this.#json(response, { error: "Character and server service is unavailable." }, 503);
+      let body: Record<string, unknown>;
+      try {
+        body = await this.#readJsonObject(request);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Invalid request body.";
+        return this.#json(response, { error: message }, 400);
+      }
+      const serverKey = typeof body.serverKey === "string" ? body.serverKey : "";
+      if (!serverKey.trim()) return this.#json(response, { error: "Server selection is required." }, 400);
+      return this.#runSelectionAction(
+        response,
+        () => this.#selectionService!.selectServer(serverKey),
+      );
     }
 
     if (method === "GET" && path === "/api/diagnostics/snapshot") {
@@ -252,6 +287,15 @@ export class DashboardServer {
       "Referrer-Policy": "no-referrer",
     });
     createReadStream(filePath).pipe(response);
+  }
+
+  async #runSelectionAction(response: ServerResponse, action: () => unknown | Promise<unknown>): Promise<void> {
+    try {
+      this.#json(response, await action());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.#json(response, { error: message }, 400);
+    }
   }
 
   async #runGameDataAction(response: ServerResponse, action: () => unknown | Promise<unknown>): Promise<void> {

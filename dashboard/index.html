@@ -111,6 +111,61 @@
       </form>
     </section>
 
+    <section class="selection-panel" id="selection-panel" hidden>
+      <div class="diagnostics-heading">
+        <div>
+          <p class="eyebrow">Account data</p>
+          <h2>Characters and servers</h2>
+        </div>
+        <div class="toolbar">
+          <button id="refresh-selection" type="button">Refresh characters and servers</button>
+        </div>
+      </div>
+
+      <div class="status-grid selection-summary" aria-label="Character and server selection status">
+        <article class="card">
+          <span class="label">Selection status</span>
+          <strong id="selection-status">Waiting</strong>
+        </article>
+        <article class="card">
+          <span class="label">Characters</span>
+          <strong id="character-count">0</strong>
+        </article>
+        <article class="card">
+          <span class="label">Servers</span>
+          <strong id="server-count">0</strong>
+        </article>
+        <article class="card">
+          <span class="label">Selected server</span>
+          <strong id="selected-server">Not selected</strong>
+        </article>
+      </div>
+
+      <div class="selection-content">
+        <div>
+          <h3>Characters</h3>
+          <div id="character-list" class="selection-list" aria-label="Adventure Land characters">
+            <div class="empty">Connect an account to load characters.</div>
+          </div>
+        </div>
+
+        <div>
+          <h3>Server selection</h3>
+          <div class="server-picker">
+            <label>
+              <span class="label">Server</span>
+              <select id="server-select" aria-label="Adventure Land server"></select>
+            </label>
+            <button id="select-server" type="button">Use selected server</button>
+          </div>
+          <small class="selection-note">This slice only stores the server choice. No character is started.</small>
+          <div id="server-list" class="selection-list" aria-label="Adventure Land servers">
+            <div class="empty">Connect an account to load servers.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="game-data-panel">
       <div class="diagnostics-heading">
         <div>
