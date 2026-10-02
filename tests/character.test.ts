@@ -108,7 +108,7 @@ test("headless transport follows welcome-loaded-auth-start without automation ev
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(socket.sent.at(-1), "3server-ping");
 
-  socket.message('42["start",{"id":"RangerOne","name":"RangerOne","ctype":"ranger","level":45,"xp":12345,"max_xp":50000,"map":"main","x":12,"y":34,"hp":4000,"max_hp":4000,"mp":900,"max_mp":1000,"angle":0,"target":null,"rip":false}]');
+  socket.message('42["start",{"id":"RangerOne","name":"RangerOne","ctype":"ranger","level":45,"xp":12345,"max_xp":50000,"map":"main","x":12,"y":34,"hp":4000,"max_hp":4000,"mp":900,"max_mp":1000,"angle":0,"target":null,"rip":false,"items":[{"name":"hpot0","q":20},null,{"name":"scroll0","level":0}],"slots":{"mainhand":{"name":"bow","level":3},"helmet":null,"trade1":{"name":"hpot0","q":5}},"gold":123456,"s":{"mluck":{"ms":5000,"f":"Merchant"}}}]');
   const connection = await connecting;
   assert.equal(connection.character.id, "CH_1");
   assert.equal(connection.character.name, "RangerOne");
@@ -120,12 +120,19 @@ test("headless transport follows welcome-loaded-auth-start without automation ev
   assert.equal(connection.character.direction, 2);
   assert.equal(connection.character.directionLabel, "Right");
   assert.equal(connection.character.dead, false);
+  assert.equal(connection.character.inventory?.length, 3);
+  assert.equal(connection.character.inventory?.[0]?.name, "hpot0");
+  assert.equal(connection.character.inventory?.[0]?.q, 20);
+  assert.equal(connection.character.equipment?.mainhand?.name, "bow");
+  assert.equal("trade1" in (connection.character.equipment ?? {}), false);
+  assert.equal(connection.character.gold, 123456);
+  assert.equal(connection.character.conditions?.mluck?.ms, 5000);
 
   let liveState = connection.snapshot();
   connection.onState((next) => {
     liveState = next;
   });
-  socket.message('42["player",{"hp":3500,"mp":850,"xp":12500,"x":20,"y":40,"angle":180,"target":"goo-1","rip":false}]');
+  socket.message('42["player",{"hp":3500,"mp":850,"xp":12500,"x":20,"y":40,"angle":180,"target":"goo-1","rip":false,"items":[{"name":"hpot0","q":19},null,{"name":"scroll0","level":0}],"slots":{"mainhand":{"name":"bow","level":4},"helmet":{"name":"helmet","level":1}},"gold":123000,"s":{"mluck":{"ms":4000,"f":"Merchant"},"energized":{"ms":2000}}}]');
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(liveState.character.hp, 3500);
   assert.equal(liveState.character.mp, 850);
@@ -134,6 +141,11 @@ test("headless transport follows welcome-loaded-auth-start without automation ev
   assert.equal(liveState.character.y, 40);
   assert.equal(liveState.character.directionLabel, "Left");
   assert.equal(liveState.character.target, "goo-1");
+  assert.equal(liveState.character.inventory?.[0]?.q, 19);
+  assert.equal(liveState.character.equipment?.mainhand?.level, 4);
+  assert.equal(liveState.character.equipment?.helmet?.name, "helmet");
+  assert.equal(liveState.character.gold, 123000);
+  assert.deepEqual(Object.keys(liveState.character.conditions ?? {}).sort(), ["energized", "mluck"]);
 
   socket.message('42["new_map",{"name":"cave","x":101,"y":202,"direction":3}]');
   await new Promise((resolve) => setImmediate(resolve));
@@ -193,6 +205,10 @@ test("character service allows exactly one connection and disconnects controllab
       direction: 2,
       directionLabel: "Right",
       dead: false,
+      inventory: [{ name: "hpot0", q: 20 }, null],
+      equipment: { mainhand: { name: "bow", level: 3 } },
+      gold: 123456,
+      conditions: { mluck: { ms: 5000 } },
     },
     pingMs: undefined,
     snapshot() {
@@ -250,6 +266,10 @@ test("character service allows exactly one connection and disconnects controllab
       y: 50,
       target: "goo-1",
       dead: false,
+      inventory: [{ name: "hpot0", q: 19 }, null],
+      equipment: { mainhand: { name: "bow", level: 4 } },
+      gold: 123000,
+      conditions: { energized: { ms: 2000 } },
     },
     pingMs: 42,
     updatedAt: "2026-10-02T20:05:01.000Z",
@@ -257,6 +277,10 @@ test("character service allows exactly one connection and disconnects controllab
   const live = service.state();
   assert.equal(live.character?.hp, 3200);
   assert.equal(live.character?.target, "goo-1");
+  assert.equal(live.character?.inventory?.[0]?.q, 19);
+  assert.equal(live.character?.equipment?.mainhand?.level, 4);
+  assert.equal(live.character?.gold, 123000);
+  assert.deepEqual(Object.keys(live.character?.conditions ?? {}), ["energized"]);
   assert.equal(live.pingMs, 42);
   assert.equal(live.lastLiveUpdateAt, "2026-10-02T20:05:01.000Z");
 
@@ -264,6 +288,9 @@ test("character service allows exactly one connection and disconnects controllab
   assert.equal(stopped.status, "disconnected");
   assert.equal(closeCalls, 1);
   assert.match(logger.exportText(), /"automation":false/);
+  assert.match(logger.exportText(), /"inventoryUsed":1/);
+  assert.match(logger.exportText(), /"equipmentUsed":1/);
+  assert.match(logger.exportText(), /"conditions":\["energized"\]/);
   assert.doesNotMatch(logger.exportText(), /private-auth/);
 
   await service.start("CH_1");
