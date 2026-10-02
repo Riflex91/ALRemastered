@@ -154,6 +154,46 @@ jobs:
           $testDir = Join-Path $env:RUNNER_TEMP "ALRemastered Custom Path"
           $installProcess = Start-Process -FilePath "$env:RUNNER_TEMP\ALRemastered-A.exe" -ArgumentList @("/S", "/D=$testDir") -Wait -PassThru
           if ($installProcess.ExitCode -ne 0) { throw "Version A installer returned exit code $($installProcess.ExitCode)" }
+          $version = & "$testDir\ALRemastered.exe" --version
+          if ($version.Trim() -ne "0.1.0-alpha.13") { throw "Expected version A, got $version" }
+          $paths = (& "$testDir\ALRemastered.exe" --paths) | ConvertFrom-Json
+          New-Item -ItemType Directory -Path $paths.dataDir -Force | Out-Null
+          Set-Content -Path (Join-Path $paths.dataDir "upgrade-sentinel.txt") -Value "keep-me" -NoNewline
+          Set-Content -Path "$env:RUNNER_TEMP\alremastered-data-dir.txt" -Value $paths.dataDir -NoNewline
+      - name: Build version B installer
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          Remove-Item Env:ALREMASTERED_BUILD_VERSION -ErrorAction SilentlyContinue
+          npm run build
+          npm run installer:windows
+      - name: Verify Windows update handoff survives caller exit
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $marker = Join-Path $env:RUNNER_TEMP "alremastered-update-handoff-marker.txt"
+          Remove-Item $marker -Force -ErrorAction SilentlyContinue
+          node scripts/windows-update-handoff-smoke.mjs $marker
+          for ($attempt = 0; $attempt -lt 24 -and -not (Test-Path $marker); $attempt++) {
+            Start-Sleep -Milliseconds 250
+          }
+          if (-not (Test-Path $marker)) { throw "Detached Windows update process did not survive the caller exit." }
+          if ((Get-Content $marker -Raw) -ne "started-after-parent-exit") { throw "Windows update handoff marker was invalid." }
+      - name: Upgrade without choosing the path again and verify
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $installer = Get-ChildItem "artifacts\ALRemastered-Windows-*-Setup.exe" | Select-Object -First 1
+          $testDir = Join-Path $env:RUNNER_TEMP "ALRemastered Custom Path"
+          $dataDir = Get-Content "$env:RUNNER_TEMP\alremastered-data-dir.txt" -Raw
+          $waitProbe = Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 2") -WindowStyle Hidden -PassThru
+          $waitStartedAt = Get-Date
+          $upgradeProcess = Start-Process -FilePath $installer.FullName -ArgumentList @("/S", "/ALRUPDATE=1", "/ALRWAITPID=$($waitProbe.Id)") -PassThru
+          $upgradeProcess.WaitForExit()
+          $upgradeProcess.Refresh()
+          $waitElapsed = (Get-Date) - $waitStartedAt
+          if ($upgradeProcess.ExitCode -ne 0) { throw "Version B installer returned exit code $($upgradeProcess.ExitCode)" }
+          if ($waitElapsed.TotalMilliseconds -lt 1800) { throw "Automatic update installer did not wait for the previous client process." }
           $dashboardReady = $false
           for ($attempt = 0; $attempt -lt 120; $attempt++) {
             try {
