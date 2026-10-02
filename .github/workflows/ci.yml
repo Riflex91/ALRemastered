@@ -64,6 +64,19 @@ jobs:
           set -euo pipefail
           npm run build
           npm run installer:linux
+      - name: Verify Linux update handoff survives caller exit
+        shell: bash
+        run: |
+          set -euo pipefail
+          marker="$RUNNER_TEMP/alremastered-linux-update-handoff-marker.txt"
+          rm -f "$marker"
+          node scripts/linux-update-handoff-smoke.mjs "$marker"
+          for attempt in $(seq 1 24); do
+            if [ -f "$marker" ]; then break; fi
+            sleep 0.25
+          done
+          test -f "$marker"
+          test "$(cat "$marker")" = "started-after-parent-exit"
       - name: Upgrade without choosing the path again and verify
         shell: bash
         run: |
@@ -71,17 +84,22 @@ jobs:
           installer="$(find artifacts -maxdepth 1 -name 'ALRemastered-Linux-*.run' -print -quit)"
           test_dir="$RUNNER_TEMP/ALRemastered Custom Path"
           data_dir="$(cat "$RUNNER_TEMP/alremastered-data-dir.txt")"
-          "$installer" --yes --no-desktop
+          "$installer" --yes --no-desktop --restart
           test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.14"
           test "$(cat "$data_dir/upgrade-sentinel.txt")" = "keep-me"
           previous_version="$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).version" "$test_dir/.previous/app/package.json")"
           test "$previous_version" = "0.1.0-alpha.13"
           grep 'event=install_success version=0.1.0-alpha.14' "$data_dir/logs/installer.log"
-          "$test_dir/alremastered" --no-open-dashboard --no-update-check --no-game-version-check --no-game-data-load >"$RUNNER_TEMP/alremastered-linux.log" 2>&1 &
-          client_pid=$!
-          sleep 1
-          kill -0 "$client_pid"
-          grep 'Core is running.' "$RUNNER_TEMP/alremastered-linux.log"
+          grep 'event=auto_restart version=0.1.0-alpha.14' "$data_dir/logs/installer.log"
+          dashboard_ready=0
+          for attempt in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:3210/api/status 2>/dev/null | grep -q '"version":"0.1.0-alpha.14"'; then
+              dashboard_ready=1
+              break
+            fi
+            sleep 0.5
+          done
+          test "$dashboard_ready" -eq 1
           curl -fsS http://127.0.0.1:3210/ | grep 'Debug Console'
           curl -fsS http://127.0.0.1:3210/ | grep 'Check for updates'
           curl -fsS http://127.0.0.1:3210/ | grep 'Diagnostics overview'
@@ -90,8 +108,8 @@ jobs:
           curl -fsS http://127.0.0.1:3210/ | grep 'Reload game data'
           curl -fsS http://127.0.0.1:3210/ | grep 'Loaded families'
           curl -fsS http://127.0.0.1:3210/api/status | grep '"status":"running"'
-          curl -fsS http://127.0.0.1:3210/api/game-version | grep '"status":"idle"'
-          curl -fsS http://127.0.0.1:3210/api/game-data | grep '"status":"idle"'
+          curl -fsS http://127.0.0.1:3210/api/game-version | grep '"status":'
+          curl -fsS http://127.0.0.1:3210/api/game-data | grep '"status":'
           curl -fsS http://127.0.0.1:3210/api/diagnostics/snapshot | grep '"sanitized":true'
           curl -fsS http://127.0.0.1:3210/api/diagnostics/package | grep 'ALRemasteredDiagnosticPackage'
           curl -fsS http://127.0.0.1:3210/api/update | grep '"currentVersion":"0.1.0-alpha.14"'
@@ -99,8 +117,9 @@ jobs:
           test -f "$data_dir/logs/client.log"
           grep '"level":"INFO"' "$data_dir/logs/client.log"
           grep '"message":"ALRemastered starting."' "$data_dir/logs/client.log"
-          kill "$client_pid"
-          wait "$client_pid" || true
+          grep '"message":"ALRemastered restarted automatically after update."' "$data_dir/logs/client.log"
+          pkill -f "$test_dir/app/src/main.js" || true
+          sleep 0.5
           "$test_dir/uninstall.sh" --yes
           test ! -e "$test_dir"
           test "$(cat "$data_dir/upgrade-sentinel.txt")" = "keep-me"
@@ -167,25 +186,75 @@ jobs:
           $installer = Get-ChildItem "artifacts\ALRemastered-Windows-*-Setup.exe" | Select-Object -First 1
           $testDir = Join-Path $env:RUNNER_TEMP "ALRemastered Custom Path"
           $dataDir = Get-Content "$env:RUNNER_TEMP\alremastered-data-dir.txt" -Raw
-          $upgradeProcess = Start-Process -FilePath $installer.FullName -ArgumentList "/S" -Wait -PassThru
+
+          $oldLog = Join-Path $env:RUNNER_TEMP "alremastered-old-windows.log"
+          $oldError = Join-Path $env:RUNNER_TEMP "alremastered-old-windows-error.log"
+          $oldClient = Start-Process -FilePath "$testDir\ALRemastered.exe" -ArgumentList @("--no-open-dashboard", "--no-update-check", "--no-game-version-check", "--no-game-data-load") -RedirectStandardOutput $oldLog -RedirectStandardError $oldError -PassThru
+
+          $oldDashboardReady = $false
+          for ($attempt = 0; $attempt -lt 40; $attempt++) {
+            try {
+              $oldDashboardStatus = Invoke-RestMethod "http://127.0.0.1:3210/api/status"
+              if ($oldDashboardStatus.version -eq "0.1.0-alpha.13") {
+                $oldDashboardReady = $true
+                break
+              }
+            } catch {}
+            Start-Sleep -Milliseconds 250
+          }
+          if (-not $oldDashboardReady) { throw "Version A dashboard did not start before upgrade." }
+
+          $upgradeProcess = Start-Process -FilePath $installer.FullName -ArgumentList @("/S", "/ALRUPDATE=1", "/ALRWAITPID=$($oldClient.Id)") -PassThru
+          Start-Sleep -Milliseconds 750
+
+          $versionWhileWaiting = & "$testDir\ALRemastered.exe" --version
+          if ($versionWhileWaiting.Trim() -ne "0.1.0-alpha.13") {
+            throw "Automatic updater modified the installation before the previous client exited."
+          }
+
+          & taskkill.exe /PID $oldClient.Id /T /F | Out-Null
+
+          $dashboardReady = $false
+          for ($attempt = 0; $attempt -lt 120; $attempt++) {
+            try {
+              $dashboardStatus = Invoke-RestMethod "http://127.0.0.1:3210/api/status"
+              if ($dashboardStatus.version -eq "0.1.0-alpha.14") {
+                $dashboardReady = $true
+                break
+              }
+            } catch {}
+            Start-Sleep -Milliseconds 500
+          }
+          if (-not $dashboardReady) { throw "Updated ALRemastered did not restart its dashboard automatically." }
+
+          if (-not $upgradeProcess.HasExited) {
+            $upgradeProcess.WaitForExit(10000) | Out-Null
+            $upgradeProcess.Refresh()
+          }
+          if (-not $upgradeProcess.HasExited) { throw "Update installer did not close after successful installation." }
           if ($upgradeProcess.ExitCode -ne 0) { throw "Version B installer returned exit code $($upgradeProcess.ExitCode)" }
+
+          $remainingInstaller = Get-Process -ErrorAction SilentlyContinue | Where-Object {
+            try { $_.Path -eq $installer.FullName } catch { $false }
+          }
+          if ($remainingInstaller) { throw "Update installer process remained open after installation." }
+
           $version = & "$testDir\ALRemastered.exe" --version
           if ($version.Trim() -ne "0.1.0-alpha.14") { throw "Expected version B, got $version" }
           if ((Get-Content (Join-Path $dataDir "upgrade-sentinel.txt") -Raw) -ne "keep-me") { throw "User data was not preserved." }
           $previous = Get-Content "$testDir\.previous\app\package.json" -Raw | ConvertFrom-Json
           if ($previous.version -ne "0.1.0-alpha.13") { throw "Previous version was not retained for rollback." }
+
           $installerLog = Get-Content "$env:LOCALAPPDATA\ALRemastered\logs\installer.log" -Raw
           if ($installerLog -notmatch "event=install_success version=0.1.0-alpha.14") { throw "Upgrade success was not logged." }
+          if ($installerLog -notmatch "event=auto_restart version=0.1.0-alpha.14") { throw "Automatic restart was not logged." }
           if (Test-Path "$testDir\ALRemastered.cmd") { throw "Legacy batch launcher must not be installed." }
-          $normalLog = Join-Path $env:RUNNER_TEMP "alremastered-windows.log"
-          $normalError = Join-Path $env:RUNNER_TEMP "alremastered-windows-error.log"
-          $client = Start-Process -FilePath "$testDir\ALRemastered.exe" -ArgumentList @("--no-open-dashboard", "--no-update-check", "--no-game-version-check", "--no-game-data-load") -RedirectStandardOutput $normalLog -RedirectStandardError $normalError -PassThru
-          Start-Sleep -Seconds 1
-          if ($client.HasExited) {
-            $normalOutput = if (Test-Path $normalLog) { Get-Content $normalLog -Raw } else { "" }
-            $normalErrors = if (Test-Path $normalError) { Get-Content $normalError -Raw } else { "" }
-            throw "Installed client exited during normal start. Output: $normalOutput Errors: $normalErrors"
-          }
+
+          $autoClient = Get-Process -Name "ALRemastered" -ErrorAction SilentlyContinue | Where-Object {
+            try { $_.Path -eq "$testDir\ALRemastered.exe" } catch { $false }
+          } | Select-Object -First 1
+          if (-not $autoClient) { throw "Updated ALRemastered.exe was not started automatically." }
+
           $dashboardPage = Invoke-WebRequest -UseBasicParsing "http://127.0.0.1:3210/"
           if ($dashboardPage.Content -notmatch "Debug Console") { throw "Dashboard UI was not available." }
           if ($dashboardPage.Content -notmatch "Check for updates") { throw "Update controls were not available." }
@@ -194,12 +263,16 @@ jobs:
           if ($dashboardPage.Content -notmatch "Check game version") { throw "Game version check control was not available." }
           if ($dashboardPage.Content -notmatch "Reload game data") { throw "Game data reload control was not available." }
           if ($dashboardPage.Content -notmatch "Loaded families") { throw "Game data family summary was not available." }
+
           $dashboardStatus = Invoke-RestMethod "http://127.0.0.1:3210/api/status"
           if ($dashboardStatus.status -ne "running") { throw "Dashboard status endpoint did not report a running core." }
+          if ($dashboardStatus.version -ne "0.1.0-alpha.14") { throw "Automatically restarted client reported the wrong version." }
+
           $dashboardGameVersion = Invoke-RestMethod "http://127.0.0.1:3210/api/game-version"
-          if ($dashboardGameVersion.status -ne "idle") { throw "Game version API did not expose its idle state." }
+          if ($dashboardGameVersion.status -notin @("idle", "checking", "current", "changed", "error")) { throw "Game version API returned an invalid state." }
           $dashboardGameData = Invoke-RestMethod "http://127.0.0.1:3210/api/game-data"
-          if ($dashboardGameData.status -ne "idle") { throw "Game data API did not expose its idle state." }
+          if ($dashboardGameData.status -notin @("idle", "loading", "loaded", "error")) { throw "Game data API returned an invalid state." }
+
           $dashboardUpdate = Invoke-RestMethod "http://127.0.0.1:3210/api/update"
           if ($dashboardUpdate.currentVersion -ne "0.1.0-alpha.14") { throw "Update API returned the wrong client version." }
           $diagnosticsSnapshot = Invoke-RestMethod "http://127.0.0.1:3210/api/diagnostics/snapshot"
@@ -209,13 +282,16 @@ jobs:
           if ($diagnosticsPackage.Content -notmatch "ALRemasteredDiagnosticPackage") { throw "Diagnostic package was not available." }
           $dashboardExport = Invoke-RestMethod "http://127.0.0.1:3210/api/logs/export"
           if (-not $dashboardExport.sanitized) { throw "Dashboard log export was not marked as sanitized." }
+
           $paths = (& "$testDir\ALRemastered.exe" --paths) | ConvertFrom-Json
           $clientLog = Join-Path $paths.logsDir "client.log"
           if (-not (Test-Path $clientLog)) { throw "Structured client log was not created." }
           $clientLogText = Get-Content $clientLog -Raw
           if ($clientLogText -notmatch '"level":"INFO"') { throw "Structured client log contains no INFO record." }
           if ($clientLogText -notmatch '"message":"ALRemastered starting\."') { throw "Client startup was not logged." }
-          & taskkill.exe /PID $client.Id /T /F | Out-Null
+          if ($clientLogText -notmatch '"message":"ALRemastered restarted automatically after update\."') { throw "Automatic post-update restart was not logged." }
+
+          & taskkill.exe /PID $autoClient.Id /T /F | Out-Null
           Start-Sleep -Milliseconds 500
           $uninstallProcess = Start-Process -FilePath "$testDir\Uninstall.exe" -ArgumentList "/S" -Wait -PassThru
           if ($uninstallProcess.ExitCode -ne 0) { throw "Uninstaller returned exit code $($uninstallProcess.ExitCode)" }
