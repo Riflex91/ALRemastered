@@ -70,7 +70,7 @@ jobs:
           test_dir="$RUNNER_TEMP/ALRemastered Custom Path"
           data_dir="$(cat "$RUNNER_TEMP/alremastered-data-dir.txt")"
           "$installer" --yes --no-desktop
-          test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.3"
+          test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.4"
           test "$(cat "$data_dir/upgrade-sentinel.txt")" = "keep-me"
           previous_version="$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).version" "$test_dir/.previous/app/package.json")"
           test "$previous_version" = "0.1.0-alpha.3"
