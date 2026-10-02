@@ -528,6 +528,10 @@ Werte mit normalem Spielzustand vergleichen.
 
 ## Slice 2.5 – Inventory und Equipment State
 
+**Status: MERGED – AWAITING USER TEST**
+
+> 2026-10-02: Read-only inventory, equipment, gold, and active-condition state merged for `0.1.0-alpha.19`. Initial state is read from Adventure Land `start` data and refreshed through `player` updates; trade listing slots are excluded from equipment. Automated Windows/Linux CI and alpha.18 → alpha.19 installer upgrade smokes passed. Real-account item/state validation is still required before VERIFIED.
+
 - Inventory
 - Equipment
 - Gold
