@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { CoreRuntime } from "../src/core/app.ts";
 import { DashboardServer } from "../src/dashboard/server.ts";
+import { DiagnosticsService } from "../src/diagnostics/service.ts";
 import { Logger } from "../src/logging/logger.ts";
 
 test("dashboard exposes status, logs and sanitized export on loopback", async () => {
@@ -106,6 +107,10 @@ test("dashboard user interface contains the required English controls", () => {
     "Skip this version",
     "Remind me tomorrow",
     "Release notes",
+    "Diagnostics overview",
+    "Recent errors",
+    "Copy diagnostic snapshot",
+    "Download diagnostic package",
   ]) {
     assert.equal(html.includes(label), true, `Missing dashboard label: ${label}`);
   }
@@ -158,4 +163,59 @@ test("dashboard update API delegates update actions", async () => {
     await dashboard.stop();
     runtime.stop();
   }
+});
+
+
+test("dashboard exposes sanitized diagnostics snapshot and package", async () => {
+  const runtime = new CoreRuntime();
+  runtime.start();
+  const logger = new Logger({ component: "dashboard-diagnostics-test" });
+  const diagnostics = new DiagnosticsService(logger, () => runtime.health());
+  diagnostics.registerComponent("core", () => ({
+    name: "core",
+    status: "healthy",
+    message: "Core runtime is running.",
+  }));
+  logger.error(
+    "Dashboard request failed.",
+    new Error("password=diagnostic-secret"),
+    { token: "hidden-token", route: "/api/synthetic" },
+  );
+
+  const dashboard = new DashboardServer({
+    logger,
+    runtime,
+    diagnostics,
+    host: "127.0.0.1",
+    port: 0,
+  });
+
+  const url = await dashboard.start();
+  try {
+    const snapshotResponse = await fetch(`${url}/api/diagnostics/snapshot`);
+    assert.equal(snapshotResponse.status, 200);
+    const snapshot = await snapshotResponse.json();
+    assert.equal(snapshot.sanitized, true);
+    assert.equal(snapshot.recentErrors.length, 1);
+    assert.equal(snapshot.components[0].name, "core");
+    assert.doesNotMatch(JSON.stringify(snapshot), /diagnostic-secret|hidden-token/);
+
+    const packageResponse = await fetch(`${url}/api/diagnostics/package`);
+    assert.equal(packageResponse.status, 200);
+    assert.match(packageResponse.headers.get("content-disposition") ?? "", /ALRemastered-diagnostics-/);
+    const diagnosticPackage = await packageResponse.text();
+    assert.match(diagnosticPackage, /ALRemasteredDiagnosticPackage/);
+    assert.doesNotMatch(diagnosticPackage, /diagnostic-secret|hidden-token/);
+  } finally {
+    await dashboard.stop();
+    diagnostics.dispose();
+    runtime.stop();
+  }
+});
+
+test("dashboard script provides technical details and Copy full log on error cards", () => {
+  const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
+  assert.match(script, /Technical details/);
+  assert.match(script, /copy\.textContent = "Copy full log"/);
+  assert.match(script, /refreshDiagnostics/);
 });
