@@ -281,6 +281,7 @@ movementService = new AdventureLandMovementService({
 });
 attackService = new AdventureLandAttackService({
   gateway: actionGateway!,
+  logger,
   character: characterService!,
 });
 
