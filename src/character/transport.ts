@@ -10,6 +10,14 @@ export interface AdventureLandCharacterTransportInput {
   readonly server: AdventureLandServerSummary;
 }
 
+export type AdventureLandItemState = Readonly<Record<string, unknown>>;
+export type AdventureLandEquipmentState = Readonly<
+  Record<string, AdventureLandItemState | null>
+>;
+export type AdventureLandConditionState = Readonly<
+  Record<string, Readonly<Record<string, unknown>>>
+>;
+
 export interface AdventureLandConnectedCharacter {
   readonly id: string;
   readonly name: string;
@@ -29,6 +37,10 @@ export interface AdventureLandConnectedCharacter {
   readonly directionLabel?: string;
   readonly target?: string;
   readonly dead: boolean;
+  readonly inventory?: readonly (AdventureLandItemState | null)[];
+  readonly equipment?: AdventureLandEquipmentState;
+  readonly gold?: number;
+  readonly conditions?: AdventureLandConditionState;
 }
 
 export interface AdventureLandCharacterLiveState {
@@ -314,7 +326,7 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
 
   snapshot(): AdventureLandCharacterLiveState {
     return Object.freeze({
-      character: Object.freeze({ ...this.#character }),
+      character: Object.freeze(structuredClone(this.#character)),
       pingMs: this.#pingMs,
       updatedAt: this.#updatedAt,
     });
@@ -467,6 +479,10 @@ function parseConnectedCharacter(
     directionLabel: directionLabel(direction),
     target: typeof data.target === "string" ? data.target : undefined,
     dead: Boolean(data.rip),
+    inventory: parseInventory(data.items),
+    equipment: parseEquipment(data.slots),
+    gold: finiteNumber(data.gold),
+    conditions: parseConditions(data.s),
   });
 }
 
@@ -478,6 +494,9 @@ function mergeConnectedCharacter(
   let direction = current.direction;
   if ("direction" in data) direction = finiteNumber(data.direction);
   else if ("angle" in data && angle !== undefined) direction = directionFromAngle(angle);
+  const inventory = "items" in data ? parseInventory(data.items) : undefined;
+  const equipment = "slots" in data ? parseEquipment(data.slots) : undefined;
+  const conditions = "s" in data ? parseConditions(data.s) : undefined;
 
   return Object.freeze({
     id: current.id,
@@ -505,7 +524,42 @@ function mergeConnectedCharacter(
       ? (typeof data.target === "string" ? data.target : undefined)
       : current.target,
     dead: "rip" in data ? Boolean(data.rip) : current.dead,
+    inventory: "items" in data ? (inventory ?? current.inventory) : current.inventory,
+    equipment: "slots" in data ? (equipment ?? current.equipment) : current.equipment,
+    gold: "gold" in data ? (finiteNumber(data.gold) ?? current.gold) : current.gold,
+    conditions: "s" in data ? (conditions ?? current.conditions) : current.conditions,
   });
+}
+
+function parseInventory(
+  value: unknown,
+): readonly (AdventureLandItemState | null)[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return Object.freeze(value.map((entry) => {
+    if (entry === null) return null;
+    if (!isRecord(entry)) return null;
+    return Object.freeze(structuredClone(entry));
+  }));
+}
+
+function parseEquipment(value: unknown): AdventureLandEquipmentState | undefined {
+  if (!isRecord(value)) return undefined;
+  const equipment: Record<string, AdventureLandItemState | null> = {};
+  for (const [slot, entry] of Object.entries(value)) {
+    if (slot.startsWith("trade")) continue;
+    if (entry === null) equipment[slot] = null;
+    else if (isRecord(entry)) equipment[slot] = Object.freeze(structuredClone(entry));
+  }
+  return Object.freeze(equipment);
+}
+
+function parseConditions(value: unknown): AdventureLandConditionState | undefined {
+  if (!isRecord(value)) return undefined;
+  const conditions: Record<string, Readonly<Record<string, unknown>>> = {};
+  for (const [name, condition] of Object.entries(value)) {
+    if (isRecord(condition)) conditions[name] = Object.freeze(structuredClone(condition));
+  }
+  return Object.freeze(conditions);
 }
 
 function directionFromAngle(angle: number): number {
