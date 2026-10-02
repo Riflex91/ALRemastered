@@ -449,8 +449,11 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
     const fromY = this.#character.y;
     const movementSequence = this.#character.movementSequence;
     if (
+      typeof fromX !== "number" ||
       !Number.isFinite(fromX) ||
+      typeof fromY !== "number" ||
       !Number.isFinite(fromY) ||
+      typeof movementSequence !== "number" ||
       !Number.isFinite(movementSequence)
     ) {
       throw new AdventureLandCharacterTransportError(
@@ -466,8 +469,8 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
     }
 
     const receipt = Object.freeze({
-      fromX: fromX as number,
-      fromY: fromY as number,
+      fromX,
+      fromY,
       targetX: input.x,
       targetY: input.y,
     });
