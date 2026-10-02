@@ -1,6 +1,8 @@
 import { join } from "node:path";
 import { AdventureLandAccountService } from "./account/service.ts";
 import { AdventureLandAccountSource } from "./account/source.ts";
+import { AdventureLandSelectionService } from "./account/selection-service.ts";
+import { AdventureLandSelectionSource } from "./account/selection-source.ts";
 import { CoreRuntime } from "./core/app.ts";
 import { openDashboard } from "./dashboard/open.ts";
 import { DashboardServer } from "./dashboard/server.ts";
@@ -88,6 +90,7 @@ if (args.has("--health-check")) {
 let shuttingDown = false;
 let dashboard: DashboardServer | undefined;
 let accountService: AdventureLandAccountService | undefined;
+let selectionService: AdventureLandSelectionService | undefined;
 let updateService: UpdateService | undefined;
 let gameVersionService: AdventureLandVersionService | undefined;
 let gameDataService: AdventureLandGameDataService | undefined;
@@ -128,6 +131,21 @@ diagnostics.registerComponent("account", () => {
   const state = accountService!.state();
   return {
     name: "account",
+    status: state.status === "error" ? "degraded" : "healthy",
+    message: state.message,
+  };
+});
+
+selectionService = new AdventureLandSelectionService({
+  logger,
+  source: new AdventureLandSelectionSource(),
+  session: () => accountService!.session(),
+});
+
+diagnostics.registerComponent("selection", () => {
+  const state = selectionService!.state();
+  return {
+    name: "selection",
     status: state.status === "error" ? "degraded" : "healthy",
     message: state.message,
   };
@@ -217,6 +235,7 @@ dashboard = new DashboardServer({
   logger,
   runtime,
   accountService,
+  selectionService,
   updateService,
   diagnostics,
   gameVersionService,

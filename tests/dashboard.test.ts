@@ -124,6 +124,15 @@ test("dashboard user interface contains the required English controls", () => {
     "Connect account",
     "Disconnect account",
     "Password and session are kept in memory only",
+    "Characters and servers",
+    "Refresh characters and servers",
+    "Selection status",
+    "Characters",
+    "Servers",
+    "Selected server",
+    "Server selection",
+    "Use selected server",
+    "No character is started",
     "Game data",
     "Reload game data",
     "Game data status",
@@ -487,4 +496,93 @@ test("dashboard update flow keeps the current page and reloads after the new bac
   assert.match(script, /window\.location\.reload\(\)/);
   assert.match(script, /expectedVersionReached/);
   assert.match(script, /updateReconnectPending/);
+});
+
+
+test("dashboard selection API exposes characters and stores only the chosen server", async () => {
+  const runtime = new CoreRuntime();
+  runtime.start();
+  const logger = new Logger({ component: "dashboard-selection-test" });
+  let state = {
+    status: "ready",
+    characters: [{
+      id: "CH_1",
+      name: "RangerOne",
+      type: "ranger",
+      level: 45,
+      online: false,
+    }],
+    servers: [
+      { key: "SR_EUI", name: "I", region: "EU", players: 100 },
+      { key: "SR_USI", name: "I", region: "US", players: 80 },
+    ],
+    message: "Loaded 1 characters and 2 servers.",
+  };
+  const fakeSelectionService = {
+    state: () => state,
+    refresh: async () => state,
+    clear: () => {
+      state = {
+        status: "disconnected",
+        characters: [],
+        servers: [],
+        message: "Disconnected.",
+      } as typeof state;
+      return state;
+    },
+    selectServer: (serverKey: string) => {
+      if (!state.servers.some((server) => server.key === serverKey)) {
+        throw new Error("The selected Adventure Land server is not available.");
+      }
+      state = {
+        ...state,
+        selectedServerKey: serverKey,
+        message: "Server selected. No character has been started.",
+      } as typeof state;
+      return state;
+    },
+  };
+
+  const dashboard = new DashboardServer({
+    logger,
+    runtime,
+    selectionService: fakeSelectionService as any,
+    host: "127.0.0.1",
+    port: 0,
+  });
+
+  const url = await dashboard.start();
+  try {
+    const current = await fetch(`${url}/api/selection`);
+    const currentPayload = await current.json();
+    assert.equal(currentPayload.characters[0].name, "RangerOne");
+    assert.equal(currentPayload.servers.length, 2);
+
+    const selected = await fetch(`${url}/api/selection/server`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ serverKey: "SR_USI" }),
+    });
+    const selectedPayload = await selected.json();
+    assert.equal(selectedPayload.selectedServerKey, "SR_USI");
+    assert.match(selectedPayload.message, /No character has been started/);
+
+    const refreshed = await fetch(`${url}/api/selection/refresh`, { method: "POST" });
+    assert.equal((await refreshed.json()).status, "ready");
+
+    const startAttempt = await fetch(`${url}/api/selection/start`, { method: "POST" });
+    assert.equal(startAttempt.status, 405);
+  } finally {
+    await dashboard.stop();
+    runtime.stop();
+  }
+});
+
+test("dashboard script renders character and server selection without a character start action", () => {
+  const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
+  assert.match(script, /renderSelection/);
+  assert.match(script, /Level \$\{character\.level\}/);
+  assert.match(script, /\/api\/selection\/refresh/);
+  assert.match(script, /\/api\/selection\/server/);
+  assert.doesNotMatch(script, /\/api\/selection\/start/);
 });
