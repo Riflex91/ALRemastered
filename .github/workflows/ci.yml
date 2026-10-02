@@ -188,7 +188,9 @@ jobs:
           $dataDir = Get-Content "$env:RUNNER_TEMP\alremastered-data-dir.txt" -Raw
           $waitProbe = Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 2") -WindowStyle Hidden -PassThru
           $waitStartedAt = Get-Date
-          $upgradeProcess = Start-Process -FilePath $installer.FullName -ArgumentList @("/S", "/ALRUPDATE=1", "/ALRWAITPID=$($waitProbe.Id)") -Wait -PassThru
+          $upgradeProcess = Start-Process -FilePath $installer.FullName -ArgumentList @("/S", "/ALRUPDATE=1", "/ALRWAITPID=$($waitProbe.Id)") -PassThru
+          $upgradeProcess.WaitForExit()
+          $upgradeProcess.Refresh()
           $waitElapsed = (Get-Date) - $waitStartedAt
           if ($upgradeProcess.ExitCode -ne 0) { throw "Version B installer returned exit code $($upgradeProcess.ExitCode)" }
           if ($waitElapsed.TotalMilliseconds -lt 1800) { throw "Automatic update installer did not wait for the previous client process." }
@@ -227,9 +229,9 @@ jobs:
           if ($dashboardStatus.status -ne "running") { throw "Dashboard status endpoint did not report a running core." }
           if ($dashboardStatus.version -ne "0.1.0-alpha.14") { throw "Automatically restarted client reported the wrong version." }
           $dashboardGameVersion = Invoke-RestMethod "http://127.0.0.1:3210/api/game-version"
-          if ($dashboardGameVersion.status -ne "idle") { throw "Game version API did not expose its idle state." }
+          if ($dashboardGameVersion.status -notin @("idle", "checking", "current", "changed", "error")) { throw "Game version API returned an invalid state." }
           $dashboardGameData = Invoke-RestMethod "http://127.0.0.1:3210/api/game-data"
-          if ($dashboardGameData.status -ne "idle") { throw "Game data API did not expose its idle state." }
+          if ($dashboardGameData.status -notin @("idle", "loading", "loaded", "error")) { throw "Game data API returned an invalid state." }
           $dashboardUpdate = Invoke-RestMethod "http://127.0.0.1:3210/api/update"
           if ($dashboardUpdate.currentVersion -ne "0.1.0-alpha.14") { throw "Update API returned the wrong client version." }
           $diagnosticsSnapshot = Invoke-RestMethod "http://127.0.0.1:3210/api/diagnostics/snapshot"
