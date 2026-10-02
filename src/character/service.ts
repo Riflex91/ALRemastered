@@ -136,7 +136,14 @@ export class AdventureLandCharacterService {
             previous.level !== liveState.character.level ||
             previous.map !== liveState.character.map ||
             previous.target !== liveState.character.target ||
-            previous.dead !== liveState.character.dead
+            previous.dead !== liveState.character.dead ||
+            previous.gold !== liveState.character.gold ||
+            inventorySignature(previous.inventory) !==
+              inventorySignature(liveState.character.inventory) ||
+            equipmentSignature(previous.equipment) !==
+              equipmentSignature(liveState.character.equipment) ||
+            conditionSignature(previous.conditions) !==
+              conditionSignature(liveState.character.conditions)
           )
         ) {
           this.#logger.info("Adventure Land character live state changed.", liveStateContext(liveState));
@@ -317,9 +324,51 @@ function liveStateContext(state: AdventureLandCharacterLiveState): Record<string
     directionLabel: state.character.directionLabel,
     target: state.character.target,
     dead: state.character.dead,
+    gold: state.character.gold,
+    inventorySlots: state.character.inventory?.length,
+    inventoryUsed: state.character.inventory?.filter(Boolean).length,
+    equipmentUsed: state.character.equipment
+      ? Object.values(state.character.equipment).filter(Boolean).length
+      : undefined,
+    conditions: state.character.conditions
+      ? Object.keys(state.character.conditions).sort()
+      : undefined,
     pingMs: state.pingMs,
     liveUpdatedAt: state.updatedAt,
   };
+}
+
+function inventorySignature(
+  inventory: AdventureLandConnectedCharacter["inventory"],
+): string {
+  if (!inventory) return "";
+  return JSON.stringify(inventory.map((item) => itemSummary(item)));
+}
+
+function equipmentSignature(
+  equipment: AdventureLandConnectedCharacter["equipment"],
+): string {
+  if (!equipment) return "";
+  return JSON.stringify(
+    Object.entries(equipment)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([slot, item]) => [slot, itemSummary(item)]),
+  );
+}
+
+function conditionSignature(
+  conditions: AdventureLandConnectedCharacter["conditions"],
+): string {
+  return conditions ? JSON.stringify(Object.keys(conditions).sort()) : "";
+}
+
+function itemSummary(item: Readonly<Record<string, unknown>> | null): unknown {
+  if (!item) return null;
+  return [
+    typeof item.name === "string" ? item.name : "",
+    typeof item.level === "number" ? item.level : 0,
+    typeof item.q === "number" ? item.q : 1,
+  ];
 }
 
 function disconnectedState(): AdventureLandCharacterConnectionState {

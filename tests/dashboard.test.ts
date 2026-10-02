@@ -630,6 +630,10 @@ test("dashboard character API starts and stops one headless connection without a
           directionLabel: "Right",
           target: "goo-1",
           dead: false,
+          inventory: [{ name: "hpot0", q: 20 }, null, { name: "scroll0", level: 0 }],
+          equipment: { mainhand: { name: "bow", level: 3 }, helmet: null },
+          gold: 123456,
+          conditions: { mluck: { ms: 5000, f: "Merchant" } },
         },
         message: "RangerOne is connected headlessly. Live state is updating; no automation is running.",
       } as typeof state;
@@ -664,7 +668,12 @@ test("dashboard character API starts and stops one headless connection without a
       body: JSON.stringify({ characterId: "CH_1" }),
     });
     assert.equal(started.status, 200);
-    assert.equal((await started.json()).status, "connected");
+    const startedPayload = await started.json();
+    assert.equal(startedPayload.status, "connected");
+    assert.equal(startedPayload.character.gold, 123456);
+    assert.equal(startedPayload.character.inventory[0].name, "hpot0");
+    assert.equal(startedPayload.character.equipment.mainhand.name, "bow");
+    assert.equal(startedPayload.character.conditions.mluck.ms, 5000);
     assert.equal(startedCharacterId, "CH_1");
 
     const automationAttempt = await fetch(`${url}/api/character/automation`, {
@@ -717,4 +726,31 @@ test("dashboard renders Slice 2.4 base live-state fields", () => {
   assert.match(script, /character\?\.target/);
   assert.match(script, /character\.dead/);
   assert.match(script, /connection\.pingMs/);
+});
+
+
+test("dashboard renders Slice 2.5 inventory equipment gold and condition state", () => {
+  const html = readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
+  const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
+
+  for (const id of [
+    "character-gold",
+    "character-inventory-summary",
+    "character-equipment-summary",
+    "character-conditions-summary",
+    "character-inventory",
+    "character-equipment",
+    "character-conditions",
+  ]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+
+  assert.match(script, /character\?\.gold/);
+  assert.match(script, /character\?\.inventory/);
+  assert.match(script, /character\?\.equipment/);
+  assert.match(script, /character\?\.conditions/);
+  assert.match(script, /renderInventoryState/);
+  assert.match(script, /renderEquipmentState/);
+  assert.match(script, /renderConditionState/);
+  assert.doesNotMatch(script, /\/api\/character\/(buy|sell|equip|unequip|use|swap)/);
 });
