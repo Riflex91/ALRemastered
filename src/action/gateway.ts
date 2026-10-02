@@ -184,8 +184,8 @@ export class ActionGateway {
     try {
       const timeout = new Promise<never>((_, reject) => {
         timer = setTimeout(() => {
-          controller.abort("timeout");
           reject(new ActionTimeoutError());
+          controller.abort("timeout");
         }, timeoutMs);
       });
 
