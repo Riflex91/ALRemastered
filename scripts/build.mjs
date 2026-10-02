@@ -3,6 +3,18 @@ import { stripTypeScriptTypes } from "node:module";
 import { dirname, join, relative } from "node:path";
 
 const buildRoot = "build/package";
+const semanticVersion = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+const sourcePackage = JSON.parse(readFileSync("package.json", "utf8"));
+const releaseConfig = JSON.parse(readFileSync("release.json", "utf8"));
+const buildVersion = process.env.ALREMASTERED_BUILD_VERSION || sourcePackage.version;
+
+if (!semanticVersion.test(buildVersion)) {
+  throw new Error(`Invalid ALRemastered build version: ${buildVersion}`);
+}
+if (releaseConfig.schemaVersion !== 1 || releaseConfig.product !== "ALRemastered" || releaseConfig.channel !== "stable") {
+  throw new Error("Invalid release.json metadata.");
+}
+
 rmSync("build", { recursive: true, force: true });
 mkdirSync(buildRoot, { recursive: true });
 
@@ -29,15 +41,23 @@ function compileTree(sourceRoot) {
 compileTree("src");
 compileTree("tests");
 
-for (const file of ["package.json", "LICENSE", "README.md"]) {
+const stagedPackage = { ...sourcePackage, version: buildVersion };
+writeFileSync(join(buildRoot, "package.json"), `${JSON.stringify(stagedPackage, null, 2)}\n`, "utf8");
+writeFileSync(join(buildRoot, "release.json"), `${JSON.stringify(releaseConfig, null, 2)}\n`, "utf8");
+
+for (const file of ["LICENSE", "README.md"]) {
   writeFileSync(join(buildRoot, file), readFileSync(file));
 }
 
-const metadata = JSON.parse(readFileSync("package.json", "utf8"));
 writeFileSync(
   join(buildRoot, "build-info.json"),
-  `${JSON.stringify({ application: "ALRemastered", version: metadata.version }, null, 2)}\n`,
+  `${JSON.stringify({
+    schemaVersion: 1,
+    application: "ALRemastered",
+    version: buildVersion,
+    channel: releaseConfig.channel,
+  }, null, 2)}\n`,
   "utf8",
 );
 
-process.stdout.write(`Build staged at ${buildRoot}.\n`);
+process.stdout.write(`Build ${buildVersion} staged at ${buildRoot}.\n`);

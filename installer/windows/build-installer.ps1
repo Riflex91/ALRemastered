@@ -7,8 +7,8 @@ if (-not (Test-Path "build\package")) {
 }
 
 $Node = (Get-Command node -ErrorAction Stop).Source
-$Package = Get-Content "package.json" -Raw | ConvertFrom-Json
-$Version = $Package.version
+$BuildInfo = Get-Content "build\\package\\build-info.json" -Raw | ConvertFrom-Json
+$Version = $BuildInfo.version
 $Arch = $env:PROCESSOR_ARCHITECTURE
 if ($Arch -notin @("AMD64", "ARM64")) { throw "Unsupported Windows build architecture: $Arch" }
 $ProductArch = if ($Arch -eq "ARM64") { "arm64" } else { "x64" }

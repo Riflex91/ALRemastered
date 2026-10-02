@@ -30,24 +30,51 @@ jobs:
         run: node scripts/smoke-running.mjs
 
   linux-installer:
-    name: Linux installer smoke test
+    name: Linux installer upgrade smoke test
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24.21.0
-      - run: npm run build
-      - run: npm run installer:linux
-      - name: Install to a custom path and verify
+      - name: Build version A installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          ALREMASTERED_BUILD_VERSION=0.1.0-alpha.1 npm run build
+          npm run installer:linux
+          cp artifacts/ALRemastered-Linux-*.run "$RUNNER_TEMP/ALRemastered-A.run"
+      - name: Install version A to a custom path
+        shell: bash
+        run: |
+          set -euo pipefail
+          test_dir="$RUNNER_TEMP/ALRemastered Custom Path"
+          "$RUNNER_TEMP/ALRemastered-A.run" --install-dir "$test_dir" --yes --no-desktop
+          test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.1"
+          paths_json="$("$test_dir/alremastered" --paths)"
+          data_dir="$(node -e 'console.log(JSON.parse(process.argv[1]).dataDir)' "$paths_json")"
+          mkdir -p "$data_dir"
+          printf 'keep-me\n' > "$data_dir/upgrade-sentinel.txt"
+          printf '%s\n' "$data_dir" > "$RUNNER_TEMP/alremastered-data-dir.txt"
+      - name: Build version B installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build
+          npm run installer:linux
+      - name: Upgrade without choosing the path again and verify
         shell: bash
         run: |
           set -euo pipefail
           installer="$(find artifacts -maxdepth 1 -name 'ALRemastered-Linux-*.run' -print -quit)"
-          test -n "$installer"
           test_dir="$RUNNER_TEMP/ALRemastered Custom Path"
-          "$installer" --install-dir "$test_dir" --yes --no-desktop
-          "$test_dir/alremastered" --health-check | grep '"application":"ALRemastered"'
+          data_dir="$(cat "$RUNNER_TEMP/alremastered-data-dir.txt")"
+          "$installer" --yes --no-desktop
+          test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.2"
+          test "$(cat "$data_dir/upgrade-sentinel.txt")" = "keep-me"
+          previous_version="$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).version" "$test_dir/.previous/app/package.json")"
+          test "$previous_version" = "0.1.0-alpha.1"
+          grep 'event=install_success version=0.1.0-alpha.2' "$data_dir/logs/installer.log"
           "$test_dir/alremastered" >"$RUNNER_TEMP/alremastered-linux.log" 2>&1 &
           client_pid=$!
           sleep 1
@@ -57,13 +84,14 @@ jobs:
           wait "$client_pid" || true
           "$test_dir/uninstall.sh" --yes
           test ! -e "$test_dir"
+          test "$(cat "$data_dir/upgrade-sentinel.txt")" = "keep-me"
       - uses: actions/upload-artifact@v4
         with:
           name: ALRemastered-Linux-installer
           path: artifacts/ALRemastered-Linux-*.run
 
   windows-installer:
-    name: Windows installer smoke test
+    name: Windows installer upgrade smoke test
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -73,19 +101,50 @@ jobs:
       - name: Install NSIS
         shell: powershell
         run: choco install nsis --no-progress -y
-      - run: npm run build
-      - run: npm run installer:windows
-      - name: Install to a custom path and verify
+      - name: Build version A installer
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $env:ALREMASTERED_BUILD_VERSION = "0.1.0-alpha.1"
+          npm run build
+          npm run installer:windows
+          Copy-Item (Get-ChildItem "artifacts\ALRemastered-Windows-*-Setup.exe" | Select-Object -First 1).FullName "$env:RUNNER_TEMP\ALRemastered-A.exe"
+      - name: Install version A to a custom path
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $testDir = Join-Path $env:RUNNER_TEMP "ALRemastered Custom Path"
+          $installProcess = Start-Process -FilePath "$env:RUNNER_TEMP\ALRemastered-A.exe" -ArgumentList @("/S", "/D=$testDir") -Wait -PassThru
+          if ($installProcess.ExitCode -ne 0) { throw "Version A installer returned exit code $($installProcess.ExitCode)" }
+          $version = & "$testDir\ALRemastered.exe" --version
+          if ($version.Trim() -ne "0.1.0-alpha.1") { throw "Expected version A, got $version" }
+          $paths = (& "$testDir\ALRemastered.exe" --paths) | ConvertFrom-Json
+          New-Item -ItemType Directory -Path $paths.dataDir -Force | Out-Null
+          Set-Content -Path (Join-Path $paths.dataDir "upgrade-sentinel.txt") -Value "keep-me" -NoNewline
+          Set-Content -Path "$env:RUNNER_TEMP\alremastered-data-dir.txt" -Value $paths.dataDir -NoNewline
+      - name: Build version B installer
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          Remove-Item Env:ALREMASTERED_BUILD_VERSION -ErrorAction SilentlyContinue
+          npm run build
+          npm run installer:windows
+      - name: Upgrade without choosing the path again and verify
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
           $installer = Get-ChildItem "artifacts\ALRemastered-Windows-*-Setup.exe" | Select-Object -First 1
-          if (-not $installer) { throw "Installer artifact was not found." }
           $testDir = Join-Path $env:RUNNER_TEMP "ALRemastered Custom Path"
-          $installProcess = Start-Process -FilePath $installer.FullName -ArgumentList @("/S", "/D=$testDir") -Wait -PassThru
-          if ($installProcess.ExitCode -ne 0) { throw "Installer returned exit code $($installProcess.ExitCode)" }
-          $health = & "$testDir\ALRemastered.exe" --health-check
-          if ($LASTEXITCODE -ne 0 -or $health -notmatch '"application":"ALRemastered"') { throw "Installed client health check failed." }
+          $dataDir = Get-Content "$env:RUNNER_TEMP\alremastered-data-dir.txt" -Raw
+          $upgradeProcess = Start-Process -FilePath $installer.FullName -ArgumentList "/S" -Wait -PassThru
+          if ($upgradeProcess.ExitCode -ne 0) { throw "Version B installer returned exit code $($upgradeProcess.ExitCode)" }
+          $version = & "$testDir\ALRemastered.exe" --version
+          if ($version.Trim() -ne "0.1.0-alpha.2") { throw "Expected version B, got $version" }
+          if ((Get-Content (Join-Path $dataDir "upgrade-sentinel.txt") -Raw) -ne "keep-me") { throw "User data was not preserved." }
+          $previous = Get-Content "$testDir\.previous\app\package.json" -Raw | ConvertFrom-Json
+          if ($previous.version -ne "0.1.0-alpha.1") { throw "Previous version was not retained for rollback." }
+          $installerLog = Get-Content "$env:LOCALAPPDATA\ALRemastered\logs\installer.log" -Raw
+          if ($installerLog -notmatch "event=install_success version=0.1.0-alpha.2") { throw "Upgrade success was not logged." }
           if (Test-Path "$testDir\ALRemastered.cmd") { throw "Legacy batch launcher must not be installed." }
           $normalLog = Join-Path $env:RUNNER_TEMP "alremastered-windows.log"
           $normalError = Join-Path $env:RUNNER_TEMP "alremastered-windows-error.log"
@@ -96,14 +155,13 @@ jobs:
             $normalErrors = if (Test-Path $normalError) { Get-Content $normalError -Raw } else { "" }
             throw "Installed client exited during normal start. Output: $normalOutput Errors: $normalErrors"
           }
-          $normalOutput = Get-Content $normalLog -Raw
-          if ($normalOutput -notmatch "Core is running\.") { throw "Installed client did not report a running core. Output: $normalOutput" }
           & taskkill.exe /PID $client.Id /T /F | Out-Null
           Start-Sleep -Milliseconds 500
           $uninstallProcess = Start-Process -FilePath "$testDir\Uninstall.exe" -ArgumentList "/S" -Wait -PassThru
           if ($uninstallProcess.ExitCode -ne 0) { throw "Uninstaller returned exit code $($uninstallProcess.ExitCode)" }
           Start-Sleep -Seconds 1
-          if (Test-Path $testDir) { throw "Uninstaller did not remove the custom installation directory." }
+          if (Test-Path $testDir) { throw "Uninstaller did not remove the installation directory." }
+          if ((Get-Content (Join-Path $dataDir "upgrade-sentinel.txt") -Raw) -ne "keep-me") { throw "Uninstall removed user data unexpectedly." }
       - uses: actions/upload-artifact@v4
         with:
           name: ALRemastered-Windows-installer

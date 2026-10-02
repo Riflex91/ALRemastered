@@ -1,10 +1,22 @@
 import { CoreRuntime } from "./core/app.ts";
 import { getAppVersion } from "./version.ts";
+import { getReleaseMetadata } from "./release/version-model.ts";
+import { getUserPaths } from "./platform/paths.ts";
 
 const args = new Set(process.argv.slice(2));
 
 if (args.has("--version")) {
   process.stdout.write(`${getAppVersion()}\n`);
+  process.exit(0);
+}
+
+if (args.has("--release-info")) {
+  process.stdout.write(`${JSON.stringify(getReleaseMetadata())}\n`);
+  process.exit(0);
+}
+
+if (args.has("--paths")) {
+  process.stdout.write(`${JSON.stringify(getUserPaths())}\n`);
   process.exit(0);
 }
 
