@@ -26,6 +26,8 @@ jobs:
         run: npm run check
       - name: Core health check
         run: npm run health
+      - name: Normal start stays running
+        run: node scripts/smoke-running.mjs
 
   linux-installer:
     name: Linux installer smoke test
@@ -46,6 +48,13 @@ jobs:
           test_dir="$RUNNER_TEMP/ALRemastered Custom Path"
           "$installer" --install-dir "$test_dir" --yes --no-desktop
           "$test_dir/alremastered" --health-check | grep '"application":"ALRemastered"'
+          "$test_dir/alremastered" >"$RUNNER_TEMP/alremastered-linux.log" 2>&1 &
+          client_pid=$!
+          sleep 1
+          kill -0 "$client_pid"
+          grep 'Core is running.' "$RUNNER_TEMP/alremastered-linux.log"
+          kill "$client_pid"
+          wait "$client_pid" || true
           "$test_dir/uninstall.sh" --yes
           test ! -e "$test_dir"
       - uses: actions/upload-artifact@v4
@@ -77,6 +86,13 @@ jobs:
           if ($installProcess.ExitCode -ne 0) { throw "Installer returned exit code $($installProcess.ExitCode)" }
           $health = & "$testDir\ALRemastered.cmd" --health-check
           if ($LASTEXITCODE -ne 0 -or $health -notmatch '"application":"ALRemastered"') { throw "Installed client health check failed." }
+          $normalLog = Join-Path $env:RUNNER_TEMP "alremastered-windows.log"
+          $client = Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", "`"$testDir\ALRemastered.cmd`" > `"$normalLog`" 2>&1") -PassThru
+          Start-Sleep -Seconds 1
+          if ($client.HasExited) { throw "Installed client exited during normal start." }
+          $normalOutput = Get-Content $normalLog -Raw
+          if ($normalOutput -notmatch "Core is running\.") { throw "Installed client did not report a running core." }
+          Stop-Process -Id $client.Id -Force
           $uninstallProcess = Start-Process -FilePath "$testDir\Uninstall.exe" -ArgumentList "/S" -Wait -PassThru
           if ($uninstallProcess.ExitCode -ne 0) { throw "Uninstaller returned exit code $($uninstallProcess.ExitCode)" }
           Start-Sleep -Seconds 1
