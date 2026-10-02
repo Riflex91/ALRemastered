@@ -547,6 +547,10 @@ Items im offiziellen Spiel verändern und State-Abgleich prüfen.
 
 ## Slice 2.6 – Entities und Party State
 
+**Status: MERGED – AWAITING USER TEST**
+
+> 2026-10-02: Read-only nearby entity and party state merged for `0.1.0-alpha.20`. The headless character state consumes the server's embedded `start.entities` snapshot plus live `entities`, `disappear`, `death`, and `party_update` events, distinguishes nearby players/monsters and server-reported types, clears stale entities on map changes, and exposes party leader/member details without gameplay actions. Automated Windows/Linux CI and alpha.19 → alpha.20 installer upgrade smokes passed. Real-account movement/entity/party validation is still required before VERIFIED.
+
 - Entities in relevanter Umgebung
 - Monster/Player-Typen
 - Party-State
