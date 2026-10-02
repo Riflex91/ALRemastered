@@ -3,7 +3,7 @@ import { sourceFiles } from "./files.mjs";
 
 const problems = [];
 for (const file of sourceFiles()) {
-  const text = readFileSync(file, "utf8");
+  const text = readFileSync(file, "utf8").replace(/\r\n/g, "\n");
   text.split("\n").forEach((line, index) => {
     if (/\s+$/.test(line)) problems.push(`${file}:${index + 1}: trailing whitespace`);
     if (line.includes("\t") && !file.endsWith(".yml") && !file.endsWith(".yaml")) {
