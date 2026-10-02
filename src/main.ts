@@ -3,6 +3,7 @@ import { AdventureLandAccountService } from "./account/service.ts";
 import { AdventureLandAccountSource } from "./account/source.ts";
 import { AdventureLandSelectionService } from "./account/selection-service.ts";
 import { AdventureLandSelectionSource } from "./account/selection-source.ts";
+import { ActionGateway } from "./action/gateway.ts";
 import { AdventureLandCharacterService } from "./character/service.ts";
 import { AdventureLandCharacterTransport } from "./character/transport.ts";
 import { CoreRuntime } from "./core/app.ts";
@@ -94,6 +95,7 @@ let dashboard: DashboardServer | undefined;
 let accountService: AdventureLandAccountService | undefined;
 let selectionService: AdventureLandSelectionService | undefined;
 let characterService: AdventureLandCharacterService | undefined;
+let actionGateway: ActionGateway | undefined;
 let updateService: UpdateService | undefined;
 let gameVersionService: AdventureLandVersionService | undefined;
 let gameDataService: AdventureLandGameDataService | undefined;
@@ -175,6 +177,16 @@ diagnostics.registerComponent("character-connection", () => {
     name: "character-connection",
     status: state.status === "error" ? "degraded" : "healthy",
     message: state.message,
+  };
+});
+
+actionGateway = new ActionGateway({ logger });
+diagnostics.registerComponent("action-gateway", () => {
+  const state = actionGateway!.state();
+  return {
+    name: "action-gateway",
+    status: "healthy",
+    message: `Action gateway ready. ${state.totalRequests} requests handled; ${state.active} active.`,
   };
 });
 
@@ -264,6 +276,7 @@ dashboard = new DashboardServer({
   accountService,
   selectionService,
   characterService,
+  actionGateway,
   updateService,
   diagnostics,
   gameVersionService,
