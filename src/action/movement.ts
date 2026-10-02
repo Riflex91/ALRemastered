@@ -107,7 +107,9 @@ export class AdventureLandMovementService {
         const fromY = state.character.y;
         if (
           !map ||
+          typeof fromX !== "number" ||
           !Number.isFinite(fromX) ||
+          typeof fromY !== "number" ||
           !Number.isFinite(fromY)
         ) {
           throw new ActionGatewayExecutionError(
@@ -116,9 +118,16 @@ export class AdventureLandMovementService {
           );
         }
 
+        if (state.character.dead) {
+          throw new ActionGatewayExecutionError(
+            "A dead character cannot run the movement test.",
+            "MOVE_CHARACTER_DEAD",
+          );
+        }
+
         const target = movementTarget(
-          fromX as number,
-          fromY as number,
+          fromX,
+          fromY,
           request.direction,
           this.#stepDistance,
         );
@@ -132,8 +141,8 @@ export class AdventureLandMovementService {
 
         if (!canMoveDirect(
           geometry,
-          fromX as number,
-          fromY as number,
+          fromX,
+          fromY,
           target.x,
           target.y,
         )) {
