@@ -87,11 +87,16 @@ jobs:
           $health = & "$testDir\ALRemastered.cmd" --health-check
           if ($LASTEXITCODE -ne 0 -or $health -notmatch '"application":"ALRemastered"') { throw "Installed client health check failed." }
           $normalLog = Join-Path $env:RUNNER_TEMP "alremastered-windows.log"
-          $client = Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", "`"$testDir\ALRemastered.cmd`" > `"$normalLog`" 2>&1") -PassThru
+          $normalError = Join-Path $env:RUNNER_TEMP "alremastered-windows-error.log"
+          $client = Start-Process -FilePath "$testDir\ALRemastered.cmd" -RedirectStandardOutput $normalLog -RedirectStandardError $normalError -PassThru
           Start-Sleep -Seconds 1
-          if ($client.HasExited) { throw "Installed client exited during normal start." }
+          if ($client.HasExited) {
+            $normalOutput = if (Test-Path $normalLog) { Get-Content $normalLog -Raw } else { "" }
+            $normalErrors = if (Test-Path $normalError) { Get-Content $normalError -Raw } else { "" }
+            throw "Installed client exited during normal start. Output: $normalOutput Errors: $normalErrors"
+          }
           $normalOutput = Get-Content $normalLog -Raw
-          if ($normalOutput -notmatch "Core is running\.") { throw "Installed client did not report a running core." }
+          if ($normalOutput -notmatch "Core is running\.") { throw "Installed client did not report a running core. Output: $normalOutput" }
           Stop-Process -Id $client.Id -Force
           $uninstallProcess = Start-Process -FilePath "$testDir\Uninstall.exe" -ArgumentList "/S" -Wait -PassThru
           if ($uninstallProcess.ExitCode -ne 0) { throw "Uninstaller returned exit code $($uninstallProcess.ExitCode)" }
