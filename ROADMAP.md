@@ -311,7 +311,7 @@ Ab diesem Slice ist die Debug-Konsole Teil **jedes** folgenden Livetests.
 
 ## Slice 0.5 – Automatische Update-Erkennung + Update-Banner
 
-**Status: USER TEST FAILED**
+**Status: VERIFIED**
 
 ### Inhalt
 
@@ -368,6 +368,8 @@ Erst nach Benutzer-Livetest → Slice 0.6.
 ---
 
 ## Slice 0.6 – Diagnose-Grundlage
+
+**Status: IN PROGRESS**
 
 ### Inhalt
 
