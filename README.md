@@ -11,6 +11,8 @@ Choose the installer for the operating system you want to run ALRemastered on:
 
 The application runtime is bundled with both installers. End users do not need to install Node.js separately.
 
+Windows and Linux installers preserve the chosen installation location during upgrades. User data is stored outside the program directory and is kept during upgrades and normal uninstall operations.
+
 > Release downloads will be attached to GitHub Releases once the first test build is published.
 
 ## Development
