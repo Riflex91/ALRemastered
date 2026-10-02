@@ -84,6 +84,19 @@ Updates are never installed without an explicit **Install update** action. The C
 
 Release publication is handled by the `Publish release` GitHub Actions workflow so Windows, Linux and `ALRemastered-update.json` are produced from one commit.
 
+## Adventure Land game version
+
+ALRemastered checks the official Adventure Land source repository for the deployed game version, stores the last observed version locally, and detects when the online version changes.
+
+The dashboard shows:
+
+- **Adventure Land version**
+- **Game version status**
+- **Last deploy**
+- **Check game version**
+
+The first successful online check creates the local baseline. If a later check sees a different game version, ALRemastered reports the previous and current values and records the change in the Debug Console. A failed online check keeps the last stored version available.
+
 ## Diagnostics foundation
 
 The dashboard includes a diagnostics overview with component health for the Core, dashboard and updater, plus highlighted recent error cards. Error cards use an understandable English summary and expose **Technical details** separately.
