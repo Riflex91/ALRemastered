@@ -130,6 +130,8 @@ Ein Character existiert logisch nur einmal. Renderer und Bedienoberflächen werd
 
 ## Slice 0.1 – Repository-Basis + Release-/Installer-Grundlage
 
+**Status: VERIFIED**
+
 ### Inhalt
 
 - TypeScript-/Node-Projekt initialisieren
@@ -184,6 +186,8 @@ Erst nach Benutzer-Livetest → Slice 0.2.
 ---
 
 ## Slice 0.2 – Cross-Platform Installer-Upgradepfad und Versionsmodell
+
+**Status: IN PROGRESS**
 
 ### Inhalt
 
