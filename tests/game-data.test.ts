@@ -127,3 +127,32 @@ test("failed reload keeps the previously loaded central snapshot", async () => {
   assert.equal(service.data(), data);
   assert.match(logger.exportText(), /retainedPreviousData/);
 });
+
+
+test("shared live data source coalesces simultaneous version and game-data reads", async () => {
+  const payload = sourceText(sampleData(17397));
+  let requests = 0;
+  let releaseResponse: (() => void) | undefined;
+  const gate = new Promise<void>((resolve) => {
+    releaseResponse = resolve;
+  });
+
+  const source = new AdventureLandGameDataSource(
+    async () => {
+      requests += 1;
+      await gate;
+      return new Response(payload, { status: 200 });
+    },
+    "https://adventure.land/data.js",
+  );
+
+  const first = source.fetchData();
+  const second = source.fetchData();
+  releaseResponse?.();
+
+  const [a, b] = await Promise.all([first, second]);
+  assert.equal(requests, 1);
+  assert.equal(a.data.version, 17397);
+  assert.equal(b.data.version, 17397);
+  assert.equal(a, b);
+});
