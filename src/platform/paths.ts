@@ -1,5 +1,5 @@
 import { homedir, platform } from "node:os";
-import { join } from "node:path";
+import { posix, win32 } from "node:path";
 
 export interface UserPaths {
   readonly configDir: string;
@@ -13,20 +13,20 @@ export function getUserPaths(
   home: string = homedir(),
 ): UserPaths {
   if (targetPlatform === "win32") {
-    const base = environment.LOCALAPPDATA || environment.APPDATA || join(home, "AppData", "Local");
-    const root = join(base, "ALRemastered");
+    const base = environment.LOCALAPPDATA || environment.APPDATA || win32.join(home, "AppData", "Local");
+    const root = win32.join(base, "ALRemastered");
     return Object.freeze({
-      configDir: join(root, "config"),
-      dataDir: join(root, "data"),
-      logsDir: join(root, "logs"),
+      configDir: win32.join(root, "config"),
+      dataDir: win32.join(root, "data"),
+      logsDir: win32.join(root, "logs"),
     });
   }
 
-  const configHome = environment.XDG_CONFIG_HOME || join(home, ".config");
-  const dataHome = environment.XDG_DATA_HOME || join(home, ".local", "share");
+  const configHome = environment.XDG_CONFIG_HOME || posix.join(home, ".config");
+  const dataHome = environment.XDG_DATA_HOME || posix.join(home, ".local", "share");
   return Object.freeze({
-    configDir: join(configHome, "ALRemastered"),
-    dataDir: join(dataHome, "ALRemastered"),
-    logsDir: join(dataHome, "ALRemastered", "logs"),
+    configDir: posix.join(configHome, "ALRemastered"),
+    dataDir: posix.join(dataHome, "ALRemastered"),
+    logsDir: posix.join(dataHome, "ALRemastered", "logs"),
   });
 }
