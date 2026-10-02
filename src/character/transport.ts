@@ -9,6 +9,7 @@ import {
   clearVisibleEntities,
   emptyWorldState,
   removeVisibleEntity,
+  worldStateFromStart,
   type AdventureLandPartyState,
   type AdventureLandVisibleEntity,
   type AdventureLandWorldState,
@@ -268,6 +269,7 @@ export class AdventureLandCharacterTransport {
                 socket,
                 parseConnectedCharacter(data, input.character),
                 () => disconnectReason,
+                worldStateFromStart(data),
               );
               finish(liveConnection);
             }
@@ -322,9 +324,11 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
     socket: WebSocket,
     character: AdventureLandConnectedCharacter,
     disconnectReason: () => string | undefined,
+    world: AdventureLandWorldState = emptyWorldState(),
   ) {
     this.#socket = socket;
     this.#character = character;
+    this.#world = world;
     this.#updatedAt = new Date().toISOString();
     this.#disconnectReason = disconnectReason;
 
