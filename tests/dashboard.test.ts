@@ -844,12 +844,35 @@ test("dashboard exposes a fixed local-only Action Gateway probe", async () => {
     }),
   };
 
+  const attackService = {
+    runDashboardTest: async (request: { targetId: string }) => ({
+      requestId: "act-attack-test",
+      action: "character.attack",
+      origin: "dashboard",
+      characterId: "CH_probe",
+      startedAt: "2026-10-03T00:00:00.000Z",
+      completedAt: "2026-10-03T00:00:00.010Z",
+      durationMs: 10,
+      outcome: "success",
+      result: {
+        targetId: request.targetId,
+        targetName: request.targetId,
+        targetType: "goo",
+        distance: 50,
+        range: 120,
+        serverAccepted: true,
+        cooldownMs: 700,
+      },
+    }),
+  };
+
   const dashboard = new DashboardServer({
     logger,
     runtime,
     actionGateway,
     characterService: fakeCharacterService as any,
     movementService: movementService as any,
+    attackService: attackService as any,
     host: "127.0.0.1",
     port: 0,
   });
@@ -911,6 +934,31 @@ test("dashboard exposes a fixed local-only Action Gateway probe", async () => {
     );
     assert.equal(invalidMovement.status, 400);
 
+    const attack = await fetch(
+      `${url}/api/action-gateway/attack-test`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetId: "14" }),
+      },
+    );
+    assert.equal(attack.status, 200);
+    const attackPayload = await attack.json();
+    assert.equal(attackPayload.requestId, "act-attack-test");
+    assert.equal(attackPayload.action, "character.attack");
+    assert.equal(attackPayload.result.targetId, "14");
+    assert.equal(attackPayload.result.serverAccepted, true);
+
+    const invalidAttack = await fetch(
+      `${url}/api/action-gateway/attack-test`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetId: "" }),
+      },
+    );
+    assert.equal(invalidAttack.status, 400);
+
     const arbitrary = await fetch(
       `${url}/api/action-gateway/action`,
       {
@@ -931,7 +979,7 @@ test("dashboard exposes a fixed local-only Action Gateway probe", async () => {
   }
 });
 
-test("dashboard renders fixed Slice 3.1 probe and Slice 3.2 movement controls", () => {
+test("dashboard renders fixed Slice 3.1 probe, Slice 3.2 movement, and Slice 3.3 attack controls", () => {
   const html = readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
   const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
 
@@ -943,6 +991,8 @@ test("dashboard renders fixed Slice 3.1 probe and Slice 3.2 movement controls", 
     "action-gateway-outcome",
     "run-action-gateway-probe",
     "movement-mode",
+    "attack-target",
+    "run-attack-test",
   ]) {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
@@ -955,9 +1005,14 @@ test("dashboard renders fixed Slice 3.1 probe and Slice 3.2 movement controls", 
   assert.match(html, /data-movement-direction="left"/);
   assert.match(html, /data-movement-direction="right"/);
   assert.match(html, /fixed 32-unit same-map step/);
+  assert.match(script, /\/api\/action-gateway\/attack-test/);
+  assert.match(script, /monster\.id === previous/);
+  assert.match(script, /entity\.kind === "monster"/);
+  assert.match(html, /Attack selected monster once/);
+  assert.match(html, /No automatic targeting or repeated attack loop/);
   assert.doesNotMatch(script, /\/api\/action-gateway\/action/);
   assert.doesNotMatch(
     script,
-    /\/api\/action-gateway\/(attack|skill|loot|use|buy|sell|party)/,
+    /\/api\/action-gateway\/(skill|loot|use|buy|sell|party)/,
   );
 });
