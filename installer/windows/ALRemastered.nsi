@@ -39,9 +39,13 @@ Function .onInit
 
   StrCmp $AutoUpdate "1" 0 update_wait_done
   StrCmp $WaitPid "" update_wait_done
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -WindowStyle Hidden -Command "try { Wait-Process -Id $WaitPid -ErrorAction SilentlyContinue } catch {}; Start-Sleep -Milliseconds 1200"'
-  Pop $R3
-  Pop $R4
+  System::Call 'kernel32::OpenProcess(i 0x00100000, i 0, i $WaitPid) p .r3'
+  StrCmp $R3 0 update_wait_sleep
+  System::Call 'kernel32::WaitForSingleObject(p r3, i 30000) i .r4'
+  System::Call 'kernel32::CloseHandle(p r3)'
+
+update_wait_sleep:
+  Sleep 1200
 
 update_wait_done:
 FunctionEnd
