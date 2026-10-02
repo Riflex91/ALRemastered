@@ -505,6 +505,10 @@ Character verbinden, einige Minuten stehen lassen, stoppen; bei Problemen Gesamt
 
 ## Slice 2.4 – Basis-Live-State
 
+**Status: MERGED – AWAITING USER TEST**
+
+> 2026-10-02: Base live state merged in `0.1.0-alpha.18`. The headless character API/dashboard now exposes HP/MP, level/XP, map, position, direction, target, death state, and measured server ping from read-only Adventure Land events. Automated Windows/Linux CI passed. Real-account live validation is still required before VERIFIED.
+
 - HP / MP
 - Level / XP
 - Map
