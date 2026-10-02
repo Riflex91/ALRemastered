@@ -10,7 +10,9 @@ for (const file of sourceFiles()) {
       problems.push(`${file}:${index + 1}: tab character`);
     }
   });
-  if (/\.(?:ts|mjs|js)$/.test(file) && /\bconsole\.log\s*\(/.test(text)) {\n    problems.push(`${file}: use structured output instead of console.log`);\n  }
+  if (/\.(?:ts|mjs|js)$/.test(file) && /\bconsole\.log\s*\(/.test(text)) {
+    problems.push(`${file}: use structured output instead of console.log`);
+  }
 }
 
 if (problems.length > 0) {
