@@ -10,7 +10,8 @@ Diese Regeln gelten für die gesamte Entwicklung:
 - **Die gesamte Benutzeroberfläche ist ausschließlich Englisch.** Das gilt für Dashboard, Installer, Browser-Modus, Dialoge, Buttons, Tooltips, Benachrichtigungen, Fehlertexte, Update-Hinweise und benutzerseitige Logs. Interne Entwicklerdokumentation darf davon unabhängig sein.
 - Ein echter Installer ist von Anfang an Teil der Produktentwicklung und nicht erst ein spätes Packaging-Thema.
 - Der Installer muss dem Benutzer einen frei wählbaren Installationspfad anbieten.
-- Jeder für den Benutzer bestimmte Windows-Testbuild soll über denselben Installer-/Upgrade-Pfad testbar sein, der später auch für Releases verwendet wird.
+- Jeder für den Benutzer bestimmte Windows- und Linux-Testbuild soll über denselben Installer-/Upgrade-Pfad testbar sein, der später auch für Releases verwendet wird.
+- Beim Download/Release wählt der Benutzer zuerst **Windows** oder **Linux** und erhält danach den passenden Installer für das gewählte Betriebssystem.
 - ALRemastered prüft automatisch auf neue Client-Versionen. Updates werden niemals ungefragt installiert.
 - Wird eine neue Version gefunden, muss sie im Client deutlich sichtbar angezeigt werden und genau die primären Aktionen **“Install update”**, **“Skip this version”** und **“Remind me tomorrow”** anbieten.
 - **“Skip this version”** unterdrückt nur die exakt angebotene Version; eine spätere Version wird wieder angezeigt.
@@ -148,13 +149,14 @@ Ein Character existiert logisch nur einmal. Renderer und Bedienoberflächen werd
 - semantische Versionsinformation
 - zentrale Konfiguration
 - CI-Grundlage
-- reproduzierbarer Windows-Build
-- erster echter Installer-Build statt ZIP-/Copy-only-Verteilung
+- reproduzierbarer Windows- und Linux-Build
+- erster echter Installer-Build für Windows und Linux statt ZIP-/Copy-only-Verteilung
 - **English-only User Interface Contract** als Test-/Review-Regel
 
 ### Installer-Mindestumfang ab dem ersten Testbuild
 
-- Installationspfad frei auswählbar
+- Windows und Linux werden ab Slice 0.1 gleichwertig unterstützt
+- Installationspfad auf beiden Systemen frei auswählbar
 - sinnvoller Standardpfad vorgeschlagen
 - Startmenü-Eintrag
 - optionaler Desktop-Shortcut
@@ -165,11 +167,13 @@ Ein Character existiert logisch nur einmal. Renderer und Bedienoberflächen werd
 
 ### Test
 
-- Installer auf sauberer Windows-Umgebung
-- Installation in Standardpfad
-- Installation in frei gewählten benutzerdefinierten Pfad
-- Programm starten/stoppen
-- deinstallieren
+- Windows-Installer auf sauberer Windows-Umgebung
+- Linux-Installer auf sauberer Linux-Umgebung
+- Installation in Standardpfad auf beiden Systemen
+- Installation in frei gewählten benutzerdefinierten Pfad auf beiden Systemen
+- Programm auf beiden Systemen starten/stoppen
+- auf beiden Systemen deinstallieren
+- CI baut und testet beide Installer
 - Build und Tests
 - prüfen, dass alle sichtbaren Installer-Texte Englisch sind
 
@@ -179,11 +183,11 @@ Erst nach Benutzer-Livetest → Slice 0.2.
 
 ---
 
-## Slice 0.2 – Installer-Upgradepfad und Versionsmodell
+## Slice 0.2 – Cross-Platform Installer-Upgradepfad und Versionsmodell
 
 ### Inhalt
 
-- Upgrade über eine bereits installierte Version
+- Upgrade über eine bereits installierte Version auf Windows und Linux
 - eindeutige App-Version
 - Release Channel zunächst `stable`
 - lokale installierte Version abrufbar
@@ -1087,7 +1091,7 @@ Für irreversible oder wirtschaftlich riskante Aktionen gelten besonders strenge
 
 ---
 
-# Phase 15 – Distribution, Update-Härtung und weitere Plattformen
+# Phase 15 – Distribution, Update-Härtung und zusätzliche Paketformate
 
 Der Windows-Installer und die Update-Erkennung existieren bereits seit Phase 0. Diese Phase härtet die inzwischen produktionsreife Distribution.
 
@@ -1115,9 +1119,9 @@ Der Windows-Installer und die Update-Erkennung existieren bereits seit Phase 0. 
 
 ---
 
-## Slice 15.3 – Linux / Docker
+## Slice 15.3 – Zusätzliche Linux-Paketformate / Docker
 
-Für Server-/VPS-Nutzer.
+Die Linux-Unterstützung selbst existiert bereits seit Slice 0.1. Hier kommen zusätzliche Distributionswege wie AppImage, .deb/.rpm, soweit sinnvoll, sowie Docker für Server-/VPS-Nutzer hinzu.
 
 ---
 
