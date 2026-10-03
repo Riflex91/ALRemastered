@@ -609,6 +609,14 @@ Bewegung ausschließlich über Dashboard-Testkontrollen.
 
 ## Slice 3.3 – Attack
 
+**Status: MERGED – AWAITING USER TEST**
+
+> 2026-10-03: Slice 3.3 merged via PR #48 for release target `0.1.0-alpha.23`. The dashboard exposes a bounded manual attack test that accepts only a currently visible monster from the live entity state. Before mutation the action layer validates connected/dead state, target visibility, target liveness, map consistency, live coordinates, character range, local attack cooldown, and the central Action Gateway rate guard. The transport emits the official `attack` socket event with the selected monster ID and waits for Adventure Land's correlated `game_response` with `place:"attack"` before the gateway request completes. Server cooldown failures propagate as structured `ATTACK_COOLDOWN` results with `retryAfterMs`; range, disabled, missing-target, timeout, and generic rejection paths remain explicit and logged.
+>
+> Automated evidence on the exact PR #48 head `eb88e52c77314219147ea1bb99413271218f9593`: Ubuntu verify success, Windows verify success, Linux alpha.22 → alpha.23 installer upgrade smoke success, and Windows alpha.22 → alpha.23 installer upgrade smoke success. Tests cover numeric monster IDs, visible-target validation, range rejection, dead character/target guards, local and server cooldown handling, one-pending-attack transport protection, correlated server acceptance/rejection, dashboard input restrictions, and continued absence of an arbitrary action endpoint.
+>
+> Real-account combat through the installed dashboard is still required. Do not mark this slice VERIFIED until the user supplies the live evidence recorded in `LIVE_TEST_QUEUE.md`.
+
 - Target
 - Range-Prüfung
 - Attack
