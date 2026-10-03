@@ -2036,6 +2036,7 @@ test("dashboard exposes Slice 6.1 map/geometry-model APIs and one-click test", a
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
   assert.match(html, /map boundaries, door\/transition target-spawn resolution/);
+  assert.match(html, /No headless character is required/);
   assert.match(html, /no movement, pathfinding, gameplay action, or raw socket access/i);
   assert.match(script, /\/api\/live-test\/slice-6-1\/start/);
 
@@ -2064,6 +2065,8 @@ test("dashboard exposes Slice 6.1 map/geometry-model APIs and one-click test", a
       collisionLineCount: 1,
       transitionCount: 0,
       invalidTransitionCount: 0,
+      blockingInvalidTransitionCount: 0,
+      ignoredInvalidTransitionCount: 0,
       missingGeometryMapKeys: [],
       message: "Map/geometry model is ready.",
     }),
