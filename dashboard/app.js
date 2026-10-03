@@ -31,6 +31,8 @@ const state = {
   slice52LastReport: null,
   slice53LiveTest: null,
   slice53LastReport: null,
+  slice54LiveTest: null,
+  slice54LastReport: null,
   update: null,
   gameVersion: null,
   gameData: null,
@@ -167,6 +169,10 @@ const elements = {
   slice53LiveTestStatus: document.querySelector("#slice-5-3-live-test-status"),
   slice53LiveTestNote: document.querySelector("#slice-5-3-live-test-note"),
   copySlice53LiveTestResult: document.querySelector("#copy-slice-5-3-live-test-result"),
+  startSlice54LiveTest: document.querySelector("#start-slice-5-4-live-test"),
+  slice54LiveTestStatus: document.querySelector("#slice-5-4-live-test-status"),
+  slice54LiveTestNote: document.querySelector("#slice-5-4-live-test-note"),
+  copySlice54LiveTestResult: document.querySelector("#copy-slice-5-4-live-test-result"),
   gameVersion: document.querySelector("#game-version"),
   gameVersionStatus: document.querySelector("#game-version-status"),
   gameLastDeploy: document.querySelector("#game-last-deploy"),
@@ -1318,6 +1324,32 @@ function renderSlice53LiveTest() {
   }
 }
 
+function renderSlice54LiveTest() {
+  const test = state.slice54LiveTest;
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    blocked: "BLOCKED",
+    failed: "FAILED",
+    unavailable: "Unavailable",
+  };
+  const status = test?.status ?? "idle";
+  elements.slice54LiveTestStatus.textContent = labels[status] ?? status;
+  elements.startSlice54LiveTest.disabled = status === "running";
+  elements.copySlice54LiveTestResult.hidden = !state.slice54LastReport;
+  if (status === "running") {
+    elements.slice54LiveTestNote.textContent =
+      "Suppressing host-observed probe heartbeats, then verifying production watchdog stall detection, bounded worker restarts, restart-budget exhaustion, and no restart loop.";
+  } else if (test?.message) {
+    elements.slice54LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  } else {
+    elements.slice54LiveTestNote.textContent =
+      "Uses a bounded test-only Script heartbeat suppression. No gameplay action or raw socket access is used.";
+  }
+}
+
 function renderGameVersion() {
   const gameVersion = state.gameVersion;
   if (!gameVersion) return;
@@ -1850,6 +1882,22 @@ async function refreshSlice53LiveTest() {
       message: "Slice 5.3 death/respawn recovery status could not be loaded.",
     };
     renderSlice53LiveTest();
+  }
+}
+
+async function refreshSlice54LiveTest() {
+  try {
+    const response = await fetch("/api/live-test/slice-5-4", { cache: "no-store" });
+    state.slice54LiveTest = response.ok
+      ? await response.json()
+      : { status: "unavailable", message: "Slice 5.4 watchdog/restart-guard test is unavailable." };
+    renderSlice54LiveTest();
+  } catch {
+    state.slice54LiveTest = {
+      status: "unavailable",
+      message: "Slice 5.4 watchdog/restart-guard status could not be loaded.",
+    };
+    renderSlice54LiveTest();
   }
 }
 
@@ -2524,6 +2572,38 @@ async function startSlice53LiveTest(clipboardWrite) {
   };
   const copied = await clipboardWrite.finish(payload.reportText);
   renderSlice53LiveTest();
+  await refreshCharacterConnection();
+  await refreshScriptRuntime();
+  await refreshDiagnostics();
+  return { payload, copied };
+}
+
+async function startSlice54LiveTest(clipboardWrite) {
+  state.slice54LiveTest = {
+    status: "running",
+    message: "Slice 5.4 watchdog/restart-guard test is running.",
+  };
+  renderSlice54LiveTest();
+  const response = await fetch("/api/live-test/slice-5-4/start", { method: "POST" });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      payload.error ??
+        payload.message ??
+        `Slice 5.4 watchdog/restart-guard test failed with HTTP ${response.status}`,
+    );
+  }
+  if (!payload.reportText || typeof payload.reportText !== "string") {
+    throw new Error("Slice 5.4 watchdog/restart-guard test returned no copyable report.");
+  }
+  state.slice54LastReport = payload.reportText;
+  state.slice54LiveTest = {
+    status: payload.result?.outcome ?? "failed",
+    message: payload.result?.message ?? "Slice 5.4 watchdog/restart-guard test finished.",
+    lastResult: payload.result,
+  };
+  const copied = await clipboardWrite.finish(payload.reportText);
+  renderSlice54LiveTest();
   await refreshCharacterConnection();
   await refreshScriptRuntime();
   await refreshDiagnostics();
@@ -3410,6 +3490,45 @@ elements.copySlice53LiveTestResult.addEventListener("click", async () => {
   }
 });
 
+elements.startSlice54LiveTest.addEventListener("click", async () => {
+  if (state.slice54LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice54LastReport = null;
+  elements.copySlice54LiveTestResult.hidden = true;
+  setFeedback(
+    "Slice 5.4 watchdog test started. The isolated probe heartbeat will be suppressed only at the host observation layer; no gameplay mutation is performed.",
+  );
+  try {
+    const { payload, copied } = await startSlice54LiveTest(clipboardWrite);
+    const outcome = payload.result?.outcome ?? "failed";
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 5.4 test ${String(outcome).toUpperCase()}. ${copyMessage}`,
+      outcome === "passed" && copied ? "success" : outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    await refreshSlice54LiveTest();
+    setFeedback(`Slice 5.4 watchdog/restart-guard test could not finish: ${error.message}`, "error");
+  } finally {
+    renderSlice54LiveTest();
+  }
+});
+
+elements.copySlice54LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice54LastReport) return;
+  try {
+    await writeClipboard(state.slice54LastReport);
+    setFeedback(
+      "Complete Slice 5.4 watchdog/restart-guard result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Watchdog-result copy failed: ${error.message}`, "error");
+  }
+});
+
 elements.reloadGameData.addEventListener("click", async () => {
   elements.reloadGameData.disabled = true;
   setFeedback("Reloading Adventure Land game data…");
@@ -3529,6 +3648,7 @@ await refreshSlice45LiveTest();
 await refreshSlice51LiveTest();
 await refreshSlice52LiveTest();
 await refreshSlice53LiveTest();
+await refreshSlice54LiveTest();
 await refreshGameVersion();
 await refreshGameData();
 await refreshUpdate();
@@ -3553,6 +3673,7 @@ setInterval(refreshSlice45LiveTest, 1500);
 setInterval(refreshSlice51LiveTest, 1500);
 setInterval(refreshSlice52LiveTest, 1500);
 setInterval(refreshSlice53LiveTest, 1500);
+setInterval(refreshSlice54LiveTest, 1500);
 setInterval(refreshGameVersion, 2000);
 setInterval(refreshGameData, 2000);
 setInterval(refreshUpdate, 1500);
