@@ -669,6 +669,20 @@
         </div>
       </div>
 
+      <div class="selection-content">
+        <div>
+          <h3>Slice 6.3 one-click smart_move() compatibility test</h3>
+          <div class="server-picker">
+            <button id="start-slice-6-3-live-test" type="button">Start smart_move test</button>
+            <strong id="slice-6-3-live-test-status" aria-live="polite">Ready</strong>
+            <button id="copy-slice-6-3-live-test-result" type="button" hidden>Copy last test result</button>
+          </div>
+          <small class="selection-note" id="slice-6-3-live-test-note">
+            Requires one connected headless Character. Exercises smart_move() inside the isolated script with an already-at-target coordinate destination and a deliberately unsupported selector, verifying compatibility plus stable error reasons without executing movement or mutating gameplay state.
+          </small>
+        </div>
+      </div>
+
       <details id="script-runtime-developer-controls">
         <summary>Script runtime developer controls</summary>
         <div class="selection-content">
@@ -692,7 +706,7 @@ setInterval(() =&gt; console.info("timer tick"), 1000);</textarea>
               <button id="script-runtime-stop" type="button">Stop script</button>
             </div>
             <small class="selection-note">
-              Slice 4.2 exposes character, G, Entities, get_nearest_monster(), is_in_range(), can_attack(), and validated move(), xmove(), attack(), and loot() through the isolated worker and central Action Gateway. Slice 4.3 adds controlled on()/off() game event listeners with safe snapshot payloads and lifecycle cleanup. Slice 4.4 adds namespaced persistent get()/set()/del() script storage backed by the local data directory. Slice 4.5 adds validated use_hp(), use_mp(), respawn(), and the no-code Simple Farmer Template for visible in-range monsters.
+              Slice 4.2 exposes character, G, Entities, get_nearest_monster(), is_in_range(), can_attack(), and validated move(), xmove(), attack(), and loot() through the isolated worker and central Action Gateway. Slice 6.3 adds smart_move() compatibility backed by the verified navigation planner, with stable SMART_MOVE_* error reasons and direct same-map execution through the existing movement gateway. Slice 4.3 adds controlled on()/off() game event listeners with safe snapshot payloads and lifecycle cleanup. Slice 4.4 adds namespaced persistent get()/set()/del() script storage backed by the local data directory. Slice 4.5 adds validated use_hp(), use_mp(), respawn(), and the no-code Simple Farmer Template for visible in-range monsters.
             </small>
           </div>
         </div>
