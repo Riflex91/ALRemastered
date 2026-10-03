@@ -563,3 +563,30 @@ The one-click harness then completed the full Slice 3.5 live chain itself:
 **Canonical queue status: Slice 3.5 = VERIFIED.**
 
 Do not repeat Slice 3.5 merely because its earlier alpha.29/alpha.30 queue entries remain as historical evidence. The next gameplay work may advance beyond Phase 3 only after this verification documentation is merged and post-merge `main` CI is fully green.
+
+
+### Alpha.32 real one-click result: PASSED — Slice 4.1 VERIFIED
+
+Real live report:
+
+- client: `0.1.0-alpha.32` / Windows
+- test ID: `live41-7df34dc6-b7e4-4f4d-8bdc-18f5a338da08`
+- outcome: `passed`
+- complete diagnostic: 28 records, `Secrets sanitized: yes`
+
+The Slice 4.1 one-click harness completed the full isolated runtime chain:
+
+- load/start: runtime reached `running` and script logs were emitted under `script:slice-4-1-live-timers`
+- timer lifecycle: one active interval was observed before pause
+- pause: status `paused`, active timers `0`, and log count remained `6 → 6` across the observation window
+- restart/stop: restart returned to `running`, stop reached `stopped`, active timers `0`
+- crash isolation: intentional `slice41-intentional-crash` reached `crashed` with `coreIsolated:true`
+- recovery: a new script started after the crash, emitted the separately marked `slice41:recovered` log, then stopped cleanly
+- final runtime: `stopped`, active timers `0`
+- final test result: `Slice 4.1 one-click live test passed.`
+
+The one expected ERROR record is the intentional crash-isolation probe and is positive test evidence.
+
+**Canonical queue status: Slice 4.1 = VERIFIED.**
+
+Do not repeat Slice 4.1 merely because earlier planning text remains as historical evidence. Slice 4.2 may start only after this verification documentation is merged and post-merge `main` CI is fully green.
