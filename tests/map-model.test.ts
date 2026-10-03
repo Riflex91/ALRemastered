@@ -71,6 +71,8 @@ test("map model normalizes maps bounds collision lines spawns and door transitio
   assert.equal(model.collisionLineCount, 4);
   assert.equal(model.transitionCount, 2);
   assert.equal(model.invalidTransitionCount, 0);
+  assert.equal(model.blockingInvalidTransitionCount, 0);
+  assert.equal(model.ignoredInvalidTransitionCount, 0);
 
   const main = model.maps.main;
   assert.equal(main?.name, "Mainland");
@@ -136,6 +138,8 @@ test("map model records dangling target and source spawn references without drop
   const model = buildAdventureLandNavigationModel(broken);
   assert.equal(model.transitionCount, 3);
   assert.equal(model.invalidTransitionCount, 2);
+  assert.equal(model.blockingInvalidTransitionCount, 2);
+  assert.equal(model.ignoredInvalidTransitionCount, 0);
   assert.equal(model.maps.main?.transitions.length, 2);
   assert.match(model.maps.main?.transitions[0]?.problems[0] ?? "", /Target map missing/);
   assert.match(
@@ -146,6 +150,44 @@ test("map model records dangling target and source spawn references without drop
     model.maps.main?.transitions[1]?.problems[0] ?? "",
     /Target spawn 99 is missing/,
   );
+});
+
+
+
+test("ignored prototype maps retain dangling door evidence without blocking active navigation integrity", () => {
+  const data = sampleData();
+  const withPrototype: AdventureLandGameData = {
+    ...data,
+    maps: {
+      ...data.maps,
+      d2: {
+        ignore: true,
+        spawns: [[0, 0], [0, -671]],
+        doors: [
+          [0, 22, 40, 40, "d1", 1, 0],
+          [0, -684, 20, 50, "d3", 0, 1, "protected"],
+        ],
+      },
+    },
+  };
+
+  const model = buildAdventureLandNavigationModel(withPrototype);
+  assert.equal(model.invalidTransitionCount, 2);
+  assert.equal(model.blockingInvalidTransitionCount, 0);
+  assert.equal(model.ignoredInvalidTransitionCount, 2);
+  assert.equal(model.maps.d2?.ignored, true);
+  assert.equal(model.maps.d2?.transitions.every((transition) => !transition.valid), true);
+
+  const logger = new Logger({ component: "ignored-map-model-test" });
+  const service = new AdventureLandMapModelService({
+    logger,
+    gameData: () => withPrototype,
+  });
+  const state = service.state();
+  assert.equal(state.status, "ready");
+  assert.equal(state.blockingInvalidTransitionCount, 0);
+  assert.equal(state.ignoredInvalidTransitionCount, 2);
+  assert.match(state.message, /ignored maps and are non-blocking/);
 });
 
 test("map model service exposes a cached navigation snapshot and canonical movement geometry", () => {
