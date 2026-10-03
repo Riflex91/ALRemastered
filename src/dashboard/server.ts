@@ -10,6 +10,7 @@ import type {
   MovementMode,
 } from "../action/movement.ts";
 import type { AdventureLandAttackService } from "../action/attack.ts";
+import type { AdventureLandSkillService } from "../action/skill.ts";
 import type { AdventureLandSelectionService } from "../account/selection-service.ts";
 import type { AdventureLandCharacterService } from "../character/service.ts";
 import type { CoreRuntime, HealthSnapshot } from "../core/app.ts";
@@ -30,6 +31,7 @@ export interface DashboardServerOptions {
   readonly actionGateway?: ActionGateway;
   readonly movementService?: AdventureLandMovementService;
   readonly attackService?: AdventureLandAttackService;
+  readonly skillService?: AdventureLandSkillService;
   readonly updateService?: UpdateService;
   readonly diagnostics?: DiagnosticsService;
   readonly gameVersionService?: AdventureLandVersionService;
@@ -47,6 +49,7 @@ export class DashboardServer {
   readonly #actionGateway?: ActionGateway;
   readonly #movementService?: AdventureLandMovementService;
   readonly #attackService?: AdventureLandAttackService;
+  readonly #skillService?: AdventureLandSkillService;
   readonly #updateService?: UpdateService;
   readonly #diagnostics?: DiagnosticsService;
   readonly #gameVersionService?: AdventureLandVersionService;
@@ -67,6 +70,7 @@ export class DashboardServer {
     this.#actionGateway = options.actionGateway;
     this.#movementService = options.movementService;
     this.#attackService = options.attackService;
+    this.#skillService = options.skillService;
     this.#updateService = options.updateService;
     this.#diagnostics = options.diagnostics;
     this.#gameVersionService = options.gameVersionService;
@@ -303,6 +307,58 @@ export class DashboardServer {
 
       const result = await this.#attackService.runDashboardTest({
         targetId: body.targetId,
+      });
+      return this.#json(response, result, gatewayStatusCode(result));
+    }
+
+    if (method === "GET" && path === "/api/action-gateway/skill-options") {
+      if (!this.#skillService) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Skill test service is unavailable.",
+          skills: [],
+        }, 503);
+      }
+      return this.#json(response, this.#skillService.dashboardOptions());
+    }
+
+    if (method === "POST" && path === "/api/action-gateway/skill-test") {
+      if (!this.#skillService) {
+        return this.#json(response, { error: "Skill test service is unavailable." }, 503);
+      }
+
+      let body: Record<string, unknown>;
+      try {
+        body = await this.#readJsonObject(request);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Invalid request body.";
+        return this.#json(response, { error: message }, 400);
+      }
+
+      if (typeof body.skillName !== "string" || !body.skillName.trim()) {
+        return this.#json(
+          response,
+          { error: "Skill test requires one supported skill name." },
+          400,
+        );
+      }
+      if (
+        body.targetId !== undefined &&
+        body.targetId !== null &&
+        typeof body.targetId !== "string"
+      ) {
+        return this.#json(
+          response,
+          { error: "Skill target ID must be a string when provided." },
+          400,
+        );
+      }
+
+      const result = await this.#skillService.runDashboardTest({
+        skillName: body.skillName,
+        targetId: typeof body.targetId === "string"
+          ? body.targetId
+          : undefined,
       });
       return this.#json(response, result, gatewayStatusCode(result));
     }

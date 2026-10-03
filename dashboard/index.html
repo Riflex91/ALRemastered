@@ -379,6 +379,30 @@
           </small>
         </div>
       </div>
+
+      <div class="selection-content">
+        <div>
+          <h3>Skill test controls</h3>
+          <div class="server-picker">
+            <label>
+              <span class="label">Safe skill</span>
+              <select id="skill-name" aria-label="Skill test skill">
+                <option value="">No supported skills</option>
+              </select>
+            </label>
+            <label>
+              <span class="label">Skill target</span>
+              <select id="skill-target" aria-label="Skill test target" disabled>
+                <option value="">No target required</option>
+              </select>
+            </label>
+            <button id="run-skill-test" type="button" disabled>Use selected skill once</button>
+          </div>
+          <small class="selection-note" id="skill-test-note">
+            Slice 3.4 exposes only simple non-hostile skills validated from the loaded Adventure Land G.skills data. Special-argument, movement, item-consuming, multi-target, hostile, passive, and arbitrary skill payloads are excluded. Each click sends at most one skill and waits for the Adventure Land server result.
+          </small>
+        </div>
+      </div>
     </section>
 
     <section class="game-data-panel">

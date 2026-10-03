@@ -866,6 +866,43 @@ test("dashboard exposes a fixed local-only Action Gateway probe", async () => {
     }),
   };
 
+  const skillService = {
+    dashboardOptions: () => ({
+      status: "ready",
+      message: "Safe simple skills are available for manual dashboard testing.",
+      characterId: "CH_probe",
+      skills: [{
+        skillName: "massproduction",
+        displayName: "Mass Production",
+        targetMode: "none",
+        mpCost: 20,
+        cooldownMs: 50,
+        targets: [],
+      }],
+    }),
+    runDashboardTest: async (request: {
+      skillName: string;
+      targetId?: string;
+    }) => ({
+      requestId: "act-skill-test",
+      action: "character.skill",
+      origin: "dashboard",
+      characterId: "CH_probe",
+      startedAt: "2026-10-03T00:00:00.000Z",
+      completedAt: "2026-10-03T00:00:00.010Z",
+      durationMs: 10,
+      outcome: "success",
+      result: {
+        skillName: request.skillName,
+        displayName: "Mass Production",
+        targetId: request.targetId,
+        mpCost: 20,
+        serverAccepted: true,
+        cooldownMs: 50,
+      },
+    }),
+  };
+
   const dashboard = new DashboardServer({
     logger,
     runtime,
@@ -873,6 +910,7 @@ test("dashboard exposes a fixed local-only Action Gateway probe", async () => {
     characterService: fakeCharacterService as any,
     movementService: movementService as any,
     attackService: attackService as any,
+    skillService: skillService as any,
     host: "127.0.0.1",
     port: 0,
   });
@@ -959,6 +997,39 @@ test("dashboard exposes a fixed local-only Action Gateway probe", async () => {
     );
     assert.equal(invalidAttack.status, 400);
 
+    const skillOptions = await fetch(
+      `${url}/api/action-gateway/skill-options`,
+    );
+    assert.equal(skillOptions.status, 200);
+    const skillOptionsPayload = await skillOptions.json();
+    assert.equal(skillOptionsPayload.status, "ready");
+    assert.equal(skillOptionsPayload.skills[0].skillName, "massproduction");
+
+    const skill = await fetch(
+      `${url}/api/action-gateway/skill-test`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ skillName: "massproduction" }),
+      },
+    );
+    assert.equal(skill.status, 200);
+    const skillPayload = await skill.json();
+    assert.equal(skillPayload.requestId, "act-skill-test");
+    assert.equal(skillPayload.action, "character.skill");
+    assert.equal(skillPayload.result.skillName, "massproduction");
+    assert.equal(skillPayload.result.serverAccepted, true);
+
+    const invalidSkill = await fetch(
+      `${url}/api/action-gateway/skill-test`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ skillName: "" }),
+      },
+    );
+    assert.equal(invalidSkill.status, 400);
+
     const arbitrary = await fetch(
       `${url}/api/action-gateway/action`,
       {
@@ -979,7 +1050,7 @@ test("dashboard exposes a fixed local-only Action Gateway probe", async () => {
   }
 });
 
-test("dashboard renders fixed Slice 3.1 probe, Slice 3.2 movement, and Slice 3.3 attack controls", () => {
+test("dashboard renders fixed Phase 3 probe, movement, attack, and bounded skill controls", () => {
   const html = readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
   const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
 
@@ -993,6 +1064,9 @@ test("dashboard renders fixed Slice 3.1 probe, Slice 3.2 movement, and Slice 3.3
     "movement-mode",
     "attack-target",
     "run-attack-test",
+    "skill-name",
+    "skill-target",
+    "run-skill-test",
   ]) {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
@@ -1010,9 +1084,15 @@ test("dashboard renders fixed Slice 3.1 probe, Slice 3.2 movement, and Slice 3.3
   assert.match(script, /entity\.kind === "monster"/);
   assert.match(html, /Attack selected monster once/);
   assert.match(html, /No automatic targeting or repeated attack loop/);
+  assert.match(script, /\/api\/action-gateway\/skill-options/);
+  assert.match(script, /\/api\/action-gateway\/skill-test/);
+  assert.match(html, /Skill test controls/);
+  assert.match(html, /Use selected skill once/);
+  assert.match(html, /simple non-hostile skills/);
+  assert.match(html, /Special-argument, movement, item-consuming, multi-target, hostile/);
   assert.doesNotMatch(script, /\/api\/action-gateway\/action/);
   assert.doesNotMatch(
     script,
-    /\/api\/action-gateway\/(skill|loot|use|buy|sell|party)/,
+    /\/api\/action-gateway\/(loot|use|buy|sell|party)(?:["'/?])/,
   );
 });
