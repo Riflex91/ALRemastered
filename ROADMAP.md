@@ -1345,3 +1345,41 @@ können, ohne einen separaten Client benutzen zu müssen.
 Die zentrale Entwicklungsregel bleibt dabei von Anfang bis Ende:
 
 > **Build small. Merge. Test the merged build. Read the log. Only then continue.**
+
+---
+
+## Append-only verification record — Slice 3.3 Attack — 2026-10-03
+
+**Canonical status update: Slice 3.3 = VERIFIED. Slice 3.4 remains MERGED – AWAITING USER TEST until this verification documentation is merged and post-merge main CI is green.**
+
+Live environment:
+
+- Windows client: `0.1.0-alpha.28`
+- Character: `My_Ranger1` / `CH_denPIHA05KxLLQqVOad9h9vr9KPrL`
+- Server: EU II
+- Diagnostic export: `Secrets sanitized: yes`
+- alpha.28 is the installed current sequential-test build and already contains Slice 3.3; the original alpha.22 → alpha.23 release-path requirement above remains historical evidence and is not retroactively rewritten.
+
+Guard attempt retained as failure evidence:
+
+- Request: `act-4762192d-52bb-4b30-bf3d-6b4207200b0b`
+- Action/origin: `character.attack` / `dashboard`
+- Result: `ATTACK_OUT_OF_RANGE`
+- Measured distance/range: `576.4 > 142.0`
+- Gateway rejected in 1 ms before mutation; no server-accepted attack was claimed.
+
+Successful live attempt:
+
+- Exactly one manual dashboard click produced request `act-ab766aa5-32fb-46b2-b0c0-ffeccfe4e628`.
+- Action/origin: `character.attack` / `dashboard`.
+- Canonical character ID: `CH_denPIHA05KxLLQqVOad9h9vr9KPrL`.
+- Selected live monster: target ID `4990598`, type `goo`.
+- Preflight/server-confirmed distance: `119.7`; attack range: `142`.
+- Server response: `serverAccepted:true`; reported cooldown: `1045 ms`.
+- Gateway completion: `outcome:"success"`, duration `15 ms`.
+- The live state immediately switched target to `4990598`; XP subsequently increased from `20310734` to `20311229`.
+- No second `character.attack` request followed this click through the end of the supplied log at `2026-10-03T09:21:10.153Z`.
+- No autonomous combat loop, crash, disconnect, or unsanitized secret was observed in the captured window.
+
+Result: the bounded dashboard Attack path passed the required real-user live test. The request remained correlated through Adventure Land server acceptance rather than treating socket send as success, and the prior out-of-range attempt demonstrated the range guard. **Slice 3.3 is VERIFIED.**
+
