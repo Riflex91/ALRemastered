@@ -597,6 +597,11 @@ Noch keine komplexe Botlogik.
 >
 > Real-account movement through the installed dashboard is still required. Do not mark this slice VERIFIED until the user supplies the live evidence recorded in `LIVE_TEST_QUEUE.md`.
 
+>
+> 2026-10-03 live evidence: the first installed-client Slice 3.2 attempt on Windows `0.1.0-alpha.22` FAILED as designed by the stop conditions. Dashboard request `act-52ffce2f-9b0f-47fd-b11d-e984384e34b4` completed as `character.move` / `origin:"dashboard"` with gateway `outcome:"success"` after 3 ms, but the real character remained at `(-1272.1555957426249, -32.26522650442442)` throughout the captured post-request live state. The diagnostic export reported `Secrets sanitized: yes`. XMove was intentionally not tested after this failure.
+>
+> PR #52 fixes the false-success path for correction release `0.1.0-alpha.25`: `new_map.m` now refreshes the Adventure Land movement sequence, movement completion requires observed server-state position progress toward the requested target, and missing confirmation is surfaced as `MOVE_NOT_CONFIRMED` rather than success. Automated evidence on exact PR #52 head `5e0c995930bb7e7e0024145aea36d823146ecd17`: Ubuntu verify success, Windows verify success, Linux alpha.24 → alpha.25 installer upgrade smoke success, and Windows alpha.24 → alpha.25 installer upgrade smoke success (CI run `37106293803`). Slice 3.2 remains AWAITING USER TEST and must be retested on the corrected release before proceeding to Slice 3.3.
+
 - einfache Bewegung
 - Validierung
 - Action-Logging
