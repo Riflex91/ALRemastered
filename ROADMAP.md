@@ -1467,3 +1467,37 @@ The correction adds:
 - old individual Phase 3 controls retained only under collapsed **Developer manual controls**, not as the normal user test path.
 
 The alpha.30 real-user retest must use only **Install update → Start test → paste the automatically copied report**. Slice 3.5 must not be marked VERIFIED until that real report is reviewed.
+
+
+---
+
+## Append-only live-test failure record — Slice 3.5 alpha.30 bootstrap handoff — 2026-10-03
+
+**The real alpha.30 one-click test did not pass. Slice 3.5 remains unverified.**
+
+Observed installed client:
+
+- version: `0.1.0-alpha.30`
+- platform: Windows
+- test ID: `live35-6dded20e-78ce-45a8-a7e7-c4e13e87dd74`
+- terminal outcome: `BLOCKED`
+- error: `LIVE_TEST_CHARACTER_NOT_CONNECTED`
+- stopped in `preflight` before any gameplay mutation
+- diagnostic export: 10 lines, `Secrets sanitized: yes`
+
+The post-update diagnostic log contained normal alpha.30 startup/game-data records and the one-click test start/stop records, but **no account-session restore, selected-server restore, or headless-character restore record**.
+
+Root cause: the update source build was alpha.29. The ephemeral session-handoff implementation itself first shipped in alpha.30, so alpha.29 could not prepare the handoff environment before launching the alpha.30 installer. The already-lost in-memory auth session cannot be reconstructed after the restart because ALRemastered intentionally does not persist passwords/auth tokens.
+
+This is a bootstrap/release-path gap, not a user-action failure.
+
+Correction target: `0.1.0-alpha.31`.
+
+The alpha.31 correction strengthens evidence rather than weakening credential safety:
+
+- every `--post-update` startup logs a secret-free handoff status with `present`, `decoded`, `consumed`, and `secretPersisted:false`;
+- Windows and Linux detached-updater smokes now verify that an environment value survives the source-client exit;
+- the real Windows and Linux installer upgrade smokes inject a non-secret invalid handoff probe, verify that it reaches the automatically restarted client, verify `present:true`, `decoded:false`, `consumed:true`, and verify the raw probe never appears in `client.log`;
+- installer smoke advances from alpha.30 to alpha.31 and keeps Linux pinned to `ubuntu-24.04`.
+
+Because alpha.30 is the first handoff-capable installed source build, the alpha.30 → alpha.31 bridge can exercise the real source-side handoff. After that bridge, the intended normal sequential-test UX remains **Install update → Start test → paste automatically copied report**.
