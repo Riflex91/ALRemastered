@@ -2178,3 +2178,97 @@ Result: the real Windows alpha.48 run proves the canonical Slice 6.1 map/geometr
 
 Slice 6.2 – einfacher Path Planner may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
 
+---
+
+## Append-only verification record — Slice 6.2 einfacher Path Planner — 2026-10-03
+
+**Canonical status update: Slice 6.2 = VERIFIED.**
+
+Release/live environment:
+
+- verified release: `v0.1.0-alpha.49`
+- tested implementation main / release target: `c99b4e9f05431813b9fbc7d6d37a2ff1b99dc402`
+- Windows client: `0.1.0-alpha.49`
+- platform: `win32`
+- one-click test ID: `live62-2a6c8bd1-3f5b-40e6-ab71-c1fe207ea77d`
+- outcome: `passed`
+- test window: `2026-10-03T21:28:21.705Z → 2026-10-03T21:28:22.060Z`
+- Character connection: not required; remained disconnected
+- diagnostic export: 25 log lines, `Secrets sanitized: yes`
+
+Live navigation-model precondition:
+
+- fresh live Adventure Land game-data version `17397` was manually reloaded during the test;
+- the verified Slice 6.1 navigation model contained `54` maps, `98` transitions, and `13342` collision lines;
+- blocking invalid transition count was `0`;
+- ignored/non-blocking invalid transition count remained `2`;
+- the planner therefore operated on the same canonical live geometry and transition model already verified by Slice 6.1.
+
+Reachable-route evidence:
+
+- the passive probe evaluated live cross-map candidates rather than assuming the first transition was reachable;
+- several candidates were correctly rejected as `PATH_NO_ROUTE` before the successful route was found;
+- selected live transition: `main:door:7`;
+- source map: `main`;
+- source spawn index: `11`;
+- target map: `level1`;
+- target spawn index: `1`;
+- route status: `reachable`;
+- map hops: `1`;
+- leg count: `2`;
+- ordered route:
+  1. start: `main` at `1937,-12`
+  2. door: `main:door:7` at `1936,-23`
+  3. arrival: `level1` at `0,9`.
+
+Waypoint and leg validation evidence:
+
+- waypoint count: `3`;
+- one real walk leg was independently revalidated against the canonical collision geometry;
+- walk distance: `11.045361017187261`;
+- one real transition leg was independently revalidated against the canonical live transition target;
+- transition metadata was empty, proving the selected edge was unconditional;
+- the transition resolved exactly from `main:door:7` to `level1` spawn `1` at `0,9`.
+
+Planner-diagnostic evidence:
+
+- candidate node count: `226`;
+- directed walk edge count: `68`;
+- transition edge count: `82`;
+- direct collision checks: `1145`;
+- expanded graph nodes: `4`;
+- map hops: `1`;
+- total walk distance: `11.045361017187261`;
+- total route cost: `59.04536101718726`;
+- skipped ignored maps: `5`;
+- skipped invalid transitions: `0`;
+- skipped conditional transitions: `9`;
+- visited maps: `main → level1`;
+- planner service state after the probe reported `plannedRoutes:8` and `reachableRoutes:1`, consistent with rejected unreachable candidates followed by one validated reachable route.
+
+Passive-safety evidence:
+
+- Character status remained `disconnected → disconnected`;
+- `characterRequired:false`;
+- `movementExecution:false`;
+- `gameplayMutation:false`;
+- `rawSocketAccess:false`;
+- the test therefore verified route planning and diagnostics without executing the route or mutating gameplay state.
+
+Repository/release gate evidence:
+
+- implementation PR #96 merged into exact main `c99b4e9f05431813b9fbc7d6d37a2ff1b99dc402`;
+- implementation PR CI run `37154637884` completed with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- exact post-merge main CI run `37154817728` completed with all four required jobs successful;
+- release publish run `37154978975` completed successfully;
+- GitHub release `v0.1.0-alpha.49` targets exact commit `c99b4e9f05431813b9fbc7d6d37a2ff1b99dc402`;
+- release branch `release/v0.1.0-alpha.49`, tag `v0.1.0-alpha.49`, and implementation `main` were verified commit-identical;
+- published assets:
+  - Windows x64 installer SHA-256 `f0ea0ec85d20a7915df27e7e2c6e4ec7986342f58ada93ce2e08dc55d84a14df`
+  - Linux x64 installer SHA-256 `40df903c4866bd5a05186b58ed4f553e84149a048226afbe82f740978a5784d4`
+  - updater manifest SHA-256 `0bce1eca90ef74f89c4a4fc7989411238b5482e2601a48b2ed8a682af01d323d`.
+
+Result: the real Windows alpha.49 run proves that the Slice 6.2 planner can derive a structurally reachable cross-map route from current live Adventure Land data, emit ordered map-aware waypoints, distinguish unreachable candidates, independently validate collision-safe walk legs and unconditional map transitions, and expose reproducible planner diagnostics without executing movement. **Slice 6.2 is VERIFIED.**
+
+Slice 6.3 – Smart-Move-Kompatibilität may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
+
