@@ -229,9 +229,24 @@ export class Slice42LiveTestService {
 
       this.#requireMarker(scriptRecords, "slice42:globals-ok:");
       this.#requireMarker(scriptRecords, "slice42:helpers-ok");
+      this.#requireMarker(scriptRecords, "slice42:target-locked:");
       this.#requireMarker(scriptRecords, "slice42:loot-ok:");
       this.#requireMarker(scriptRecords, "slice42:move-ok:");
       this.#requireMarker(scriptRecords, "slice42:xmove-ok:");
+      const targetLockedRecord = scriptRecords.find((record) =>
+        record.message.startsWith("slice42:target-locked:")
+      );
+      const finalTargetId = targetLockedRecord?.message
+        .slice("slice42:target-locked:".length)
+        .trim();
+      if (!finalTargetId) {
+        throw new Slice42LiveTestFailure(
+          "LIVE_TEST_SCRIPT_TARGET_EVIDENCE_MISSING",
+          "The farmer did not record the monster it locked after its first successful attack.",
+          false,
+          "evidence",
+        );
+      }
       if (
         !actionNames.includes("character.loot") ||
         !actionNames.includes("character.move") ||
@@ -258,7 +273,7 @@ export class Slice42LiveTestService {
         evidence: Object.freeze({
           globalsMarker: true,
           helpersMarker: true,
-          targetId: target.entity.id,
+          targetId: finalTargetId,
           targetType: target.entity.type,
         }),
       }));
@@ -292,7 +307,7 @@ export class Slice42LiveTestService {
         characterId: finalState.characterId,
         characterName: finalState.characterName,
         serverKey: finalState.serverKey,
-        targetId: target.entity.id,
+        targetId: finalTargetId,
         targetType: target.entity.type,
         message:
           "Slice 4.2 passed: the isolated script used the first Adventure Land-compatible globals/helpers and completed bounded attack, loot, move, and xmove actions through the central Action Gateway.",
@@ -578,33 +593,73 @@ function farmerScript(input: {
     "  const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));",
     `  const expectedTargetId = ${targetId};`,
     `  const targetType = ${targetType};`,
+    "  let lockedTargetId = null;",
+    "  let reacquireAttempts = 0;",
     "  if (!character.id || !character.ctype || !character.map) throw new Error('Slice 4.2 character global is incomplete.');",
     "  if (!G.monsters || !G.monsters[targetType]) throw new Error('Slice 4.2 G global is incomplete.');",
-    "  if (!Entities[expectedTargetId]) throw new Error('Slice 4.2 Entities global is incomplete.');",
+    "  if (!Entities || typeof Entities !== 'object') throw new Error('Slice 4.2 Entities global is incomplete.');",
     "  console.info('slice42:globals-ok:' + character.id + ':' + targetType);",
-    "  let target = get_nearest_monster({type: targetType, no_target: true});",
-    "  if (!target || target.id !== expectedTargetId) throw new Error('get_nearest_monster() did not return the bounded preflight target.');",
+    "  const usableTarget = (candidate) => Boolean(candidate && candidate.type === 'monster' && candidate.mtype === targetType && !candidate.target && candidate.rip !== true && !(typeof candidate.hp === 'number' && candidate.hp <= 0) && is_in_range(candidate));",
+    "  const chooseUnlockedTarget = () => {",
+    "    const preferred = Entities[expectedTargetId];",
+    "    if (usableTarget(preferred)) return preferred;",
+    "    const replacement = get_nearest_monster({type: targetType, no_target: true});",
+    "    return usableTarget(replacement) ? replacement : null;",
+    "  };",
+    "  let target = chooseUnlockedTarget();",
+    "  if (!target) throw new Error('No bounded same-type target is currently visible in attack range.');",
+    "  if (String(target.id) !== expectedTargetId) console.info('slice42:target-reacquired:' + expectedTargetId + ':' + target.id);",
     "  if (!is_in_range(target)) throw new Error('is_in_range() rejected the bounded in-range target.');",
     "  console.info('slice42:helpers-ok');",
-    `  for (let attackNumber = 1; attackNumber <= ${MAX_ATTACKS}; attackNumber += 1) {`,
-    "    target = Entities[expectedTargetId];",
-    "    if (!target || target.rip === true || (typeof target.hp === 'number' && target.hp <= 0)) break;",
+    "  let attackNumber = 0;",
+    `  while (attackNumber < ${MAX_ATTACKS}) {`,
+    "    target = lockedTargetId ? Entities[lockedTargetId] : chooseUnlockedTarget();",
+    "    if (lockedTargetId && (!target || target.rip === true || (typeof target.hp === 'number' && target.hp <= 0))) break;",
+    "    if (!target) {",
+    "      const acquireDeadline = Date.now() + 1200;",
+    "      while (!target && Date.now() < acquireDeadline) {",
+    "        await delay(50);",
+    "        target = chooseUnlockedTarget();",
+    "      }",
+    "      if (!target) throw new Error('No bounded same-type replacement target became available.');",
+    "    }",
     "    const safetyHp = Number(character.hp);",
     "    const safetyMaxHp = Number(character.max_hp);",
     "    if (Number.isFinite(safetyHp) && Number.isFinite(safetyMaxHp) && safetyMaxHp > 0 && safetyHp / safetyMaxHp < 0.65) throw new Error('Slice 4.2 HP safety stop.');",
     "    const readyDeadline = Date.now() + 3000;",
     "    while (!can_attack(target) && Date.now() < readyDeadline) {",
     "      await delay(50);",
-    "      target = Entities[expectedTargetId];",
-    "      if (!target) break;",
+    "      target = lockedTargetId ? Entities[lockedTargetId] : chooseUnlockedTarget();",
+    "      if (lockedTargetId && !target) break;",
     "    }",
-    "    if (!target) break;",
-    "    if (!can_attack(target)) throw new Error('can_attack() did not become ready for the bounded target.');",
-    "    const result = await attack(target);",
+    "    if (lockedTargetId && !target) break;",
+    "    if (!target || !can_attack(target)) throw new Error('can_attack() did not become ready for the bounded target.');",
+    "    let result;",
+    "    try {",
+    "      result = await attack(target);",
+    "    } catch (error) {",
+    "      if (!lockedTargetId && error && error.code === 'ATTACK_TARGET_NOT_VISIBLE' && reacquireAttempts < 6) {",
+    "        reacquireAttempts += 1;",
+    "        const vanishedId = String(target.id);",
+    "        await delay(75);",
+    "        const replacement = chooseUnlockedTarget();",
+    "        if (replacement) {",
+    "          console.info('slice42:target-reacquired:' + vanishedId + ':' + replacement.id);",
+    "          continue;",
+    "        }",
+    "      }",
+    "      throw error;",
+    "    }",
+    "    attackNumber += 1;",
+    "    if (!lockedTargetId) {",
+    "      lockedTargetId = String(target.id);",
+    "      console.info('slice42:target-locked:' + lockedTargetId);",
+    "    }",
     "    console.info('slice42:attack-ok:' + attackNumber + ':' + (result.requestId || ''));",
     "    await delay(125);",
     "  }",
-    "  target = Entities[expectedTargetId];",
+    "  if (!lockedTargetId) throw new Error('No bounded target received a successful attack.');",
+    "  target = Entities[lockedTargetId];",
     "  if (target && target.rip !== true && !(typeof target.hp === 'number' && target.hp <= 0)) throw new Error('Bounded attack budget ended before the target was defeated.');",
     "  await delay(2500);",
     "  const lootResult = await loot();",
