@@ -254,11 +254,26 @@ test("headless transport follows welcome-loaded-auth-start without automation ev
 
   socket.message('42["entities",{"type":"delta","players":[{"id":"RangerOne","name":"RangerOne","ctype":"ranger","x":22,"y":40,"moving":true,"going_x":44,"going_y":40,"move_num":13}],"monsters":[]}]');
   await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(liveState.character.x, 22);
+  assert.equal(liveState.character.x, 20);
   assert.equal(liveState.character.y, 40);
   assert.equal(liveState.entities.find((entity) => entity.id === "RangerOne")?.moving, true);
   assert.equal(liveState.entities.find((entity) => entity.id === "RangerOne")?.goingX, 44);
   assert.equal(liveState.entities.find((entity) => entity.id === "RangerOne")?.moveNum, 13);
+
+  socket.message('42["player",{"x":44,"y":40,"angle":0}]');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(liveState.character.x, 44);
+  assert.equal(liveState.character.y, 40);
+
+  socket.message('42["entities",{"type":"delta","players":[{"id":"RangerOne","name":"RangerOne","ctype":"ranger","x":31,"y":40,"moving":true,"going_x":44,"going_y":40,"move_num":13}],"monsters":[]}]');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(liveState.character.x, 44);
+  assert.equal(liveState.character.y, 40);
+
+  socket.message('42["entities",{"type":"delta","players":[{"id":"RangerOne","name":"RangerOne","ctype":"ranger","x":44,"y":40,"moving":false,"going_x":44,"going_y":40,"move_num":13}],"monsters":[]}]');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(liveState.character.x, 44);
+  assert.equal(liveState.character.y, 40);
 
   socket.message('42["entities",{"type":"delta","players":[],"monsters":[{"id":"goo-1","mtype":"goo","x":36,"y":46,"hp":90,"max_hp":120}]}]');
   await new Promise((resolve) => setImmediate(resolve));
