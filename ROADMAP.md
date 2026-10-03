@@ -2094,3 +2094,87 @@ Result: the real Windows alpha.46 run proves production watchdog stall detection
 
 Phase 6 / Slice 6.1 may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
 
+---
+
+## Append-only verification record — Slice 6.1 Map-/Geometry-Modell — 2026-10-03
+
+**Canonical status update: Slice 6.1 = VERIFIED.**
+
+Release/live environment:
+
+- verified release: `v0.1.0-alpha.48`
+- tested implementation main / release target: `f3f8ca882d70aa47f3a59b24abe67e48e84c2b66`
+- Windows client: `0.1.0-alpha.48`
+- platform: `win32`
+- one-click test ID: `live61-7f653b0b-fc41-4da7-845b-e57600a7d178`
+- outcome: `passed`
+- test window: `2026-10-03T21:02:09.425Z → 2026-10-03T21:02:09.579Z`
+- Character connection: not required; disconnected before and after the test
+- diagnostic export: 20 log lines, `Secrets sanitized: yes`
+
+Live map-model coverage:
+
+- live Adventure Land data version: `17397`;
+- `54` maps normalized into one versioned navigation model;
+- `49` geometry maps loaded;
+- all `54 / 54` modeled maps exposed finite bounds;
+- `5` map keys had no direct geometry family entry: `batcave`, `d2`, `old_bank`, `old_main`, `original_main`;
+- the model still derived usable bounds for all maps.
+
+Collision-geometry evidence:
+
+- total normalized collision-line count: `13342`;
+- representative live map: `main`;
+- representative `main` collision geometry contained `760` x-lines and `763` y-lines, total `1523`;
+- representative bounds were `minX:-1616`, `minY:-1040`, `maxX:2320`, `maxY:2232`, source `geometry`;
+- the same canonical collision representation is the geometry source used by movement consumers.
+
+Door/transition evidence:
+
+- total normalized door/transition count: `98`;
+- raw invalid transition references: `2`;
+- blocking invalid transition references on active maps: `0`;
+- ignored/non-blocking invalid transition references: `2`;
+- both non-blocking dangling references belong only to ignored prototype map data and remain visible as diagnostics rather than being silently discarded;
+- representative valid transition: `main:door:0`;
+- representative source rectangle: `x:-965`, `y:-176`, `width:24`, `height:30`, source spawn `1`;
+- representative target resolved to map `woffice`, spawn `0`, coordinates `x:-24`, `y:83`, direction `3`;
+- the representative transition was `valid:true` with no problems.
+
+Passive one-click verification evidence:
+
+- no headless Character was required;
+- Character status stayed `disconnected → disconnected`;
+- no movement was performed;
+- no pathfinding was performed;
+- no gameplay mutation was performed;
+- no raw socket access was used;
+- diagnostic completion record explicitly reported `characterRequired:false`, `blockingInvalidTransitionCount:0`, `ignoredInvalidTransitionCount:2`, `gameplayMutation:false`, `rawSocketAccess:false`, and `pathfinding:false`.
+
+Historical alpha.47 blocked evidence and corrective action:
+
+- the first real `alpha.47` Slice 6.1 report was blocked before execution because the initial harness unnecessarily required a connected headless Character;
+- that report also exposed two dangling transition references;
+- investigation showed both references originated exclusively from ignored prototype map `d2`, whose doors target unavailable prototype maps `d1` and `d3`;
+- PR #94 changed these ignored-map references from blocking to non-blocking diagnostics and removed the unnecessary Character precondition;
+- the successful `alpha.48` run verifies both corrections with real live data.
+
+Repository/release gate evidence:
+
+- original Slice 6.1 implementation PR #93 merged at main `75e99f0f35e271e747de8efab3afd826aae38421`;
+- exact post-merge main CI run `37152440103` completed with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- original release publish run `37152590260` published `v0.1.0-alpha.47`;
+- corrective PR #94 merged at exact main `f3f8ca882d70aa47f3a59b24abe67e48e84c2b66`;
+- exact post-hotfix main CI run `37153288628` completed with all four required jobs successful;
+- release publish run `37153415634` completed successfully;
+- GitHub release `v0.1.0-alpha.48` targets exact commit `f3f8ca882d70aa47f3a59b24abe67e48e84c2b66`;
+- the release branch and current `main` were verified commit-identical to that target before this documentation write;
+- published assets:
+  - Windows x64 installer SHA-256 `ec525d75cb6672ad4e5c154642ecaa317e64ddd94f5953623a0af39bf29ac3fa`
+  - Linux x64 installer SHA-256 `b48c4adf6a8a355ef36efff8434e8a66821480c547991c758b46149a3a2c0281`
+  - updater manifest SHA-256 `bac873d69245147c90317611571d7dd5040d7ea6aac3680b96c0d8df7671f1ae`.
+
+Result: the real Windows alpha.48 run proves the canonical Slice 6.1 map/geometry model against current live Adventure Land data: maps, finite map boundaries, collision-relevant geometry, door/transition target-spawn resolution, explicit handling of ignored prototype transition gaps, and character-independent passive validation. **Slice 6.1 is VERIFIED.**
+
+Slice 6.2 – einfacher Path Planner may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
+
