@@ -362,7 +362,9 @@ export function planSimplePath(
     });
   }
 
-  const legs = search.edges.map((edge) => edge.leg);
+  const legs = search.edges
+    .map((edge) => edge.leg)
+    .filter((leg) => leg.kind !== "walk" || leg.distance > 0.00001);
   const waypoints = buildWaypoints(start.waypoint, target.waypoint, legs);
   diagnostics.mapHops = legs.filter((leg) => leg.kind === "transition").length;
   diagnostics.totalWalkDistance = legs.reduce(
