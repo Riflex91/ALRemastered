@@ -267,8 +267,9 @@ test("isolated worker exposes character, G, Entities, helpers and async action R
       "loot",
     ]);
     assert.deepEqual(calls[0]?.input, { x: 116, y: 100 });
-    assert.deepEqual(calls[2]?.input, { targetId: "m1" });
-    assert.deepEqual(calls[3]?.input, {});
+    assert.deepEqual(calls[2]?.input, { target: { x: 100, y: 100 } });
+    assert.deepEqual(calls[3]?.input, { targetId: "m1" });
+    assert.deepEqual(calls[4]?.input, {});
 
     dynamicState = {
       ...dynamicState,
