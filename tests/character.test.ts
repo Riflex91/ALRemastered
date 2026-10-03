@@ -261,12 +261,13 @@ test("headless transport follows welcome-loaded-auth-start without automation ev
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(liveState.entities.some((entity) => entity.id === "MageOne"), false);
 
-  socket.message('42["new_map",{"name":"cave","x":101,"y":202,"direction":3}]');
+  socket.message('42["new_map",{"name":"cave","x":101,"y":202,"direction":3,"m":8}]');
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(liveState.character.map, "cave");
   assert.equal(liveState.character.x, 101);
   assert.equal(liveState.character.y, 202);
   assert.equal(liveState.character.directionLabel, "Up");
+  assert.equal(liveState.character.movementSequence, 8);
   assert.equal(liveState.entities.length, 0);
   assert.deepEqual(liveState.party.members, ["RangerOne", "MageOne"]);
 
@@ -301,7 +302,7 @@ test("character socket URL uses the selected official server path and websocket 
 test("character service allows exactly one connection and disconnects controllably", async () => {
   const logger = new Logger({ component: "character-test" });
   let unexpectedClose: ((reason?: string) => void) | undefined;
-  let liveListener: ((state: any) => void) | undefined;
+  const liveListeners = new Set<(state: any) => void>();
   let closeCalls = 0;
   const connection: AdventureLandCharacterConnection = {
     character: {
@@ -349,7 +350,8 @@ test("character service allows exactly one connection and disconnects controllab
       };
     },
     onState(listener) {
-      liveListener = listener;
+      liveListeners.add(listener);
+      return () => liveListeners.delete(listener);
     },
     onUnexpectedClose(listener) {
       unexpectedClose = listener;
@@ -414,11 +416,32 @@ test("character service allows exactly one connection and disconnects controllab
   assert.match(connected.message, /no automation is running/i);
   assert.equal(connected.character?.hp, 4000);
   assert.throws(() => service.start("CH_1"), /already active/);
-  assert.deepEqual(service.sendDirectMovement({ x: 44, y: 34 }), {
+  const movePromise = service.sendDirectMovement({ x: 44, y: 34 });
+  for (const listener of [...liveListeners]) {
+    listener({
+      character: {
+        ...connection.character,
+        x: 20,
+        y: 34,
+      },
+      entities: [],
+      party: {
+        inParty: true,
+        leader: "RangerOne",
+        members: ["RangerOne", "MageOne"],
+        details: {},
+      },
+      pingMs: undefined,
+      updatedAt: "2026-10-02T20:05:00.100Z",
+    });
+  }
+  assert.deepEqual(await movePromise, {
     fromX: 12,
     fromY: 34,
     targetX: 44,
     targetY: 34,
+    confirmedX: 20,
+    confirmedY: 34,
   });
   assert.deepEqual(await service.sendAttack({ targetId: "goo-1" }), {
     targetId: "goo-1",
@@ -434,7 +457,7 @@ test("character service allows exactly one connection and disconnects controllab
   });
   assert.equal(service.skillCooldownRemainingMs("warcry"), 0);
 
-  liveListener?.({
+  for (const listener of [...liveListeners]) listener({
     character: {
       ...connection.character,
       hp: 3200,
