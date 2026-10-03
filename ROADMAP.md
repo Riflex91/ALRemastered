@@ -2422,3 +2422,79 @@ Repository/release gate evidence:
 Result: the real Windows alpha.52 run proves that the dashboard retains both the actual server-confirmed Movement Trail and the route produced by the existing planner, while all gameplay mutation remains bounded behind the central Action Gateway and the user Script runtime remains untouched. **Slice 6.4 is VERIFIED.**
 
 Phase 7 / Slice 7.1 – Multi-Character Session Manager may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
+
+
+---
+
+## Append-only verification record — Slice 7.1 Multi-Character Session Manager — 2026-10-04
+
+**Canonical status update: Slice 7.1 = VERIFIED.**
+
+Release/live environment:
+
+- verified release: `v0.1.0-alpha.53`
+- tested implementation main / release target: `25d13a769501c502e6d2ad65456c0bdf02a3b634`
+- Windows client: `0.1.0-alpha.53`
+- platform: `win32`
+- one-click test ID: `live71-ad99db70-9c18-405e-b7d2-40ba7bb5b070`
+- primary Character: `My_Merchant`
+- managed test Character: `My_Ranger1`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-03T23:27:11.423Z → 2026-10-03T23:27:11.635Z`
+- diagnostic export: 56 log lines, `Secrets sanitized: yes`.
+
+Multi-character session evidence:
+
+- preflight began with one active primary Character session and three available slots under the hard session limit of `4`;
+- the manager started `My_Ranger1` as a separate managed headless session without replacing or mutating the existing primary `My_Merchant` session;
+- both Character sessions were simultaneously connected on EU II;
+- concurrent state reached exactly `activeSessionCount:2` with `managedSessionCount:1`;
+- the primary session remained the compatibility anchor for existing single-Character services;
+- the added Character remained isolated as a managed session.
+
+Shared static-data evidence:
+
+- process-level Adventure Land game-data version was `17397`;
+- preflight manager state reported `sharedStaticDataMode:"shared"`;
+- parallel managed-session state reported the same `sharedGameDataVersion:17397`;
+- final state retained game-data version `17397 → 17397`;
+- no per-session duplicate static-game-data load was required.
+
+Isolation and limit evidence:
+
+- a second start request for the already managed Character was rejected with stable local error `SESSION_CHARACTER_ALREADY_ACTIVE`;
+- after that rejection, active session count remained exactly `2`;
+- managed session count remained exactly `1`;
+- primary session remained `connected`;
+- Character session limit stayed `4`;
+- the diagnostic lifecycle confirms the manager reported `activeSessionCount:2`, `sessionLimit:4`, and `sharedStaticData:true` after the second Character connected.
+
+Bounded cleanup and safety evidence:
+
+- only the managed `My_Ranger1` test session was stopped;
+- the managed Character disconnect was controlled with reason `slice71_live_test`;
+- final state returned to `activeSessionCount:1` and `managedSessionCount:0`;
+- primary `My_Merchant` remained connected;
+- user Script runtime stayed `unloaded → unloaded`;
+- `userScriptInterrupted:false`;
+- `gameplayMutation:false`;
+- `rawSocketAccess:false`;
+- the final diagnostic record explicitly reported Slice 7.1 PASS with shared static data, session limit `4`, no gameplay mutation, no raw socket access, and no Script interruption.
+
+Repository/release gate evidence:
+
+- implementation PR #103 exact feature head: `b1442654481786131d1bce45a5a698687608f76a`;
+- implementation PR CI run `37161318643` completed with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #103 merged with method `merge` into exact implementation main `25d13a769501c502e6d2ad65456c0bdf02a3b634`;
+- exact post-implementation-main CI run `37161460939` completed with all four required jobs successful;
+- release publish run `37161609474` completed successfully for Linux, Windows, and release;
+- release branch `release/v0.1.0-alpha.53`, tag `v0.1.0-alpha.53`, release target, and tested implementation main were verified commit-identical;
+- published assets:
+  - Windows x64 installer SHA-256 `b3db93e374273c0eeeff90db7d162b2185e9a0aa74073d1b44bbde282ac40d12`
+  - Linux x64 installer SHA-256 `871577f951569461287782e7989bf857532dffbc8cbba4b4a734e43c33ae3a8e`
+  - updater manifest SHA-256 `7843f593d72efbe0190c36844705fb1e5a9c03632e865ed826eb5f1bf9549fbe`.
+
+Result: the real Windows alpha.53 run proves that ALRemastered can keep the existing primary Character session alive while adding a second isolated managed Character session, share static game data across sessions, enforce duplicate/Character-limit guards, isolate lifecycle cleanup, and return to the original single-session state without gameplay mutation, raw socket bypass, or user Script interruption. **Slice 7.1 is VERIFIED.**
+
+Slice 7.2 – Local Character Messaging may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
