@@ -68,6 +68,8 @@ export interface AdventureLandNavigationModel {
   readonly collisionLineCount: number;
   readonly transitionCount: number;
   readonly invalidTransitionCount: number;
+  readonly blockingInvalidTransitionCount: number;
+  readonly ignoredInvalidTransitionCount: number;
   readonly missingGeometryMapKeys: readonly string[];
   readonly maps: Readonly<Record<string, AdventureLandNavigationMap>>;
 }
@@ -81,6 +83,8 @@ export interface AdventureLandMapModelState {
   readonly collisionLineCount: number;
   readonly transitionCount: number;
   readonly invalidTransitionCount: number;
+  readonly blockingInvalidTransitionCount: number;
+  readonly ignoredInvalidTransitionCount: number;
   readonly missingGeometryMapKeys: readonly string[];
   readonly message: string;
 }
@@ -112,6 +116,8 @@ export class AdventureLandMapModelService {
         collisionLineCount: 0,
         transitionCount: 0,
         invalidTransitionCount: 0,
+        blockingInvalidTransitionCount: 0,
+        ignoredInvalidTransitionCount: 0,
         missingGeometryMapKeys: Object.freeze([]),
         message: "Map/geometry model is waiting for Adventure Land game data.",
       });
@@ -125,10 +131,14 @@ export class AdventureLandMapModelService {
       collisionLineCount: model.collisionLineCount,
       transitionCount: model.transitionCount,
       invalidTransitionCount: model.invalidTransitionCount,
+      blockingInvalidTransitionCount: model.blockingInvalidTransitionCount,
+      ignoredInvalidTransitionCount: model.ignoredInvalidTransitionCount,
       missingGeometryMapKeys: model.missingGeometryMapKeys,
-      message: model.invalidTransitionCount > 0
-        ? `Map/geometry model is ready with ${model.invalidTransitionCount} invalid transition reference(s).`
-        : "Map/geometry model is ready.",
+      message: model.blockingInvalidTransitionCount > 0
+        ? `Map/geometry model is ready with ${model.blockingInvalidTransitionCount} invalid active transition reference(s).`
+        : model.ignoredInvalidTransitionCount > 0
+          ? `Map/geometry model is ready. ${model.ignoredInvalidTransitionCount} invalid transition reference(s) belong only to ignored maps and are non-blocking.`
+          : "Map/geometry model is ready.",
     });
   }
 
@@ -147,6 +157,8 @@ export class AdventureLandMapModelService {
       collisionLineCount: model.collisionLineCount,
       transitionCount: model.transitionCount,
       invalidTransitionCount: model.invalidTransitionCount,
+      blockingInvalidTransitionCount: model.blockingInvalidTransitionCount,
+      ignoredInvalidTransitionCount: model.ignoredInvalidTransitionCount,
       missingGeometryMaps: model.missingGeometryMapKeys.length,
     });
     return model;
@@ -200,6 +212,19 @@ export function buildAdventureLandNavigationModel(
   const missingGeometryMapKeys = Object.freeze(
     mapKeys.filter((key) => !asRecord(data.geometry[key])),
   );
+  const invalidTransitionCount = mapValues.reduce(
+    (total, map) =>
+      total + map.transitions.filter((transition) => !transition.valid).length,
+    0,
+  );
+  const blockingInvalidTransitionCount = mapValues.reduce(
+    (total, map) =>
+      total +
+      (map.ignored
+        ? 0
+        : map.transitions.filter((transition) => !transition.valid).length),
+    0,
+  );
   return Object.freeze({
     version: data.version,
     mapCount: mapValues.length,
@@ -213,11 +238,10 @@ export function buildAdventureLandNavigationModel(
       (total, map) => total + map.transitions.length,
       0,
     ),
-    invalidTransitionCount: mapValues.reduce(
-      (total, map) =>
-        total + map.transitions.filter((transition) => !transition.valid).length,
-      0,
-    ),
+    invalidTransitionCount,
+    blockingInvalidTransitionCount,
+    ignoredInvalidTransitionCount:
+      invalidTransitionCount - blockingInvalidTransitionCount,
     missingGeometryMapKeys,
     maps: Object.freeze(maps),
   });

@@ -104,24 +104,9 @@ export class Slice61LiveTestService {
     });
 
     try {
-      const character = this.#character.state();
-      if (
-        character.status !== "connected" ||
-        !character.character?.map
-      ) {
-        throw new Slice61Failure(
-          "LIVE_TEST_CHARACTER_NOT_CONNECTED",
-          "Connect one headless character before running the Slice 6.1 map/geometry-model test.",
-          "preflight",
-          true,
-        );
-      }
-
-      let data = this.#gameData.data();
-      if (!data) {
-        await this.#gameData.loadNow(true);
-        data = this.#gameData.data();
-      }
+      const initialCharacter = this.#character.state();
+      await this.#gameData.loadNow(true);
+      const data = this.#gameData.data();
       if (!data || this.#gameData.state().status !== "loaded") {
         throw new Slice61Failure(
           "LIVE_TEST_GAME_DATA_UNAVAILABLE",
@@ -165,19 +150,25 @@ export class Slice61LiveTestService {
           mapsWithBounds: model.mapsWithBounds,
           missingGeometryMapCount: model.missingGeometryMapKeys.length,
           missingGeometryMapKeys: model.missingGeometryMapKeys,
+          invalidTransitionCount: model.invalidTransitionCount,
+          blockingInvalidTransitionCount: model.blockingInvalidTransitionCount,
+          ignoredInvalidTransitionCount: model.ignoredInvalidTransitionCount,
         }),
       }));
 
-      if (model.invalidTransitionCount !== 0) {
+      if (model.blockingInvalidTransitionCount !== 0) {
         throw new Slice61Failure(
           "LIVE_TEST_INVALID_TRANSITION_REFERENCES",
-          `The live map model contains ${model.invalidTransitionCount} invalid door/transition reference(s).`,
+          `The live map model contains ${model.blockingInvalidTransitionCount} invalid active door/transition reference(s).`,
           "transitions",
         );
       }
+      const currentCharacterMap = initialCharacter.status === "connected"
+        ? initialCharacter.character?.map
+        : undefined;
       const representative = selectRepresentativeMap(
         model.maps,
-        character.character.map,
+        currentCharacterMap,
       );
       if (!representative) {
         throw new Slice61Failure(
@@ -193,9 +184,10 @@ export class Slice61LiveTestService {
         evidence: Object.freeze({
           map: representative.key,
           name: representative.name,
-          currentCharacterMap: character.character.map,
+          currentCharacterMap,
           representsCurrentCharacterMap:
-            representative.key === character.character.map,
+            currentCharacterMap !== undefined &&
+            representative.key === currentCharacterMap,
           bounds: representative.bounds,
         }),
       }));
@@ -240,24 +232,31 @@ export class Slice61LiveTestService {
         evidence: Object.freeze({
           totalTransitionCount: model.transitionCount,
           invalidTransitionCount: model.invalidTransitionCount,
+          blockingInvalidTransitionCount: model.blockingInvalidTransitionCount,
+          ignoredInvalidTransitionCount: model.ignoredInvalidTransitionCount,
           sampleTransition: transition,
         }),
       }));
 
       const finalCharacter = this.#character.state();
-      if (finalCharacter.status !== "connected") {
+      if (
+        initialCharacter.status === "connected" &&
+        finalCharacter.status !== "connected"
+      ) {
         throw new Slice61Failure(
           "LIVE_TEST_CHARACTER_DISCONNECTED",
-          "The character disconnected while the passive map-model test was running.",
+          "A character that was already connected disconnected while the passive map-model test was running.",
           "final-state",
         );
       }
       steps.push(Object.freeze({
         name: "final-state",
         outcome: "passed",
-        message: "The passive model test completed without gameplay mutation or transport access.",
+        message: "The passive model test completed without requiring or mutating a Character connection.",
         evidence: Object.freeze({
-          characterStatus: finalCharacter.status,
+          characterRequired: false,
+          characterStatusBefore: initialCharacter.status,
+          characterStatusAfter: finalCharacter.status,
           characterMap: finalCharacter.character?.map,
           heartbeatSequence: finalCharacter.heartbeatSequence,
           pingMs: finalCharacter.pingMs,
@@ -273,8 +272,8 @@ export class Slice61LiveTestService {
         outcome: "passed",
         startedAt,
         completedAt: this.#clock().toISOString(),
-        characterName: character.characterName,
-        serverKey: character.serverKey,
+        characterName: initialCharacter.characterName,
+        serverKey: initialCharacter.serverKey,
         message: "Slice 6.1 passed: maps, boundaries, door transitions, and collision-relevant geometry were verified against live Adventure Land data.",
         steps: Object.freeze(steps),
       });
@@ -292,6 +291,9 @@ export class Slice61LiveTestService {
         transitionCount: model.transitionCount,
         collisionLineCount: model.collisionLineCount,
         representativeMap: representative.key,
+        characterRequired: false,
+        blockingInvalidTransitionCount: model.blockingInvalidTransitionCount,
+        ignoredInvalidTransitionCount: model.ignoredInvalidTransitionCount,
         gameplayMutation: false,
         rawSocketAccess: false,
         pathfinding: false,
@@ -362,7 +364,7 @@ class Slice61Failure extends Error {
 
 function selectRepresentativeMap(
   maps: Readonly<Record<string, AdventureLandNavigationMap>>,
-  currentMap: string,
+  currentMap?: string,
 ): AdventureLandNavigationMap | undefined {
   const usable = (map: AdventureLandNavigationMap | undefined) =>
     Boolean(
@@ -375,7 +377,7 @@ function selectRepresentativeMap(
       ),
     );
 
-  const current = maps[currentMap];
+  const current = currentMap ? maps[currentMap] : undefined;
   if (usable(current)) return current;
   const main = maps.main;
   if (usable(main)) return main;

@@ -416,11 +416,12 @@ diagnostics.registerComponent("map-model", () => {
   const state = mapModelService!.state();
   return {
     name: "map-model",
-    status: state.status === "ready" && state.invalidTransitionCount === 0
-      ? "healthy"
-      : state.status === "unavailable"
+    status:
+      state.status === "ready" && state.blockingInvalidTransitionCount === 0
         ? "healthy"
-        : "degraded",
+        : state.status === "unavailable"
+          ? "healthy"
+          : "degraded",
     message: state.message,
   };
 });

@@ -1372,13 +1372,13 @@ function renderSlice61LiveTest() {
   elements.copySlice61LiveTestResult.hidden = !state.slice61LastReport;
   if (status === "running") {
     elements.slice61LiveTestNote.textContent =
-      "Validating live maps, boundaries, door target-spawn references, and collision-relevant geometry. No movement or pathfinding is performed.";
+      "Reloading and validating live maps, boundaries, door target-spawn references, and collision-relevant geometry. No Character connection, movement, or pathfinding is required.";
   } else if (test?.message) {
     elements.slice61LiveTestNote.textContent =
       `${test.message} The complete report is copied automatically when the test finishes.`;
   } else {
     elements.slice61LiveTestNote.textContent =
-      "Passive live-data validation only. No movement, pathfinding, gameplay action, or raw socket access is used.";
+      "Passive live-data validation only. No headless Character is required, and no movement, pathfinding, gameplay action, or raw socket access is used.";
   }
 }
 
