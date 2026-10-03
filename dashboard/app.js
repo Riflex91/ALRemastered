@@ -44,6 +44,9 @@ const state = {
   characterSessions: null,
   slice71LiveTest: null,
   slice71LastReport: null,
+  characterMessaging: null,
+  slice72LiveTest: null,
+  slice72LastReport: null,
   movementDebug: null,
   update: null,
   gameVersion: null,
@@ -211,6 +214,15 @@ const elements = {
   slice71LiveTestStatus: document.querySelector("#slice-7-1-live-test-status"),
   slice71LiveTestNote: document.querySelector("#slice-7-1-live-test-note"),
   copySlice71LiveTestResult: document.querySelector("#copy-slice-7-1-live-test-result"),
+  characterMessagingStatus: document.querySelector("#character-messaging-status"),
+  characterMessagingRequests: document.querySelector("#character-messaging-requests"),
+  characterMessagingDeliveries: document.querySelector("#character-messaging-deliveries"),
+  characterMessagingUnavailable: document.querySelector("#character-messaging-unavailable"),
+  characterMessagingNote: document.querySelector("#character-messaging-note"),
+  startSlice72LiveTest: document.querySelector("#start-slice-7-2-live-test"),
+  slice72LiveTestStatus: document.querySelector("#slice-7-2-live-test-status"),
+  slice72LiveTestNote: document.querySelector("#slice-7-2-live-test-note"),
+  copySlice72LiveTestResult: document.querySelector("#copy-slice-7-2-live-test-result"),
   movementDebugStatus: document.querySelector("#movement-debug-status"),
   movementDebugTrailCount: document.querySelector("#movement-debug-trail-count"),
   movementDebugMovementCount: document.querySelector("#movement-debug-movement-count"),
@@ -1557,6 +1569,54 @@ function renderSlice71LiveTest() {
   }
 }
 
+function renderCharacterMessaging() {
+  const messaging = state.characterMessaging;
+  if (!messaging) {
+    elements.characterMessagingStatus.textContent = "Waiting";
+    elements.characterMessagingRequests.textContent = "0";
+    elements.characterMessagingDeliveries.textContent = "0";
+    elements.characterMessagingUnavailable.textContent = "0";
+    return;
+  }
+
+  elements.characterMessagingStatus.textContent =
+    messaging.status === "ready" ? "Ready" : "Unavailable";
+  elements.characterMessagingRequests.textContent =
+    String(messaging.requestCount ?? 0);
+  elements.characterMessagingDeliveries.textContent =
+    String(messaging.localDeliveryCount ?? 0);
+  elements.characterMessagingUnavailable.textContent =
+    String(messaging.unavailableRecipientCount ?? 0);
+  elements.characterMessagingNote.textContent = messaging.message ??
+    "Local send_cm() messaging is available for active Character sessions.";
+}
+
+function renderSlice72LiveTest() {
+  const test = state.slice72LiveTest;
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    blocked: "BLOCKED",
+    failed: "FAILED",
+    unavailable: "Unavailable",
+  };
+  const status = test?.status ?? "idle";
+  elements.slice72LiveTestStatus.textContent = labels[status] ?? status;
+  elements.startSlice72LiveTest.disabled = status === "running";
+  elements.copySlice72LiveTestResult.hidden = !state.slice72LastReport;
+  if (status === "running") {
+    elements.slice72LiveTestNote.textContent =
+      "Connecting one temporary managed Character, sending one local send_cm() probe plus one local reply, then removing only the temporary session. The user Script runtime is not replaced.";
+  } else if (test?.message) {
+    elements.slice72LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  } else {
+    elements.slice72LiveTestNote.textContent =
+      "Requires one connected primary Character, one additional offline Character, and no running or paused user script. The probe uses only local in-process messaging, performs no gameplay mutation, and does not use raw-socket/server CM routing.";
+  }
+}
+
 function renderMovementDebug() {
   const debug = state.movementDebug;
   if (!debug) {
@@ -2253,6 +2313,47 @@ async function refreshSlice71LiveTest() {
       message: "Slice 7.1 multi-character session-test status could not be loaded.",
     };
     renderSlice71LiveTest();
+  }
+}
+
+async function refreshCharacterMessaging() {
+  try {
+    const response = await fetch("/api/character-messaging", { cache: "no-store" });
+    state.characterMessaging = response.ok
+      ? await response.json()
+      : {
+        status: "unavailable",
+        requestCount: 0,
+        localDeliveryCount: 0,
+        unavailableRecipientCount: 0,
+        message: "Local Character messaging is unavailable.",
+      };
+    renderCharacterMessaging();
+  } catch {
+    state.characterMessaging = {
+      status: "unavailable",
+      requestCount: 0,
+      localDeliveryCount: 0,
+      unavailableRecipientCount: 0,
+      message: "Local Character messaging status could not be loaded.",
+    };
+    renderCharacterMessaging();
+  }
+}
+
+async function refreshSlice72LiveTest() {
+  try {
+    const response = await fetch("/api/live-test/slice-7-2", { cache: "no-store" });
+    state.slice72LiveTest = response.ok
+      ? await response.json()
+      : { status: "unavailable", message: "Slice 7.2 local Character messaging test is unavailable." };
+    renderSlice72LiveTest();
+  } catch {
+    state.slice72LiveTest = {
+      status: "unavailable",
+      message: "Slice 7.2 local Character messaging status could not be loaded.",
+    };
+    renderSlice72LiveTest();
   }
 }
 
@@ -3150,6 +3251,40 @@ async function startSlice71LiveTest(clipboardWrite) {
   renderSlice71LiveTest();
   await refreshCharacterConnection();
   await refreshCharacterSessions();
+  await refreshDiagnostics();
+  return { payload, copied };
+}
+
+async function startSlice72LiveTest(clipboardWrite) {
+  state.slice72LiveTest = {
+    status: "running",
+    message: "Slice 7.2 local Character messaging test is running.",
+  };
+  renderSlice72LiveTest();
+  const response = await fetch("/api/live-test/slice-7-2/start", { method: "POST" });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      payload.error ??
+        payload.message ??
+        `Slice 7.2 local Character messaging test failed with HTTP ${response.status}`,
+    );
+  }
+  if (!payload.reportText || typeof payload.reportText !== "string") {
+    throw new Error("Slice 7.2 local Character messaging test returned no copyable report.");
+  }
+  state.slice72LastReport = payload.reportText;
+  state.slice72LiveTest = {
+    status: payload.result?.outcome ?? "failed",
+    message: payload.result?.message ?? "Slice 7.2 local Character messaging test finished.",
+    lastResult: payload.result,
+  };
+  const copied = await clipboardWrite.finish(payload.reportText);
+  renderSlice72LiveTest();
+  await refreshCharacterConnection();
+  await refreshCharacterSessions();
+  await refreshCharacterMessaging();
+  await refreshScriptRuntime();
   await refreshDiagnostics();
   return { payload, copied };
 }
@@ -4269,6 +4404,47 @@ elements.copySlice71LiveTestResult.addEventListener("click", async () => {
   }
 });
 
+elements.startSlice72LiveTest.addEventListener("click", async () => {
+  if (state.slice72LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice72LastReport = null;
+  elements.copySlice72LiveTestResult.hidden = true;
+  setFeedback(
+    "Slice 7.2 local Character messaging test started. One temporary Character session and an isolated probe worker will verify send_cm() plus character.on('cm') without replacing the user script.",
+  );
+  try {
+    const { payload, copied } = await startSlice72LiveTest(clipboardWrite);
+    const outcome = payload.result?.outcome ?? "failed";
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 7.2 test ${String(outcome).toUpperCase()}. ${copyMessage}`,
+      outcome === "passed" && copied ? "success" : outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    await refreshSlice72LiveTest();
+    setFeedback(`Slice 7.2 local Character messaging test could not finish: ${error.message}`, "error");
+  } finally {
+    renderSlice72LiveTest();
+    await refreshCharacterSessions();
+    await refreshCharacterMessaging();
+  }
+});
+
+elements.copySlice72LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice72LastReport) return;
+  try {
+    await writeClipboard(state.slice72LastReport);
+    setFeedback(
+      "Complete Slice 7.2 local Character messaging result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Local Character messaging result copy failed: ${error.message}`, "error");
+  }
+});
+
 elements.reloadGameData.addEventListener("click", async () => {
   elements.reloadGameData.disabled = true;
   setFeedback("Reloading Adventure Land game data…");
@@ -4395,6 +4571,8 @@ await refreshSlice63LiveTest();
 await refreshSlice64LiveTest();
 await refreshCharacterSessions();
 await refreshSlice71LiveTest();
+await refreshCharacterMessaging();
+await refreshSlice72LiveTest();
 await refreshMovementDebug();
 await refreshGameVersion();
 await refreshGameData();
@@ -4427,6 +4605,8 @@ setInterval(refreshSlice63LiveTest, 1500);
 setInterval(refreshSlice64LiveTest, 1500);
 setInterval(refreshCharacterSessions, 1500);
 setInterval(refreshSlice71LiveTest, 1500);
+setInterval(refreshCharacterMessaging, 1500);
+setInterval(refreshSlice72LiveTest, 1500);
 setInterval(refreshMovementDebug, 1500);
 setInterval(refreshGameVersion, 2000);
 setInterval(refreshGameData, 2000);
