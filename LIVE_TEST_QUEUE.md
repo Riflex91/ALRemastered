@@ -83,6 +83,27 @@ CI note: the original PR #56 Linux jobs on `ubuntu-22.04` remained queued withou
 
 **Current correction retest rule:** update to installed `0.1.0-alpha.27`. Perform exactly **one** bounded Move attempt first. Require both `outcome:"success"` and an actual canonical live `x/y` change. Only then perform exactly one direct-path XMove. Do not begin Slice 3.3 until both pass.
 
+### Live attempt 4 – alpha.27 canonical movement reached target / late rollback FAILED
+
+- Windows client: `0.1.0-alpha.27`
+- Automatic updater/restart into alpha.27: observed successfully
+- Diagnostic export: `Secrets sanitized: yes`
+- A pre-connect dashboard Move correctly failed with `CHARACTER_NOT_CONNECTED`; it is guard evidence only and is not counted as the movement attempt.
+- Headless character: `My_Ranger1` connected on EU II at `main (-1193.4472875234312, -42.474173958785244)`
+- One bounded post-connect Move request: `act-79e98b75-ef51-402f-9d88-c5077035cb48`
+- Gateway result: `character.move`, `origin:"dashboard"`, `outcome:"success"`, duration 281 ms
+- Canonical live position visibly advanced:
+  - start y: `-42.474173958785244`
+  - observed intermediate y: `-30.26117455512309`
+  - exact 32-unit target y: `-10.474173958785244`
+- A later in-flight own-player entity snapshot rolled canonical y back to `-30.26117455512309`; that rollback remained visible through the end of the captured log.
+- Therefore Move is not yet a stable behavioral PASS even though the target was reached and canonical movement synchronization is now proven.
+- XMove: not attempted because stable Move had not passed.
+
+PR #58 targets `0.1.0-alpha.28`. It keeps moving entity snapshots for server confirmation but prevents any own-player snapshot with `moving:true` from overwriting canonical `character.x/y`. Direct player updates and non-moving entity snapshots may still advance canonical position.
+
+**Current correction retest rule:** update to installed `0.1.0-alpha.28`. Perform exactly **one** bounded Move attempt. Require `outcome:"success"`, a canonical live position change toward the 32-unit target, and no subsequent rollback to an older in-flight position. Only if that remains stable should exactly one direct-path XMove be tested. Do not begin Slice 3.3 until both pass.
+
 ### Original alpha.22 dashboard steps retained for historical test intent
 
 1. Start from installed `0.1.0-alpha.21`, choose **Install update**, and confirm the client restarts into `0.1.0-alpha.22`.
@@ -136,7 +157,7 @@ Treat the live test as failed and stop further movement testing if any of these 
 
 Preserve the full log and the two request IDs. Then proceed to the next release in this queue if one has been published; do not wait for Slice 3.2 to be marked VERIFIED before testing later prepared releases.
 
-> 2026-10-03 execution override: testing is now performed strictly in ROADMAP order. Because Slice 3.2 has not yet passed canonical real movement, do **not** proceed to Slice 3.3 until the alpha.27 correction retest satisfies the Slice 3.2 behavioral PASS criteria. The original alpha.22 update-path requirement remains historical/CI evidence and is not retroactively claimed as a live pass.
+> 2026-10-03 execution override: testing is now performed strictly in ROADMAP order. Because Slice 3.2 has not yet passed stable canonical real movement, do **not** proceed to Slice 3.3 until the alpha.28 correction retest satisfies the Slice 3.2 behavioral PASS criteria. The original alpha.22 update-path requirement remains historical/CI evidence and is not retroactively claimed as a live pass.
 
 
 ---
