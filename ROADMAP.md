@@ -48,13 +48,23 @@ Jeder Roadmap-Slice ist eine eigene abgeschlossene Einheit.
 6. Pull Request erstellen
 7. PR gegen aktuellen `main` prüfen
 8. nur bei sauberem Stand mergen
-9. Benutzer testet den **gemergten `main`**
-10. bei Fehler:
-    - Debug-Konsole öffnen
-    - **Gesamten Log kopieren**
-    - Log zur Analyse schicken
-    - Fehler in einem Fix-Slice beheben
-11. erst nach bestandenem Livetest den nächsten geplanten Slice freigeben
+9. Benutzer aktualisiert den installierten Client über **Install update** auf den gemergten/releasten Teststand
+10. Benutzer startet den vorgesehenen Livetest über genau **einen** primären **Start test**-Button
+11. der Test-Harness stellt erforderliche sichere Spielsituationen selbst her oder wählt sie aus frischem Live-State aus, führt die bounded Testkette selbst aus und kopiert nach terminalem Ergebnis automatisch den vollständigen strukturierten Testbericht inklusive sanitisiertem Diagnose-Log in die Zwischenablage
+12. bei `BLOCKED`, `FAILED` oder unklarem Ergebnis wird **keine manuelle Gameplay-Vorbereitung** an den Benutzer delegiert; der kopierte Bericht wird analysiert und der Fehler/fehlende Harness-Schritt in einem Fix-Slice behoben
+13. erst nach bestandenem Livetest den nächsten geplanten Slice freigeben
+
+### Verbindlicher Livetest-Bedienstandard
+
+Für normale ALRemastered-Entwicklungstests ist der Benutzer-Workflow:
+
+```text
+Install update
+→ Start test
+→ automatisch kopierten Bericht an ChatGPT senden
+```
+
+Der Benutzer soll insbesondere **nicht** Monster/Targets/Items/Chests manuell beschaffen oder auswählen, den Character für einen Test manuell positionieren, einzelne Gameplay-Testaktionen nacheinander auslösen oder Diagnose-Logs manuell zusammensuchen müssen. Externe bewusste Freigaben, die technisch zwingend beim Benutzer liegen (z. B. erstmaliger Account-Login oder die explizite Update-Installation), bleiben davon getrennt. Testautomation darf Safety-, Live-Revalidation-, Action-Gateway-, Serverkorrelations- oder No-Blind-Retry-Regeln niemals umgehen.
 
 ## Definition of Done für jeden Slice
 
@@ -1425,3 +1435,35 @@ Successful bounded live attempt:
 
 Result: the bounded dashboard Skills path passed the required real-user live test with the exact selected safe skill and Adventure Land server acceptance. **Slice 3.4 is VERIFIED.**
 
+
+
+---
+
+## Append-only live-test correction record — Slice 3.5 Loot / Consumables — 2026-10-03
+
+**Status remains: MERGED – AWAITING USER TEST.**
+
+Historical alpha.29 evidence is retained:
+
+- Windows client updated successfully to `0.1.0-alpha.29` through the dashboard and restarted automatically.
+- The real account/server/headless character connection succeeded for `My_Ranger1` on EU II.
+- Consumable Test A passed with exactly one `character.consume` request, request `act-27dd4e7c-94aa-4715-977e-742704091af9`, `origin:"dashboard"`, exact inventory slot 10 / `mpot0`, `serverAccepted:true`, gateway `outcome:"success"`, and live MP `833 → 1065`.
+- The complete supplied alpha.29 diagnostic export reported `Secrets sanitized: yes`.
+
+The alpha.29 manual Loot Test B workflow is **not accepted as the final user test UX**. Preparing a chest in a separate browser character session and then switching to the headless session loses that ephemeral chest observation, while asking the user to generate/position/select the chest manually violates the now-explicit one-click Livetest Bedienstandard.
+
+Correction target: `0.1.0-alpha.30`.
+
+The correction adds:
+
+- ephemeral in-memory update handoff for the already connected Adventure Land session, selected server, and active headless character; no password/auth is persisted to disk and the handoff environment value is deleted immediately by the restarted client;
+- one dashboard **Start test** action for Slice 3.5;
+- automatic bounded safe-state preparation using the existing Action Gateway services only;
+- preference for an already observed headless-session chest before any combat preparation;
+- bounded safe loot preparation when no chest exists, with fresh live-state checks and no retry after an uncertain mutation;
+- automatic validated HP/MP consumable selection; when necessary, a bounded non-hostile no-target skill may create an MP deficit before the one consumable use;
+- terminal `PASSED`, `BLOCKED`, or `FAILED` result generation;
+- automatic clipboard copy of the complete structured test result plus sanitized diagnostic export after completion;
+- old individual Phase 3 controls retained only under collapsed **Developer manual controls**, not as the normal user test path.
+
+The alpha.30 real-user retest must use only **Install update → Start test → paste the automatically copied report**. Slice 3.5 must not be marked VERIFIED until that real report is reviewed.
