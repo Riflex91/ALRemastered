@@ -43,7 +43,7 @@ test("Slice 4.2 one-click farmer runs compatible script API through the producti
   let now = 100_000;
   const gateway = new ActionGateway({
     logger,
-    nowMs: () => now,
+    nowMs: () => Date.now(),
     idFactory: (() => {
       let id = 0;
       return () => `act-live42-${++id}`;
@@ -110,12 +110,14 @@ test("Slice 4.2 one-click farmer runs compatible script API through the producti
         state.entities.length === 1 &&
         state.entities[0]?.id === "monster-1"
       ) {
+        const bootstrapSnapshot = structuredClone(state);
         state.entities = [{
           ...state.entities[0],
           id: "monster-2",
           name: "monster-2",
           x: 145,
         }];
+        return bootstrapSnapshot;
       }
       return structuredClone(state);
     },
@@ -245,6 +247,22 @@ test("Slice 4.2 one-click farmer runs compatible script API through the producti
       logs.some((record) =>
         record.component === "script:slice-4-2-live-farmer" &&
         record.message === "slice42:target-reacquired:monster-1:monster-2"
+      ),
+      true,
+    );
+    assert.equal(
+      logs.some((record) =>
+        record.message === "Action gateway request rate-limited." &&
+        (record.context as any)?.origin === "script" &&
+        (record.context as any)?.action === "character.attack" &&
+        (record.context as any)?.errorCode === "ACTION_RATE_LIMITED"
+      ),
+      true,
+    );
+    assert.equal(
+      logs.some((record) =>
+        record.component === "script:slice-4-2-live-farmer" &&
+        record.message.startsWith("slice42:rate-limit-wait:")
       ),
       true,
     );
