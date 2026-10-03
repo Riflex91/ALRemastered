@@ -490,6 +490,25 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
 
   applyEntities(data: Record<string, unknown>): void {
     this.#world = applyEntityPacket(this.#world, data);
+    const own = this.#world.entities.find((entity) =>
+      entity.kind === "player" &&
+      (entity.id === this.#character.name || entity.name === this.#character.name)
+    );
+    if (own) {
+      const patch: Record<string, unknown> = {};
+      if (own.name) patch.name = own.name;
+      if (own.type && own.type !== "player") patch.ctype = own.type;
+      if (own.map !== undefined) patch.map = own.map;
+      if (own.x !== undefined) patch.x = own.x;
+      if (own.y !== undefined) patch.y = own.y;
+      if (own.hp !== undefined) patch.hp = own.hp;
+      if (own.maxHp !== undefined) patch.max_hp = own.maxHp;
+      if (own.level !== undefined) patch.level = own.level;
+      if (own.target !== undefined) patch.target = own.target;
+      if (Object.keys(patch).length) {
+        this.#character = mergeConnectedCharacter(this.#character, patch);
+      }
+    }
     this.#touch();
   }
 
