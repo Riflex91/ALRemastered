@@ -329,9 +329,11 @@ export class AdventureLandCharacterService {
       let receipt: AdventureLandDirectMovementReceipt | undefined;
       let unsubscribe = () => {};
       let timer: ReturnType<typeof setTimeout> | undefined;
+      const refreshTimers: ReturnType<typeof setTimeout>[] = [];
 
       const cleanup = () => {
         if (timer) clearTimeout(timer);
+        for (const refreshTimer of refreshTimers) clearTimeout(refreshTimer);
         unsubscribe();
         input.signal?.removeEventListener("abort", onAbort);
       };
@@ -378,10 +380,28 @@ export class AdventureLandCharacterService {
           "Adventure Land did not confirm the requested movement.",
           "movement_not_confirmed",
         ));
-      }, 1_100);
+      }, 1_300);
+
+      const refresh = () => {
+        if (settled) return;
+        try {
+          connection.requestStateRefresh();
+        } catch (error) {
+          fail(error instanceof AdventureLandCharacterTransportError
+            ? error
+            : new AdventureLandCharacterTransportError(
+              error instanceof Error ? error.message : String(error),
+              "movement_state_refresh_failed",
+            ));
+        }
+      };
 
       try {
         receipt = connection.sendMove(input);
+        refresh();
+        for (const delayMs of [250, 650, 1_000]) {
+          refreshTimers.push(setTimeout(refresh, delayMs));
+        }
       } catch (error) {
         fail(error instanceof AdventureLandCharacterTransportError
           ? error
@@ -470,6 +490,7 @@ function liveStateContext(state: AdventureLandCharacterLiveState): Record<string
     map: state.character.map,
     x: state.character.x,
     y: state.character.y,
+    movementSequence: state.character.movementSequence,
     angle: state.character.angle,
     direction: state.character.direction,
     directionLabel: state.character.directionLabel,

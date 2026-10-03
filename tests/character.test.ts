@@ -145,6 +145,8 @@ test("headless transport follows welcome-loaded-auth-start without automation ev
     "move",
     { x: 12, y: 34, going_x: 44, going_y: 34, m: 7 },
   ]);
+  connection.requestStateRefresh();
+  assert.equal(socket.sent.at(-1), '42["send_updates"]');
 
   const attackPromise = connection.sendAttack({ targetId: "14" });
   const attackPacket = socket.sent.find((packet) =>
@@ -238,11 +240,15 @@ test("headless transport follows welcome-loaded-auth-start without automation ev
   assert.equal(liveState.character.gold, 123000);
   assert.deepEqual(Object.keys(liveState.character.conditions ?? {}).sort(), ["energized", "mluck"]);
 
-  socket.message('42["entities",{"type":"all","players":[{"id":"MageOne","name":"MageOne","ctype":"mage","level":50,"x":25,"y":45,"hp":3000,"max_hp":3000,"party":"RangerOne"}],"monsters":[{"id":"goo-1","mtype":"goo","x":35,"y":45,"hp":120,"max_hp":120,"target":"RangerOne"}]}]');
+  socket.message('42["entities",{"type":"all","players":[{"id":"MageOne","name":"MageOne","ctype":"mage","level":50,"x":25,"y":45,"moving":true,"going_x":57,"going_y":45,"move_num":12,"hp":3000,"max_hp":3000,"party":"RangerOne"}],"monsters":[{"id":"goo-1","mtype":"goo","x":35,"y":45,"hp":120,"max_hp":120,"target":"RangerOne"}]}]');
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(liveState.entities.length, 2);
   assert.equal(liveState.entities.find((entity) => entity.id === "MageOne")?.kind, "player");
   assert.equal(liveState.entities.find((entity) => entity.id === "MageOne")?.type, "mage");
+  assert.equal(liveState.entities.find((entity) => entity.id === "MageOne")?.moving, true);
+  assert.equal(liveState.entities.find((entity) => entity.id === "MageOne")?.goingX, 57);
+  assert.equal(liveState.entities.find((entity) => entity.id === "MageOne")?.goingY, 45);
+  assert.equal(liveState.entities.find((entity) => entity.id === "MageOne")?.moveNum, 12);
   assert.equal(liveState.entities.find((entity) => entity.id === "goo-1")?.kind, "monster");
   assert.equal(liveState.entities.find((entity) => entity.id === "goo-1")?.type, "goo");
 
@@ -304,6 +310,7 @@ test("character service allows exactly one connection and disconnects controllab
   let unexpectedClose: ((reason?: string) => void) | undefined;
   const liveListeners = new Set<(state: any) => void>();
   let closeCalls = 0;
+  let stateRefreshCalls = 0;
   const connection: AdventureLandCharacterConnection = {
     character: {
       id: "CH_1",
@@ -355,6 +362,9 @@ test("character service allows exactly one connection and disconnects controllab
     },
     onUnexpectedClose(listener) {
       unexpectedClose = listener;
+    },
+    requestStateRefresh() {
+      stateRefreshCalls += 1;
     },
     sendMove(input) {
       return {
@@ -421,10 +431,21 @@ test("character service allows exactly one connection and disconnects controllab
     listener({
       character: {
         ...connection.character,
-        x: 20,
+        x: 12,
         y: 34,
       },
-      entities: [],
+      entities: [{
+        id: "RangerOne",
+        kind: "player",
+        name: "RangerOne",
+        type: "ranger",
+        x: 20,
+        y: 34,
+        moving: true,
+        goingX: 44,
+        goingY: 34,
+        moveNum: 1,
+      }],
       party: {
         inParty: true,
         leader: "RangerOne",
@@ -435,6 +456,7 @@ test("character service allows exactly one connection and disconnects controllab
       updatedAt: "2026-10-02T20:05:00.100Z",
     });
   }
+  assert.equal(stateRefreshCalls, 1);
   assert.deepEqual(await movePromise, {
     fromX: 12,
     fromY: 34,
