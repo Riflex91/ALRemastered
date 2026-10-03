@@ -82,6 +82,7 @@ export interface SimplePathPlannerState {
 export interface SimplePathPlannerOptions {
   readonly logger: Logger;
   readonly mapModel: Pick<AdventureLandMapModelService, "model">;
+  readonly onPlan?: (plan: PathPlanResult) => void;
 }
 
 type GraphNode = {
@@ -116,6 +117,7 @@ const TRANSITION_COST = 48;
 export class SimplePathPlannerService {
   readonly #logger: Logger;
   readonly #mapModel: SimplePathPlannerOptions["mapModel"];
+  readonly #onPlan?: SimplePathPlannerOptions["onPlan"];
   #plannedRoutes = 0;
   #reachableRoutes = 0;
   #lastPlan?: PathPlanResult;
@@ -123,6 +125,7 @@ export class SimplePathPlannerService {
   constructor(options: SimplePathPlannerOptions) {
     this.#logger = options.logger;
     this.#mapModel = options.mapModel;
+    this.#onPlan = options.onPlan;
   }
 
   state(): SimplePathPlannerState {
@@ -155,6 +158,13 @@ export class SimplePathPlannerService {
 
     if (result.status === "reachable") this.#reachableRoutes += 1;
     this.#lastPlan = result;
+    try {
+      this.#onPlan?.(structuredClone(result));
+    } catch (error) {
+      this.#logger.warn("Path-plan telemetry observer failed.", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
     this.#logger.info("Simple navigation route planned.", {
       status: result.status,
       reasonCode: result.reasonCode,
