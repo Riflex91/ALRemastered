@@ -12,6 +12,9 @@ const state = {
   lootConsumableOptions: null,
   slice35LiveTest: null,
   slice35LastReport: null,
+  scriptRuntime: null,
+  slice41LiveTest: null,
+  slice41LastReport: null,
   update: null,
   gameVersion: null,
   gameData: null,
@@ -97,6 +100,20 @@ const elements = {
   slice35LiveTestStatus: document.querySelector("#slice-3-5-live-test-status"),
   slice35LiveTestNote: document.querySelector("#slice-3-5-live-test-note"),
   copySlice35LiveTestResult: document.querySelector("#copy-slice-3-5-live-test-result"),
+  scriptRuntimeStatus: document.querySelector("#script-runtime-status"),
+  scriptRuntimeName: document.querySelector("#script-runtime-name"),
+  scriptRuntimeTimers: document.querySelector("#script-runtime-timers"),
+  scriptRuntimeLogRecords: document.querySelector("#script-runtime-log-records"),
+  scriptRuntimeScriptName: document.querySelector("#script-runtime-script-name"),
+  scriptRuntimeSource: document.querySelector("#script-runtime-source"),
+  scriptRuntimeLoad: document.querySelector("#script-runtime-load"),
+  scriptRuntimeStart: document.querySelector("#script-runtime-start"),
+  scriptRuntimePause: document.querySelector("#script-runtime-pause"),
+  scriptRuntimeStop: document.querySelector("#script-runtime-stop"),
+  startSlice41LiveTest: document.querySelector("#start-slice-4-1-live-test"),
+  slice41LiveTestStatus: document.querySelector("#slice-4-1-live-test-status"),
+  slice41LiveTestNote: document.querySelector("#slice-4-1-live-test-note"),
+  copySlice41LiveTestResult: document.querySelector("#copy-slice-4-1-live-test-result"),
   gameVersion: document.querySelector("#game-version"),
   gameVersionStatus: document.querySelector("#game-version-status"),
   gameLastDeploy: document.querySelector("#game-last-deploy"),
@@ -974,6 +991,59 @@ function renderSlice35LiveTest() {
   }
 }
 
+function renderScriptRuntime() {
+  const runtime = state.scriptRuntime;
+  const status = runtime?.status ?? "unavailable";
+  const labels = {
+    unloaded: "No script loaded",
+    loaded: "Loaded",
+    running: "Running",
+    paused: "Paused",
+    stopped: "Stopped",
+    crashed: "Crashed",
+    unavailable: "Unavailable",
+  };
+
+  elements.scriptRuntimeStatus.textContent = labels[status] ?? status;
+  elements.scriptRuntimeStatus.title = runtime?.message ?? "";
+  elements.scriptRuntimeName.textContent = runtime?.scriptName ?? "—";
+  elements.scriptRuntimeTimers.textContent = String(runtime?.activeTimers ?? 0);
+  elements.scriptRuntimeLogRecords.textContent = String(runtime?.logRecords ?? 0);
+
+  elements.scriptRuntimeStart.disabled =
+    !runtime || status === "unavailable" || status === "unloaded" || status === "running";
+  elements.scriptRuntimePause.disabled = status !== "running";
+  elements.scriptRuntimeStop.disabled =
+    !runtime || status === "unavailable" || status === "unloaded" || status === "stopped";
+}
+
+function renderSlice41LiveTest() {
+  const test = state.slice41LiveTest;
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    blocked: "BLOCKED",
+    failed: "FAILED",
+    unavailable: "Unavailable",
+  };
+  const status = test?.status ?? "idle";
+  elements.slice41LiveTestStatus.textContent = labels[status] ?? status;
+  elements.startSlice41LiveTest.disabled = status === "running";
+  elements.copySlice41LiveTestResult.hidden = !state.slice41LastReport;
+
+  if (status === "running") {
+    elements.slice41LiveTestNote.textContent =
+      "The test is automatically exercising the isolated script lifecycle. No Adventure Land gameplay preparation is required.";
+  } else if (test?.message) {
+    elements.slice41LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  } else {
+    elements.slice41LiveTestNote.textContent =
+      "The test automatically verifies script loading, isolated start, timer cleanup on pause and stop, crash isolation, recovery after a script crash, and separately marked script logs. No Adventure Land gameplay preparation is required.";
+  }
+}
+
 function renderGameVersion() {
   const gameVersion = state.gameVersion;
   if (!gameVersion) return;
@@ -1313,6 +1383,50 @@ async function refreshSlice35LiveTest() {
       message: "Slice 3.5 one-click live-test status could not be loaded.",
     };
     renderSlice35LiveTest();
+  }
+}
+
+async function refreshScriptRuntime() {
+  try {
+    const response = await fetch("/api/script-runtime", { cache: "no-store" });
+    if (!response.ok) {
+      state.scriptRuntime = {
+        status: "unavailable",
+        message: "Script runtime is unavailable.",
+      };
+    } else {
+      state.scriptRuntime = await response.json();
+    }
+    renderScriptRuntime();
+  } catch {
+    state.scriptRuntime = {
+      status: "unavailable",
+      message: "Script runtime status could not be loaded.",
+    };
+    renderScriptRuntime();
+  }
+}
+
+async function refreshSlice41LiveTest() {
+  try {
+    const response = await fetch("/api/live-test/slice-4-1", {
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      state.slice41LiveTest = {
+        status: "unavailable",
+        message: "Slice 4.1 one-click live test is unavailable.",
+      };
+    } else {
+      state.slice41LiveTest = await response.json();
+    }
+    renderSlice41LiveTest();
+  } catch {
+    state.slice41LiveTest = {
+      status: "unavailable",
+      message: "Slice 4.1 one-click live-test status could not be loaded.",
+    };
+    renderSlice41LiveTest();
   }
 }
 
@@ -1695,6 +1809,56 @@ async function startSlice35LiveTest(clipboardWrite) {
   await refreshActionGateway();
   await refreshSkillOptions();
   await refreshLootConsumableOptions();
+
+  return { payload, copied };
+}
+
+async function scriptRuntimeAction(path, body) {
+  const options = { method: "POST" };
+  if (body !== undefined) {
+    options.headers = { "Content-Type": "application/json" };
+    options.body = JSON.stringify(body);
+  }
+  const response = await fetch(path, options);
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error ?? payload.message ?? `HTTP ${response.status}`);
+  state.scriptRuntime = payload;
+  renderScriptRuntime();
+  return payload;
+}
+
+async function startSlice41LiveTest(clipboardWrite) {
+  state.slice41LiveTest = {
+    status: "running",
+    message: "Slice 4.1 one-click live test is running.",
+  };
+  renderSlice41LiveTest();
+
+  const response = await fetch("/api/live-test/slice-4-1/start", {
+    method: "POST",
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      payload.error ??
+      payload.message ??
+      `Slice 4.1 live test failed with HTTP ${response.status}`,
+    );
+  }
+  if (!payload.reportText || typeof payload.reportText !== "string") {
+    throw new Error("Slice 4.1 live test returned no copyable report.");
+  }
+
+  state.slice41LastReport = payload.reportText;
+  state.slice41LiveTest = {
+    status: payload.result?.outcome ?? "failed",
+    message: payload.result?.message ?? "Slice 4.1 live test finished.",
+    lastResult: payload.result,
+  };
+  const copied = await clipboardWrite.finish(payload.reportText);
+  renderSlice41LiveTest();
+  await refreshScriptRuntime();
+  await refreshDiagnostics();
 
   return { payload, copied };
 }
@@ -2173,6 +2337,108 @@ elements.copySlice35LiveTestResult.addEventListener("click", async () => {
   }
 });
 
+elements.scriptRuntimeLoad.addEventListener("click", async () => {
+  elements.scriptRuntimeLoad.disabled = true;
+  setFeedback("Loading script into the isolated runtime…");
+  try {
+    const runtime = await scriptRuntimeAction("/api/script-runtime/load", {
+      name: elements.scriptRuntimeScriptName.value,
+      source: elements.scriptRuntimeSource.value,
+    });
+    setFeedback(`Script loaded: ${runtime.scriptName}.`, "success");
+  } catch (error) {
+    setFeedback(`Script load failed: ${error.message}`, "error");
+  } finally {
+    elements.scriptRuntimeLoad.disabled = false;
+    await refreshScriptRuntime();
+  }
+});
+
+elements.scriptRuntimeStart.addEventListener("click", async () => {
+  setFeedback("Starting script in its isolated worker…");
+  try {
+    const runtime = await scriptRuntimeAction("/api/script-runtime/start");
+    setFeedback(
+      runtime.status === "running"
+        ? `Script started: ${runtime.scriptName}.`
+        : `Script start ended with status ${runtime.status}: ${runtime.message}`,
+      runtime.status === "running" ? "success" : "error",
+    );
+  } catch (error) {
+    setFeedback(`Script start failed: ${error.message}`, "error");
+  } finally {
+    await refreshScriptRuntime();
+  }
+});
+
+elements.scriptRuntimePause.addEventListener("click", async () => {
+  setFeedback("Pausing script and clearing its timers…");
+  try {
+    const runtime = await scriptRuntimeAction("/api/script-runtime/pause");
+    setFeedback(`Script status: ${runtime.status}. Active timers: ${runtime.activeTimers}.`, "success");
+  } catch (error) {
+    setFeedback(`Script pause failed: ${error.message}`, "error");
+  } finally {
+    await refreshScriptRuntime();
+  }
+});
+
+elements.scriptRuntimeStop.addEventListener("click", async () => {
+  setFeedback("Stopping script and releasing its worker…");
+  try {
+    const runtime = await scriptRuntimeAction("/api/script-runtime/stop");
+    setFeedback(`Script status: ${runtime.status}. Active timers: ${runtime.activeTimers}.`, "success");
+  } catch (error) {
+    setFeedback(`Script stop failed: ${error.message}`, "error");
+  } finally {
+    await refreshScriptRuntime();
+  }
+});
+
+elements.startSlice41LiveTest.addEventListener("click", async () => {
+  if (state.slice41LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice41LastReport = null;
+  elements.copySlice41LiveTestResult.hidden = true;
+  setFeedback(
+    "Slice 4.1 live test started. Script lifecycle and crash-isolation checks now run automatically.",
+  );
+
+  try {
+    const { payload, copied } = await startSlice41LiveTest(clipboardWrite);
+    const outcome = payload.result?.outcome ?? "failed";
+    const outcomeLabel = String(outcome).toUpperCase();
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 4.1 test ${outcomeLabel}. ${copyMessage}`,
+      outcome === "passed" && copied ? "success" : outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    await refreshSlice41LiveTest();
+    setFeedback(
+      `Slice 4.1 one-click test could not finish: ${error.message}`,
+      "error",
+    );
+  } finally {
+    renderSlice41LiveTest();
+  }
+});
+
+elements.copySlice41LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice41LastReport) return;
+  try {
+    await writeClipboard(state.slice41LastReport);
+    setFeedback(
+      "Complete Slice 4.1 test result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Test-result copy failed: ${error.message}`, "error");
+  }
+});
+
 elements.reloadGameData.addEventListener("click", async () => {
   elements.reloadGameData.disabled = true;
   setFeedback("Reloading Adventure Land game data…");
@@ -2282,6 +2548,8 @@ await refreshActionGateway();
 await refreshSkillOptions();
 await refreshLootConsumableOptions();
 await refreshSlice35LiveTest();
+await refreshScriptRuntime();
+await refreshSlice41LiveTest();
 await refreshGameVersion();
 await refreshGameData();
 await refreshUpdate();
@@ -2296,6 +2564,8 @@ setInterval(refreshActionGateway, 2000);
 setInterval(refreshSkillOptions, 1500);
 setInterval(refreshLootConsumableOptions, 1500);
 setInterval(refreshSlice35LiveTest, 1500);
+setInterval(refreshScriptRuntime, 1500);
+setInterval(refreshSlice41LiveTest, 1500);
 setInterval(refreshGameVersion, 2000);
 setInterval(refreshGameData, 2000);
 setInterval(refreshUpdate, 1500);
