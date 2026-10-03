@@ -2036,7 +2036,7 @@ test("dashboard exposes Slice 6.1 map/geometry-model APIs and one-click test", a
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
   assert.match(html, /map boundaries, door\/transition target-spawn resolution/);
-  assert.match(html, /No movement, pathfinding, gameplay action, or raw socket access/);
+  assert.match(html, /no movement, pathfinding, gameplay action, or raw socket access/i);
   assert.match(script, /\/api\/live-test\/slice-6-1\/start/);
 
   const runtime = new CoreRuntime();
