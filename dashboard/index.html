@@ -683,6 +683,43 @@
         </div>
       </div>
 
+      <div class="selection-content">
+        <div>
+          <h3>Slice 6.4 movement trail and planned route</h3>
+          <div class="status-grid" aria-label="Movement debug status">
+            <article class="card">
+              <span class="label">Debug status</span>
+              <strong id="movement-debug-status">Waiting</strong>
+            </article>
+            <article class="card">
+              <span class="label">Trail points</span>
+              <strong id="movement-debug-trail-count">0</strong>
+            </article>
+            <article class="card">
+              <span class="label">Confirmed movements</span>
+              <strong id="movement-debug-movement-count">0</strong>
+            </article>
+            <article class="card">
+              <span class="label">Planned routes</span>
+              <strong id="movement-debug-plan-count">0</strong>
+            </article>
+          </div>
+          <div class="script-runtime-editor">
+            <label>
+              <span class="label">Actual movement trail</span>
+              <textarea id="movement-debug-trail" rows="7" readonly spellcheck="false">No confirmed movement recorded yet.</textarea>
+            </label>
+            <label>
+              <span class="label">Last planned route</span>
+              <textarea id="movement-debug-route" rows="10" readonly spellcheck="false">No route planned yet.</textarea>
+            </label>
+          </div>
+          <small class="selection-note" id="movement-debug-note">
+            Read-only debug telemetry. Trail points are recorded only after server-confirmed movement through the central Action Gateway; planned routes come from the existing path planner. This view does not execute gameplay actions or use raw sockets.
+          </small>
+        </div>
+      </div>
+
       <details id="script-runtime-developer-controls">
         <summary>Script runtime developer controls</summary>
         <div class="selection-content">
