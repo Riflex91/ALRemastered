@@ -686,6 +686,14 @@
       <div class="selection-content">
         <div>
           <h3>Slice 6.4 movement trail and planned route</h3>
+          <div class="server-picker">
+            <button id="start-slice-6-4-live-test" type="button">Start movement debug test</button>
+            <strong id="slice-6-4-live-test-status" aria-live="polite">Ready</strong>
+            <button id="copy-slice-6-4-live-test-result" type="button" hidden>Copy last test result</button>
+          </div>
+          <small class="selection-note" id="slice-6-4-live-test-note">
+            Requires one connected headless Character and no running or paused user script. Plans one collision-safe 32-unit route, performs a bounded server-confirmed movement round-trip through the central Action Gateway, and verifies the dashboard trail plus planned-route telemetry without using raw sockets.
+          </small>
           <div class="status-grid" aria-label="Movement debug status">
             <article class="card">
               <span class="label">Debug status</span>
