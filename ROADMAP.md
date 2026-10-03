@@ -1907,3 +1907,58 @@ Result: the real Windows alpha.43 run proves passive liveness heartbeats for Cor
 
 Slice 5.2 may begin only after this append-only verification record is merged and the resulting exact `main` CI is fully green.
 
+---
+
+## Append-only verification record — Slice 5.2 Disconnect / Reconnect — 2026-10-03
+
+**Canonical status update: Slice 5.2 = VERIFIED.**
+
+Release/live environment:
+
+- release: `v0.1.0-alpha.44`
+- release branch / tested implementation main: `6f87ccaab851c1a8d134b9f0d7dc69c1808c10be`
+- Windows client: `0.1.0-alpha.44`
+- platform: `win32`
+- one-click test ID: `live52-862cca46-3984-40fc-843b-8787b0e715ce`
+- character: `My_Merchant` / `CH_wHJMcgKCsCoQxQbkCHx5rWQB3o3O7`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-03T19:16:39.025Z → 2026-10-03T19:16:39.875Z`
+- diagnostic export: 295 log lines, `Secrets sanitized: yes`
+
+Disconnect and deterministic backoff evidence:
+
+- preflight confirmed a connected character and no active script automation;
+- the unexpected transport close was detected with `errorCode:"socket_closed"`;
+- `lastDisconnectAt` was `2026-10-03T19:16:39.038Z`;
+- the first reconnect attempt was exposed as `reconnectAttempt:1`;
+- deterministic bounded backoff scheduled the first retry after `500 ms`;
+- `reconnectScheduledAt` was `2026-10-03T19:16:39.539Z`.
+
+Ordered recovery-log evidence:
+
+1. log record 291: `Adventure Land headless character connection closed unexpectedly.`
+2. log record 292: `Adventure Land character reconnect scheduled.`
+3. log record 293: `Adventure Land character reconnect attempt started.`
+4. log record 294: `Adventure Land headless character reconnected.`
+
+Reconnect and fresh-state evidence:
+
+- the same selected character `My_Merchant` reconnected on EU II;
+- `reconnectCount` increased from `2` before the test to `3` after reconnect;
+- `lastReconnectAt` was `2026-10-03T19:16:39.780Z`;
+- post-reconnect heartbeat advanced from `708` to `709`;
+- final connected character state reported heartbeat sequence `709`, a fresh heartbeat timestamp, and `pingMs:12`;
+- the completion record reported `gameplayMutation:false` and confirmed the ordered log sequence;
+- the recovery action was transport reconnect only; no gameplay mutation was performed.
+
+Repository/release gate evidence before this verification write:
+
+- implementation PR #87 was already merged into exact main `6f87ccaab851c1a8d134b9f0d7dc69c1808c10be`;
+- post-merge workflow run `37146892506` completed with all four required jobs successful;
+- `release/v0.1.0-alpha.44` was verified commit-identical to that implementation main before this append-only verification record was created.
+
+Result: the real Windows alpha.44 run proves unexpected Character transport disconnect detection, deterministic bounded reconnect scheduling, reconnect of the same selected Character, correctly ordered structured recovery logs, and fresh live-state heartbeat delivery after reconnect without gameplay mutation. **Slice 5.2 is VERIFIED.**
+
+Slice 5.3 may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
+
