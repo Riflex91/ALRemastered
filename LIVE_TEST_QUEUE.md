@@ -1118,3 +1118,67 @@ Repository/release evidence:
 **Canonical queue status: Slice 6.4 = VERIFIED.**
 
 Do not repeat Slice 6.4 merely because the historical alpha.51 failed report remains as evidence. Phase 7 / Slice 7.1 – Multi-Character Session Manager may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
+
+
+---
+
+### Alpha.53 real one-click result: PASSED — Slice 7.1 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.53`
+- release target / tested implementation main: `25d13a769501c502e6d2ad65456c0bdf02a3b634`
+- client: `0.1.0-alpha.53` / Windows
+- platform: `win32`
+- test ID: `live71-ad99db70-9c18-405e-b7d2-40ba7bb5b070`
+- primary Character: `My_Merchant`
+- managed test Character: `My_Ranger1`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-03T23:27:11.423Z → 2026-10-03T23:27:11.635Z`
+- diagnostic export: 56 log lines, `Secrets sanitized: yes`
+
+The one-click harness completed the full Slice 7.1 multi-character session validation:
+
+- preflight began with exactly one active primary session, three available slots, loaded shared game-data version `17397`, and an unloaded user Script runtime;
+- the manager connected `My_Ranger1` as one additional isolated managed session on the same EU II server;
+- live concurrent state reached exactly `2` active sessions: one primary plus one managed;
+- both sessions reported `connected`;
+- the managed session reported the same shared process-level game-data version `17397`;
+- a duplicate start for the already-managed Character was rejected locally with stable error `SESSION_CHARACTER_ALREADY_ACTIVE`;
+- the duplicate guard left both existing sessions healthy and unchanged;
+- session limit remained `4` throughout the probe;
+- cleanup stopped only the managed test session with controlled reason `slice71_live_test`;
+- final state returned to exactly one active primary session and zero managed sessions;
+- the primary Character remained connected;
+- user Script runtime stayed `unloaded → unloaded` and was not interrupted;
+- shared game-data version stayed `17397 → 17397`;
+- `gameplayMutation:false`;
+- `rawSocketAccess:false`.
+
+Diagnostic evidence additionally confirms the managed-session lifecycle in order:
+
+1. managed session start requested for `My_Ranger1`;
+2. second headless Character connection started;
+3. `My_Ranger1` connected headlessly;
+4. manager reported `activeSessionCount:2`, `sessionLimit:4`, and `sharedStaticData:true`;
+5. the managed Character disconnected under controlled reason `slice71_live_test`;
+6. manager recorded the managed session stopped;
+7. the Slice 7.1 live test recorded its final PASS.
+
+Repository/release evidence:
+
+- implementation PR #103 used exact feature head `b1442654481786131d1bce45a5a698687608f76a`;
+- PR CI run `37161318643` completed with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #103 merged with method `merge` into exact implementation main `25d13a769501c502e6d2ad65456c0bdf02a3b634`;
+- exact post-implementation-main CI run `37161460939` completed with all four required jobs successful;
+- release publish run `37161609474` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.53`, tag `v0.1.0-alpha.53`, GitHub release target, and tested implementation `main` were verified commit-identical at `25d13a769501c502e6d2ad65456c0bdf02a3b634`;
+- published assets:
+  - Windows x64 installer SHA-256 `b3db93e374273c0eeeff90db7d162b2185e9a0aa74073d1b44bbde282ac40d12`
+  - Linux x64 installer SHA-256 `871577f951569461287782e7989bf857532dffbc8cbba4b4a734e43c33ae3a8e`
+  - updater manifest SHA-256 `7843f593d72efbe0190c36844705fb1e5a9c03632e865ed826eb5f1bf9549fbe`.
+
+**Canonical queue status: Slice 7.1 = VERIFIED.**
+
+Do not repeat Slice 7.1 merely because implementation planning text remains elsewhere. Slice 7.2 – Local Character Messaging may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
