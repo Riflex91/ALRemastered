@@ -150,7 +150,14 @@ test("planner service retains route diagnostics without mutating the map model",
     logger,
     gameData: () => raw,
   });
-  const planner = new SimplePathPlannerService({ logger, mapModel });
+  let observedPlan: any;
+  const planner = new SimplePathPlannerService({
+    logger,
+    mapModel,
+    onPlan: (plan) => {
+      observedPlan = plan;
+    },
+  });
 
   assert.equal(planner.state().status, "ready");
   const result = planner.plan(
@@ -161,6 +168,8 @@ test("planner service retains route diagnostics without mutating the map model",
   assert.equal(planner.state().plannedRoutes, 1);
   assert.equal(planner.state().reachableRoutes, 1);
   assert.equal(planner.state().lastPlan?.diagnostics.mapHops, 1);
+  assert.equal(observedPlan?.diagnostics.mapHops, 1);
+  assert.notEqual(observedPlan, result);
   assert.equal(mapModel.model()?.transitionCount, 2);
   assert.match(logger.exportText(), /Simple navigation route planned/);
 });
