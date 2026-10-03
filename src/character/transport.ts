@@ -179,6 +179,7 @@ export interface AdventureLandCharacterConnection {
     input: AdventureLandConsumableInput,
   ): Promise<AdventureLandConsumableReceipt>;
   sendRespawn(input?: AdventureLandRespawnInput): Promise<AdventureLandRespawnReceipt>;
+  interruptUnexpectedlyForTest(reason?: string): void;
   close(): Promise<void>;
 }
 
@@ -501,7 +502,7 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
     this.#updatedAt = new Date().toISOString();
     this.#disconnectReason = disconnectReason;
 
-    socket.addEventListener("close", () => {
+    socket.addEventListener("close", (event) => {
       this.#closed = true;
       clearInterval(this.#pingTimer);
       this.#pingSent.clear();
@@ -537,7 +538,10 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
         ),
       );
       if (this.#intentional) return;
-      const reason = this.#disconnectReason();
+      const socketReason = "reason" in event && typeof event.reason === "string" && event.reason
+        ? event.reason
+        : undefined;
+      const reason = this.#disconnectReason() ?? socketReason;
       for (const listener of this.#listeners) listener(reason);
     });
 
@@ -1224,6 +1228,16 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
         ));
       }
     });
+  }
+
+  interruptUnexpectedlyForTest(reason = "slice52_live_test"): void {
+    if (this.#closed || this.#socket.readyState !== 1) {
+      throw new AdventureLandCharacterTransportError(
+        "Adventure Land character transport is not connected for the recovery test.",
+        "reconnect_test_transport_unavailable",
+      );
+    }
+    this.#socket.close(4001, reason.slice(0, 80));
   }
 
   async close(): Promise<void> {

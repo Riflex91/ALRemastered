@@ -29,6 +29,7 @@ import { Slice43LiveTestService } from "./live-test/slice-4-3.ts";
 import { Slice44LiveTestService } from "./live-test/slice-4-4.ts";
 import { Slice45LiveTestService } from "./live-test/slice-4-5.ts";
 import { Slice51LiveTestService } from "./live-test/slice-5-1.ts";
+import { Slice52LiveTestService } from "./live-test/slice-5-2.ts";
 import { getUserPaths } from "./platform/paths.ts";
 import { AdventureLandScriptApiBridge } from "./script/adventure-api.ts";
 import { ScriptRuntimeService } from "./script/runtime.ts";
@@ -150,6 +151,7 @@ let slice43LiveTestService: Slice43LiveTestService | undefined;
 let slice44LiveTestService: Slice44LiveTestService | undefined;
 let slice45LiveTestService: Slice45LiveTestService | undefined;
 let slice51LiveTestService: Slice51LiveTestService | undefined;
+let slice52LiveTestService: Slice52LiveTestService | undefined;
 let updateService: UpdateService | undefined;
 let gameVersionService: AdventureLandVersionService | undefined;
 let gameDataService: AdventureLandGameDataService | undefined;
@@ -508,6 +510,11 @@ slice51LiveTestService = new Slice51LiveTestService({
   character: characterService!,
   script: scriptRuntime,
 });
+slice52LiveTestService = new Slice52LiveTestService({
+  logger,
+  character: characterService!,
+  script: scriptRuntime,
+});
 diagnostics.registerComponent("script-runtime", () => {
   const state = scriptRuntime!.state();
   return {
@@ -536,6 +543,7 @@ dashboard = new DashboardServer({
   slice44LiveTestService,
   slice45LiveTestService,
   slice51LiveTestService,
+  slice52LiveTestService,
   simpleFarmerService,
   updateService,
   diagnostics,
