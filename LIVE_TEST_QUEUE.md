@@ -448,3 +448,43 @@ Stop Slice 3.5 testing and preserve the log if any of these occur:
 
 Slice 3.5 remains **AWAITING USER TEST** until both Test A and Test B evidence are reviewed. CI and release publication alone must never mark it VERIFIED.
 
+
+
+### Alpha.29 partial live result and alpha.30 correction
+
+The alpha.29 consumable half has real PASS evidence, but the original manual loot preparation workflow is superseded for retest purposes.
+
+Historical alpha.29 consumable evidence:
+
+- request: `act-27dd4e7c-94aa-4715-977e-742704091af9`
+- action/origin: `character.consume` / `dashboard`
+- exact item: inventory slot 10, `mpot0` / MP Potion, `kind:"mp"`
+- quantity before: 2584; configured restore: 300
+- Adventure Land confirmation: `serverAccepted:true`
+- Gateway: `outcome:"success"`, 20 ms
+- live MP: `833 → 1065`
+- diagnostic export: `Secrets sanitized: yes`
+
+**Correction release: `v0.1.0-alpha.30` (publish only after correction PR merge and green post-merge main CI).**
+
+For the alpha.30 retest the only normal user steps are:
+
+1. While the current headless account/server/character session is active, click **Install update** for alpha.30 and wait for the automatic restart/reconnect.
+2. Click **Start test** once in **Slice 3.5 one-click live test**.
+3. When the test reaches `PASSED`, `BLOCKED`, or `FAILED`, paste the report that the dashboard automatically copied to the clipboard into ChatGPT.
+
+Do **not** manually create/select a chest, attack or move for test preparation, select a potion, select a target, run individual Phase 3 test controls, or manually assemble a diagnostic log.
+
+The alpha.30 harness must:
+
+- restore the already active session/server/headless-character binding across the updater restart without persisting credentials;
+- use fresh Adventure Land live state and current game data for every bounded preparation/action;
+- prefer an already observed current headless-session chest;
+- otherwise perform only its own bounded low-risk loot preparation;
+- execute exactly one confirmed loot mutation for the selected/generated chest;
+- select and execute exactly one validated HP/MP consumable mutation, creating a safe MP deficit itself when required;
+- never blind-retry a possibly sent non-idempotent action;
+- finish itself as `PASSED`, `BLOCKED`, or `FAILED`;
+- automatically copy a structured result plus the complete sanitized diagnostic export to the clipboard.
+
+Slice 3.5 remains **MERGED – AWAITING USER TEST** until the alpha.30 one-click report is reviewed. CI/release publication alone never makes it VERIFIED.

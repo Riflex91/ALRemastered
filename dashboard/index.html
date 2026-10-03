@@ -342,6 +342,23 @@
 
       <div class="selection-content">
         <div>
+          <h3>Slice 3.5 one-click live test</h3>
+          <div class="server-picker">
+            <button id="start-slice-3-5-live-test" type="button">Start test</button>
+            <strong id="slice-3-5-live-test-status" aria-live="polite">Ready</strong>
+            <button id="copy-slice-3-5-live-test-result" type="button" hidden>Copy last test result</button>
+          </div>
+          <small class="selection-note" id="slice-3-5-live-test-note">
+            The test prepares a bounded safe game state automatically, runs the Slice 3.5 loot and consumable checks, verifies Adventure Land server responses and live postconditions, then copies the complete structured result and sanitized diagnostic log to the clipboard. No manual target, chest, item, movement, or combat preparation is required.
+          </small>
+        </div>
+      </div>
+
+      <details id="developer-manual-controls">
+        <summary>Developer manual controls</summary>
+
+      <div class="selection-content">
+        <div>
           <h3>Movement test controls</h3>
           <div class="server-picker">
             <label>
@@ -429,6 +446,8 @@
           </small>
         </div>
       </div>
+
+      </details>
     </section>
 
     <section class="game-data-panel">

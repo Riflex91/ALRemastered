@@ -1,6 +1,6 @@
 {
   "name": "alremastered",
-  "version": "0.1.0-alpha.29",
+  "version": "0.1.0-alpha.30",
   "private": true,
   "description": "A resource-efficient Adventure Land client with headless and browser modes.",
   "type": "module",
@@ -12,7 +12,7 @@
     "lint": "node scripts/check-style.mjs",
     "format": "node scripts/format.mjs",
     "format:check": "node scripts/check-format.mjs",
-    "test": "npm run build && node --test build/package/tests/core.test.js build/package/tests/action-gateway.test.js build/package/tests/movement.test.js build/package/tests/attack.test.js build/package/tests/skill.test.js build/package/tests/loot-consumable.test.js build/package/tests/version-paths.test.js build/package/tests/logging.test.js build/package/tests/account.test.js build/package/tests/selection.test.js build/package/tests/character.test.js build/package/tests/dashboard.test.js build/package/tests/update-state.test.js build/package/tests/update-download.test.js build/package/tests/update-source.test.js build/package/tests/diagnostics.test.js build/package/tests/game-version.test.js build/package/tests/game-data.test.js",
+    "test": "npm run build && node --test build/package/tests/core.test.js build/package/tests/action-gateway.test.js build/package/tests/movement.test.js build/package/tests/attack.test.js build/package/tests/skill.test.js build/package/tests/loot-consumable.test.js build/package/tests/live-test.test.js build/package/tests/version-paths.test.js build/package/tests/logging.test.js build/package/tests/account.test.js build/package/tests/selection.test.js build/package/tests/character.test.js build/package/tests/dashboard.test.js build/package/tests/update-state.test.js build/package/tests/update-download.test.js build/package/tests/update-source.test.js build/package/tests/diagnostics.test.js build/package/tests/game-version.test.js build/package/tests/game-data.test.js",
     "check": "npm run lint && npm run format:check && npm test",
     "start": "node src/main.ts",
     "health": "node src/main.ts --health-check",

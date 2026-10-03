@@ -80,7 +80,7 @@ When a newer version is available, the dashboard shows:
 
 Updates are never installed without an explicit **Install update** action. The Core selects the installer for the current operating system and architecture, downloads it from the official `Riflex91/ALRemastered` GitHub Release, and verifies its exact file size and SHA-256 digest before scheduling installation. A checksum mismatch blocks installation and is written to the Debug Console.
 
-After **Install update** is confirmed, ALRemastered shuts down the old local process, installs the verified update unattended, closes the installer after success, and starts the newly installed client with browser opening suppressed. The already open dashboard page stays in place, waits for the local backend to return, and reloads itself when the new version is reachable. If installation rolls back, the previous client is restarted so the dashboard can reconnect.
+After **Install update** is confirmed, ALRemastered shuts down the old local process, installs the verified update unattended, closes the installer after success, and starts the newly installed client with browser opening suppressed. The already open dashboard page stays in place, waits for the local backend to return, and reloads itself when the new version is reachable. If an Adventure Land account, server and headless character are already active, the updater restart carries that active session binding ephemerally through the child-process environment so the updated client can reconnect the same headless character without asking for the password again. The handoff is not written to disk and is deleted from the restarted process environment immediately. If installation rolls back, the previous client is restarted so the dashboard can reconnect.
 
 **Skip this version** applies only to that exact version. **Remind me tomorrow** suppresses the same version for 24 hours. A newer version overrides either choice.
 
@@ -88,7 +88,7 @@ Release publication is handled by the `Publish release` GitHub Actions workflow 
 
 ## Adventure Land account connection
 
-Slice 2.1 adds an explicit Adventure Land account connection in the local dashboard. ALRemastered sends the supplied email and password directly to Adventure Land's login API with login-only semantics. The password is never persisted. A successful Adventure Land auth session is kept only in the running ALRemastered process and is cleared by **Disconnect account** or process exit.
+Slice 2.1 adds an explicit Adventure Land account connection in the local dashboard. ALRemastered sends the supplied email and password directly to Adventure Land's login API with login-only semantics. The password is never persisted. A successful Adventure Land auth session normally remains only in process memory. During an explicit in-client update, an already active session may be handed directly to the updater-launched replacement process through an ephemeral environment value so the same headless session can reconnect after the automatic restart; that value is never written to the ALRemastered configuration/data/log files and is removed from the restarted process environment immediately. **Disconnect account** clears the running session.
 
 The dashboard exposes only connection state, account ID and connection time. The Adventure Land auth value is never returned by dashboard APIs or UI state. Password and auth fields are treated as secrets by the structured logger and diagnostic sanitizer.
 

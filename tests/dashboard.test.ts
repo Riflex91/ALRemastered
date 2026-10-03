@@ -969,6 +969,33 @@ test("dashboard exposes a fixed local-only Action Gateway probe", async () => {
     }),
   };
 
+  const slice35LiveTestService = {
+    state: () => ({
+      status: "idle",
+      message: "Slice 3.5 one-click live test is ready.",
+    }),
+    run: async () => ({
+      testId: "live35-dashboard",
+      slice: "3.5",
+      outcome: "passed",
+      startedAt: "2026-10-03T12:00:00.000Z",
+      completedAt: "2026-10-03T12:00:01.000Z",
+      characterId: "CH_probe",
+      characterName: "ProbeCharacter",
+      serverKey: "SR_EUII",
+      steps: [{
+        name: "loot",
+        outcome: "passed",
+        message: "Loot passed.",
+      }, {
+        name: "consumable",
+        outcome: "passed",
+        message: "Consumable passed.",
+      }],
+      message: "Slice 3.5 passed.",
+    }),
+  };
+
   const dashboard = new DashboardServer({
     logger,
     runtime,
@@ -978,6 +1005,7 @@ test("dashboard exposes a fixed local-only Action Gateway probe", async () => {
     attackService: attackService as any,
     skillService: skillService as any,
     lootConsumableService: lootConsumableService as any,
+    slice35LiveTestService: slice35LiveTestService as any,
     host: "127.0.0.1",
     port: 0,
   });
@@ -1164,6 +1192,24 @@ test("dashboard exposes a fixed local-only Action Gateway probe", async () => {
     );
     assert.equal(invalidConsumable.status, 400);
 
+    const liveTestState = await fetch(
+      `${url}/api/live-test/slice-3-5`,
+    );
+    assert.equal(liveTestState.status, 200);
+    assert.equal((await liveTestState.json()).status, "idle");
+
+    const liveTest = await fetch(
+      `${url}/api/live-test/slice-3-5/start`,
+      { method: "POST" },
+    );
+    assert.equal(liveTest.status, 200);
+    const liveTestPayload = await liveTest.json();
+    assert.equal(liveTestPayload.result.outcome, "passed");
+    assert.equal(liveTestPayload.clipboardSuggested, true);
+    assert.match(liveTestPayload.reportText, /ALRemastered Slice 3\.5 one-click live test/);
+    assert.match(liveTestPayload.reportText, /ALRemastered Diagnostic Log/);
+    assert.match(liveTestPayload.reportText, /Secrets sanitized: yes/);
+
     const arbitrary = await fetch(
       `${url}/api/action-gateway/action`,
       {
@@ -1205,6 +1251,10 @@ test("dashboard renders fixed Phase 3 bounded action controls through Slice 3.5"
     "run-loot-test",
     "consumable-item",
     "run-consumable-test",
+    "start-slice-3-5-live-test",
+    "slice-3-5-live-test-status",
+    "copy-slice-3-5-live-test-result",
+    "developer-manual-controls",
   ]) {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
@@ -1235,6 +1285,13 @@ test("dashboard renders fixed Phase 3 bounded action controls through Slice 3.5"
   assert.match(html, /Loot selected chest once/);
   assert.match(html, /Use selected HP\/MP item once/);
   assert.match(html, /No auto-loot, auto-potion loop, free-form item ID/);
+  assert.match(html, />Start test<\/button>/);
+  assert.match(html, /No manual target, chest, item, movement, or combat preparation is required/);
+  assert.match(html, /Developer manual controls/);
+  assert.match(script, /\/api\/live-test\/slice-3-5\/start/);
+  assert.match(script, /beginDeferredClipboardWrite/);
+  assert.match(script, /navigator\.clipboard\?\.write/);
+  assert.match(script, /Complete result and sanitized diagnostic log copied to clipboard/);
   assert.doesNotMatch(script, /\/api\/action-gateway\/action/);
   assert.doesNotMatch(
     script,

@@ -19,12 +19,14 @@ export async function scheduleInstallerAfterCurrentProcess(
   platform: NodeJS.Platform = process.platform,
   parentPid: number = process.pid,
   installerArguments: readonly string[] = [],
+  environment?: NodeJS.ProcessEnv,
 ): Promise<void> {
   if (platform === "win32") {
     await spawnConfirmed(installerPath, [...installerArguments], {
       detached: true,
       stdio: "ignore",
       windowsHide: true,
+      env: environment ?? process.env,
     });
     logger.info("Verified Windows update installer handoff started.", {
       installerPath,
@@ -59,6 +61,7 @@ export async function scheduleInstallerAfterCurrentProcess(
       {
         detached: true,
         stdio: "ignore",
+        env: environment ?? process.env,
       },
     );
     logger.info("Verified Linux update installer handoff started.", {

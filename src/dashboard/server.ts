@@ -19,6 +19,7 @@ import type { DiagnosticsService } from "../diagnostics/service.ts";
 import type { AdventureLandGameDataService } from "../game/data-service.ts";
 import type { AdventureLandVersionService } from "../game/version-service.ts";
 import type { Logger, LogRecord } from "../logging/logger.ts";
+import type { Slice35LiveTestService } from "../live-test/slice-3-5.ts";
 import type { UpdateService } from "../update/service.ts";
 
 export interface DashboardServerOptions {
@@ -34,6 +35,7 @@ export interface DashboardServerOptions {
   readonly attackService?: AdventureLandAttackService;
   readonly skillService?: AdventureLandSkillService;
   readonly lootConsumableService?: AdventureLandLootConsumableService;
+  readonly slice35LiveTestService?: Slice35LiveTestService;
   readonly updateService?: UpdateService;
   readonly diagnostics?: DiagnosticsService;
   readonly gameVersionService?: AdventureLandVersionService;
@@ -53,6 +55,7 @@ export class DashboardServer {
   readonly #attackService?: AdventureLandAttackService;
   readonly #skillService?: AdventureLandSkillService;
   readonly #lootConsumableService?: AdventureLandLootConsumableService;
+  readonly #slice35LiveTestService?: Slice35LiveTestService;
   readonly #updateService?: UpdateService;
   readonly #diagnostics?: DiagnosticsService;
   readonly #gameVersionService?: AdventureLandVersionService;
@@ -75,6 +78,7 @@ export class DashboardServer {
     this.#attackService = options.attackService;
     this.#skillService = options.skillService;
     this.#lootConsumableService = options.lootConsumableService;
+    this.#slice35LiveTestService = options.slice35LiveTestService;
     this.#updateService = options.updateService;
     this.#diagnostics = options.diagnostics;
     this.#gameVersionService = options.gameVersionService;
@@ -438,6 +442,37 @@ export class DashboardServer {
         kind: body.kind,
       });
       return this.#json(response, result, gatewayStatusCode(result));
+    }
+
+    if (method === "GET" && path === "/api/live-test/slice-3-5") {
+      if (!this.#slice35LiveTestService) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Slice 3.5 one-click live-test service is unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#slice35LiveTestService.state());
+    }
+
+    if (method === "POST" && path === "/api/live-test/slice-3-5/start") {
+      if (!this.#slice35LiveTestService) {
+        return this.#json(response, {
+          error: "Slice 3.5 one-click live-test service is unavailable.",
+        }, 503);
+      }
+      const result = await this.#slice35LiveTestService.run();
+      const diagnostic = this.#exportPayload();
+      const report = {
+        schemaVersion: 1,
+        kind: "ALRemastered Slice 3.5 one-click live test",
+        result,
+        diagnostic,
+      };
+      return this.#json(response, {
+        result,
+        reportText: JSON.stringify(report, null, 2),
+        clipboardSuggested: true,
+      });
     }
 
     if (method === "GET" && path === "/api/diagnostics/snapshot") {

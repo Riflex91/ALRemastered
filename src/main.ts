@@ -21,6 +21,7 @@ import { AdventureLandVersionService } from "./game/version-service.ts";
 import { AdventureLandVersionSource } from "./game/version-source.ts";
 import { AdventureLandVersionStore } from "./game/version-store.ts";
 import { Logger } from "./logging/logger.ts";
+import { Slice35LiveTestService } from "./live-test/slice-3-5.ts";
 import { getUserPaths } from "./platform/paths.ts";
 import { getReleaseMetadata } from "./release/version-model.ts";
 import {
@@ -28,6 +29,11 @@ import {
   scheduleInstallerAfterCurrentProcess,
 } from "./update/installer-launcher.ts";
 import { UpdatePreferenceStore } from "./update/preferences.ts";
+import {
+  decodeUpdateSessionHandoff,
+  encodeUpdateSessionHandoff,
+  UPDATE_SESSION_HANDOFF_ENV,
+} from "./update/session-handoff.ts";
 import { UpdateService } from "./update/service.ts";
 import { GitHubReleaseSource } from "./update/source.ts";
 import { getAppVersion } from "./version.ts";
@@ -54,6 +60,17 @@ const logger = new Logger({
   component: "core",
   logFile: join(userPaths.logsDir, "client.log"),
 });
+
+const updateSessionHandoffRaw = process.env[UPDATE_SESSION_HANDOFF_ENV];
+delete process.env[UPDATE_SESSION_HANDOFF_ENV];
+const updateSessionHandoff = args.has("--post-update")
+  ? decodeUpdateSessionHandoff(updateSessionHandoffRaw)
+  : undefined;
+if (args.has("--post-update") && updateSessionHandoffRaw && !updateSessionHandoff) {
+  logger.warn("Update session handoff was invalid and was discarded.", {
+    secretPersisted: false,
+  });
+}
 
 function stopAfterUnexpectedError(message: string, error: unknown): never {
   logger.fatal(message, error);
@@ -104,6 +121,7 @@ let movementService: AdventureLandMovementService | undefined;
 let attackService: AdventureLandAttackService | undefined;
 let skillService: AdventureLandSkillService | undefined;
 let lootConsumableService: AdventureLandLootConsumableService | undefined;
+let slice35LiveTestService: Slice35LiveTestService | undefined;
 let updateService: UpdateService | undefined;
 let gameVersionService: AdventureLandVersionService | undefined;
 let gameDataService: AdventureLandGameDataService | undefined;
@@ -148,6 +166,10 @@ accountService = new AdventureLandAccountService({
   source: new AdventureLandAccountSource(),
 });
 
+if (updateSessionHandoff) {
+  accountService.restoreSession(updateSessionHandoff.session);
+}
+
 diagnostics.registerComponent("account", () => {
   const state = accountService!.state();
   return {
@@ -162,6 +184,24 @@ selectionService = new AdventureLandSelectionService({
   source: new AdventureLandSelectionSource(),
   session: () => accountService!.session(),
 });
+
+if (updateSessionHandoff) {
+  const restoredSelection = await selectionService.refresh();
+  if (
+    restoredSelection.status === "ready" &&
+    restoredSelection.servers.some((server) =>
+      server.key === updateSessionHandoff.selectedServerKey
+    )
+  ) {
+    selectionService.selectServer(updateSessionHandoff.selectedServerKey);
+  } else {
+    logger.warn("Update session handoff could not restore the selected server.", {
+      serverKey: updateSessionHandoff.selectedServerKey,
+      selectionStatus: restoredSelection.status,
+      secretPersisted: false,
+    });
+  }
+}
 
 diagnostics.registerComponent("selection", () => {
   const state = selectionService!.state();
@@ -178,6 +218,38 @@ characterService = new AdventureLandCharacterService({
   selection: selectionService,
   session: () => accountService!.session(),
 });
+
+if (
+  updateSessionHandoff &&
+  selectionService.state().selectedServerKey ===
+    updateSessionHandoff.selectedServerKey
+) {
+  try {
+    const restoredCharacter = await characterService.start(
+      updateSessionHandoff.characterId,
+    );
+    if (restoredCharacter.status !== "connected") {
+      logger.warn("Update session handoff could not restore the headless character.", {
+        characterId: updateSessionHandoff.characterId,
+        status: restoredCharacter.status,
+        errorCode: restoredCharacter.errorCode,
+        secretPersisted: false,
+      });
+    } else {
+      logger.info("Update session handoff restored the headless character.", {
+        characterId: restoredCharacter.characterId,
+        serverKey: restoredCharacter.serverKey,
+        secretPersisted: false,
+      });
+    }
+  } catch (error) {
+    logger.warn("Update session handoff character restore failed.", {
+      characterId: updateSessionHandoff.characterId,
+      error: error instanceof Error ? error.message : String(error),
+      secretPersisted: false,
+    });
+  }
+}
 
 diagnostics.registerComponent("character-connection", () => {
   const state = characterService!.state();
@@ -206,14 +278,44 @@ updateService = new UpdateService({
   source,
   preferences,
   updatesDir: join(userPaths.dataDir, "updates"),
-  scheduleInstaller: (installerPath) =>
-    scheduleInstallerAfterCurrentProcess(
+  scheduleInstaller: (installerPath) => {
+    const selection = selectionService!.state();
+    const character = characterService!.state();
+    const handoff = encodeUpdateSessionHandoff(
+      accountService!.session(),
+      selection.selectedServerKey,
+      character.status === "connected" ? character.characterId : undefined,
+    );
+    if (handoff) {
+      logger.info("Prepared ephemeral session handoff for update restart.", {
+        accountConnected: true,
+        serverKey: selection.selectedServerKey,
+        characterId: character.characterId,
+        secretPersisted: false,
+      });
+    } else {
+      logger.info("No complete session handoff was available for update restart.", {
+        accountConnected: accountService!.state().status === "connected",
+        serverSelected: Boolean(selection.selectedServerKey),
+        characterConnected: character.status === "connected",
+        secretPersisted: false,
+      });
+    }
+
+    return scheduleInstallerAfterCurrentProcess(
       installerPath,
       logger,
       process.platform,
       process.pid,
       dashboardUpdateInstallerArguments(process.platform, process.pid),
-    ),
+      handoff
+        ? {
+          ...process.env,
+          [UPDATE_SESSION_HANDOFF_ENV]: handoff,
+        }
+        : process.env,
+    );
+  },
   onInstallScheduled: () => {
     setTimeout(() => void shutdown("SIGTERM"), 1500);
   },
@@ -300,6 +402,15 @@ lootConsumableService = new AdventureLandLootConsumableService({
   character: characterService!,
   gameData: () => gameDataService!.data(),
 });
+slice35LiveTestService = new Slice35LiveTestService({
+  logger,
+  character: characterService!,
+  attack: attackService!,
+  movement: movementService!,
+  skill: skillService!,
+  lootConsumable: lootConsumableService,
+  gameData: () => gameDataService!.data(),
+});
 
 dashboard = new DashboardServer({
   logger,
@@ -312,6 +423,7 @@ dashboard = new DashboardServer({
   attackService,
   skillService,
   lootConsumableService,
+  slice35LiveTestService,
   updateService,
   diagnostics,
   gameVersionService,
