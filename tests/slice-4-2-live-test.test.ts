@@ -158,8 +158,10 @@ test("Slice 4.2 one-click farmer runs compatible script API through the producti
       const fromX = state.character.x;
       const fromY = state.character.y;
       movementCalls.push({ x, y });
-      state.character.x = x;
-      state.character.y = y;
+      if (movementCalls.length > 1) {
+        state.character.x = x;
+        state.character.y = y;
+      }
       now += 600;
       return {
         fromX,
@@ -220,9 +222,12 @@ test("Slice 4.2 one-click farmer runs compatible script API through the producti
     assert.equal(attackCalls, 1);
     assert.equal(lootCalls, 1);
     assert.equal(movementCalls.length, 2);
-    assert.deepEqual(movementCalls[1], { x: 100, y: 100 });
-    assert.equal(state.character.x, 100);
-    assert.equal(state.character.y, 100);
+    assert.deepEqual(movementCalls[1], {
+      x: result.steps[0]?.evidence?.moveX,
+      y: result.steps[0]?.evidence?.moveY,
+    });
+    assert.equal(state.character.x, result.steps[0]?.evidence?.moveX);
+    assert.equal(state.character.y, result.steps[0]?.evidence?.moveY);
     assert.equal(state.character.gold, 1025);
     assert.equal(runtime.state().status, "stopped");
 
@@ -284,6 +289,22 @@ test("Slice 4.2 one-click farmer runs compatible script API through the producti
       logs.some((record) =>
         record.component === "script:slice-4-2-live-farmer" &&
         record.message === "slice42:target-locked:monster-2"
+      ),
+      true,
+    );
+    assert.equal(
+      logs.some((record) =>
+        record.message === "Action gateway request failed." &&
+        (record.context as any)?.origin === "script" &&
+        (record.context as any)?.action === "character.xmove" &&
+        (record.context as any)?.errorCode === "MOVE_TARGET_INVALID"
+      ),
+      true,
+    );
+    assert.equal(
+      logs.some((record) =>
+        record.component === "script:slice-4-2-live-farmer" &&
+        record.message === "slice42:xmove-return-already-current"
       ),
       true,
     );
