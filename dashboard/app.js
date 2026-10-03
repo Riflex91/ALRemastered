@@ -1702,8 +1702,11 @@ for (const button of elements.movementButtons) {
       const target = result.result
         ? ` Target: (${result.result.targetX}, ${result.result.targetY}).`
         : "";
+      const confirmed = result.result?.serverConfirmed
+        ? ` Confirmed position: (${result.result.confirmedX}, ${result.result.confirmedY}).`
+        : "";
       setFeedback(
-        `Movement test sent. Request ID: ${result.requestId}. Outcome: ${result.outcome}.${target}`,
+        `Movement confirmed by server. Request ID: ${result.requestId}. Outcome: ${result.outcome}.${target}${confirmed}`,
         "success",
       );
     } catch (error) {
