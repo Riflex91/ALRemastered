@@ -112,6 +112,7 @@ export interface AdventureLandCharacterConnection {
   snapshot(): AdventureLandCharacterLiveState;
   onState(listener: (state: AdventureLandCharacterLiveState) => void): () => void;
   onUnexpectedClose(listener: (reason?: string) => void): void;
+  requestStateRefresh(): void;
   sendMove(input: AdventureLandDirectMovementInput): AdventureLandDirectMovementReceipt;
   sendAttack(input: AdventureLandAttackInput): Promise<AdventureLandAttackReceipt>;
   attackCooldownRemainingMs(): number;
@@ -457,6 +458,16 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
 
   onUnexpectedClose(listener: (reason?: string) => void): void {
     this.#listeners.add(listener);
+  }
+
+  requestStateRefresh(): void {
+    if (this.#closed || this.#socket.readyState !== 1) {
+      throw new AdventureLandCharacterTransportError(
+        "Adventure Land character transport is not ready for a state refresh.",
+        "state_refresh_transport_unavailable",
+      );
+    }
+    this.#socket.send("42" + JSON.stringify(["send_updates"]));
   }
 
   applyPlayer(data: Record<string, unknown>): void {
