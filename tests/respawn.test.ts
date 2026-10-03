@@ -34,6 +34,6 @@ test("respawn service rejects living characters and confirms server-accepted dea
   dead = true;
   const result = await service.run("script");
   assert.equal(result.outcome, "success");
-  assert.equal(result.value?.serverAccepted, true);
+  assert.equal(result.result?.serverAccepted, true);
   assert.equal(sends, 1);
 });
