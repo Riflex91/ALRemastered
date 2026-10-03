@@ -57,6 +57,10 @@ export interface AdventureLandCharacterConnectionState {
   readonly reconnectCount?: number;
   readonly lastDisconnectAt?: string;
   readonly lastReconnectAt?: string;
+  readonly deathCount?: number;
+  readonly respawnCount?: number;
+  readonly lastDeathAt?: string;
+  readonly lastRespawnAt?: string;
   readonly message: string;
   readonly errorCode?: string;
 }
@@ -93,6 +97,8 @@ export class AdventureLandCharacterService {
   };
   #desiredCharacterId?: string;
   #reconnectCount = 0;
+  #deathCount = 0;
+  #respawnCount = 0;
   readonly #gameEventListeners = new Set<(event: AdventureLandGameEvent) => void>();
 
   constructor(options: AdventureLandCharacterServiceOptions) {
@@ -145,6 +151,8 @@ export class AdventureLandCharacterService {
     if (!isReconnect) {
       this.#desiredCharacterId = id;
       this.#reconnectCount = 0;
+      this.#deathCount = 0;
+      this.#respawnCount = 0;
     }
 
     const controller = new AbortController();
@@ -203,6 +211,18 @@ export class AdventureLandCharacterService {
         const previousEntities = this.#state.entities;
         const previousParty = this.#state.party;
         const previousLootChests = this.#state.lootChests;
+        const becameDead = Boolean(previous && !previous.dead && liveState.character.dead);
+        const respawned = Boolean(previous && previous.dead && !liveState.character.dead);
+        let lastDeathAt = this.#state.lastDeathAt;
+        let lastRespawnAt = this.#state.lastRespawnAt;
+        if (becameDead) {
+          this.#deathCount += 1;
+          lastDeathAt = liveState.updatedAt || this.#now().toISOString();
+        }
+        if (respawned) {
+          this.#respawnCount += 1;
+          lastRespawnAt = liveState.updatedAt || this.#now().toISOString();
+        }
         this.#setState({
           ...this.#state,
           status: "connected",
@@ -216,9 +236,33 @@ export class AdventureLandCharacterService {
           lastLiveUpdateAt: liveState.updatedAt,
           heartbeatSequence: (this.#state.heartbeatSequence ?? 0) + 1,
           lastHeartbeatAt: liveState.updatedAt,
+          deathCount: this.#deathCount,
+          respawnCount: this.#respawnCount,
+          lastDeathAt,
+          lastRespawnAt,
           message: liveState.character.name +
             " is connected headlessly. Live state is updating; no automation is running.",
         });
+        if (becameDead) {
+          this.#logger.warn("Adventure Land headless character died.", {
+            characterId: liveState.character.id,
+            characterName: liveState.character.name,
+            serverKey: this.#state.serverKey,
+            deathCount: this.#deathCount,
+            lastDeathAt,
+            automation: true,
+          });
+        }
+        if (respawned) {
+          this.#logger.info("Adventure Land headless character respawned.", {
+            characterId: liveState.character.id,
+            characterName: liveState.character.name,
+            serverKey: this.#state.serverKey,
+            respawnCount: this.#respawnCount,
+            lastRespawnAt,
+            automation: true,
+          });
+        }
         if (
           previous &&
           (
@@ -279,6 +323,11 @@ export class AdventureLandCharacterService {
       const connectedAt = this.#now().toISOString();
       const initialLiveState = connection.snapshot();
       if (isReconnect) this.#reconnectCount += 1;
+      let lastDeathAt = this.#state.lastDeathAt;
+      if (!isReconnect && initialLiveState.character.dead) {
+        this.#deathCount = 1;
+        lastDeathAt = initialLiveState.updatedAt || connectedAt;
+      }
       const heartbeatSequence = Math.max(1, (this.#state.heartbeatSequence ?? 0) + 1);
       const lastReconnectAt = isReconnect ? connectedAt : this.#state.lastReconnectAt;
       this.#setState({
@@ -300,9 +349,23 @@ export class AdventureLandCharacterService {
         reconnectCount: this.#reconnectCount,
         lastDisconnectAt: this.#state.lastDisconnectAt,
         lastReconnectAt,
+        deathCount: this.#deathCount,
+        respawnCount: this.#respawnCount,
+        lastDeathAt,
+        lastRespawnAt: this.#state.lastRespawnAt,
         message: initialLiveState.character.name +
           " is connected headlessly. Live state is updating; no automation is running.",
       });
+      if (!isReconnect && initialLiveState.character.dead) {
+        this.#logger.warn("Adventure Land headless character death state observed.", {
+          characterId: initialLiveState.character.id,
+          characterName: initialLiveState.character.name,
+          serverKey: server.key,
+          deathCount: this.#deathCount,
+          lastDeathAt,
+          automation: false,
+        });
+      }
       if (isReconnect) {
         this.#logger.info("Adventure Land headless character reconnected.", {
           characterId: initialLiveState.character.id,
