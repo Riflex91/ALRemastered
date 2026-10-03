@@ -275,13 +275,6 @@ export class Slice72LiveTestService {
           isMessageKind(envelope.message, "slice72-probe", marker)
         ) {
           outboundEnvelope = envelope;
-          void this.#messaging.send(
-            candidate.name,
-            primaryBefore.characterName!,
-            { kind: "slice72-reply", marker },
-          ).then(() => undefined).catch((error) => {
-            replyError = error;
-          });
           return;
         }
         if (
@@ -344,6 +337,16 @@ export class Slice72LiveTestService {
           rawSocketAccess: messagingAfterSend.rawSocketAccess,
         }),
       }));
+
+      try {
+        await this.#messaging.send(
+          candidate.name,
+          primaryBefore.characterName,
+          { kind: "slice72-reply", marker },
+        );
+      } catch (error) {
+        replyError = error;
+      }
 
       const replyObserved = await waitFor(
         () => !replyError &&
