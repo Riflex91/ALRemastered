@@ -22,6 +22,10 @@ function gameData(): AdventureLandGameData {
     },
     geometry: {
       main: {
+        min_x: -1000,
+        min_y: -1000,
+        max_x: 1000,
+        max_y: 1000,
         x_lines: [],
         y_lines: [],
       },
