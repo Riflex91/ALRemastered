@@ -5,6 +5,7 @@ import {
   type ActionOrigin,
 } from "./gateway.ts";
 import type { AdventureLandCharacterService } from "../character/service.ts";
+import { AdventureLandCharacterTransportError } from "../character/transport.ts";
 import type { AdventureLandGameData } from "../game/data-source.ts";
 
 export type MovementMode = "move" | "xmove";
@@ -25,6 +26,9 @@ export interface MovementActionResult {
   readonly targetY: number;
   readonly transport: "move";
   readonly path: "direct";
+  readonly confirmedX: number;
+  readonly confirmedY: number;
+  readonly serverConfirmed: true;
 }
 
 export interface AdventureLandMovementServiceOptions {
@@ -86,7 +90,7 @@ export class AdventureLandMovementService {
         characterId ?? "-",
         "character.movement",
       ].join(":"),
-      execute: ({ signal }) => {
+      execute: async ({ signal }) => {
         if (signal.aborted) {
           throw new ActionGatewayExecutionError(
             "Movement was cancelled before it started.",
@@ -155,11 +159,31 @@ export class AdventureLandMovementService {
           );
         }
 
-        const receipt = this.#character.sendDirectMovement({
-          x: target.x,
-          y: target.y,
-          signal,
-        });
+        let receipt;
+        try {
+          receipt = await this.#character.sendDirectMovement({
+            x: target.x,
+            y: target.y,
+            signal,
+          });
+        } catch (error) {
+          if (error instanceof AdventureLandCharacterTransportError) {
+            throw new ActionGatewayExecutionError(
+              error.message,
+              movementErrorCode(error.code),
+            );
+          }
+          throw error;
+        }
+        if (
+          typeof receipt.confirmedX !== "number" ||
+          typeof receipt.confirmedY !== "number"
+        ) {
+          throw new ActionGatewayExecutionError(
+            "Adventure Land movement completed without a confirmed position.",
+            "MOVE_NOT_CONFIRMED",
+          );
+        }
         return {
           mode: request.mode,
           direction: request.direction,
@@ -170,6 +194,9 @@ export class AdventureLandMovementService {
           targetY: receipt.targetY,
           transport: "move",
           path: "direct",
+          confirmedX: receipt.confirmedX,
+          confirmedY: receipt.confirmedY,
+          serverConfirmed: true,
         };
       },
     });
@@ -349,6 +376,18 @@ function movementTarget(
     case "up": return { x, y: y - step };
     case "down": return { x, y: y + step };
   }
+}
+
+function movementErrorCode(code: string): string {
+  if (code === "movement_not_confirmed") return "MOVE_NOT_CONFIRMED";
+  if (code === "movement_aborted") return "MOVE_ABORTED";
+  if (
+    code === "movement_not_connected" ||
+    code === "movement_transport_unavailable"
+  ) return "MOVE_TRANSPORT_UNAVAILABLE";
+  if (code === "movement_state_unavailable") return "MOVE_STATE_UNAVAILABLE";
+  if (code === "movement_target_invalid") return "MOVE_TARGET_INVALID";
+  return "MOVE_TRANSPORT_ERROR";
 }
 
 function positiveStep(value: number | undefined): number {
