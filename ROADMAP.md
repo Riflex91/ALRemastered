@@ -1501,3 +1501,81 @@ The alpha.31 correction strengthens evidence rather than weakening credential sa
 - installer smoke advances from alpha.30 to alpha.31 and keeps Linux pinned to `ubuntu-24.04`.
 
 Because alpha.30 is the first handoff-capable installed source build, the alpha.30 → alpha.31 bridge can exercise the real source-side handoff. After that bridge, the intended normal sequential-test UX remains **Install update → Start test → paste automatically copied report**.
+
+
+---
+
+## Append-only verification record — Slice 3.5 Loot / Consumables — 2026-10-03
+
+**Canonical status update: Slice 3.5 = VERIFIED.**
+
+Real live environment:
+
+- Windows client: `0.1.0-alpha.31`
+- Character: `My_Ranger1` / `CH_denPIHA05KxLLQqVOad9h9vr9KPrL`
+- Server: EU II / `SR_EUII`
+- One-click test ID: `live35-2b341b26-64cd-4cec-95d4-b2d863bf4d48`
+- Test result: `passed`
+- Test window: `2026-10-03T11:38:27.976Z → 2026-10-03T11:38:29.172Z`
+- Complete diagnostic export: 211 structured records, `Secrets sanitized: yes`
+
+Update/session handoff evidence:
+
+- alpha.31 post-update startup recorded `present:true`, `decoded:true`, `consumed:true` for the ephemeral update-session handoff.
+- Adventure Land account session restored from `update_handoff`.
+- EU II was selected automatically.
+- `My_Ranger1` was automatically reconnected headlessly.
+- No password/auth value appeared in the supplied diagnostic export.
+
+Automated bounded setup evidence:
+
+- Exactly one unique `character.attack` request was issued by the one-click harness:
+  - request `act-60b6d584-98db-4eb2-ab33-1b0eec09fcf9`
+  - origin `dashboard`
+  - target `5076043`, type `crab`
+  - distance `39.9`, range `142`
+  - `serverAccepted:true`
+  - cooldown `1039 ms`
+- The complete 211-record diagnostic contains only the correlated start/server-confirm/completion records for that attack request and no second attack request.
+
+Loot evidence:
+
+- A real live chest appeared after the bounded setup: `qBf4PJTGWHhTKbv0fsfbnTlaqGFo1l`.
+- Exactly one unique `character.loot` request was issued:
+  - request `act-923e6ff3-dc15-48ec-803b-f4655acdc873`
+  - origin `dashboard`
+  - current canonical character ID
+  - map `main`
+  - distance `41.5`
+  - `serverAccepted:true`
+  - gateway `outcome:"success"`, duration `16 ms`
+- The chest was present in current headless live state before the action and absent immediately after confirmation.
+- Gold changed from `1192921` to `1193098`; the harness recorded `chestGone:true`, `goldChanged:true`, `inventoryChanged:false`.
+- The complete diagnostic contains only the correlated start/server-confirm/completion records for this loot request and no second loot request.
+
+Consumable evidence:
+
+- Exactly one unique `character.consume` request was issued:
+  - request `act-46c0a7e7-1da6-4e30-8001-e62119f0a7b2`
+  - origin `dashboard`
+  - exact inventory slot `4`
+  - item `hpot0` / HP Potion
+  - kind `hp`
+  - quantity before `7257`
+  - configured restore amount `200`
+  - `serverAccepted:true`
+  - gateway `outcome:"success"`, duration `14 ms`
+- Live HP increased `4168 → 4182`.
+- Exact inventory quantity decreased `7257 → 7256`.
+- The complete diagnostic contains only the correlated start/server-confirm/completion records for this consumable request and no second consume request.
+
+Whole-run safety/result:
+
+- The diagnostic contains zero WARN, ERROR, or FATAL records.
+- No crash, disconnect, hidden repeat, auto-loot loop, auto-potion loop, or uncontrolled combat loop was observed.
+- The final diagnostic record is `Slice 3.5 one-click live test passed.`
+- The user performed only the intended one-click live-test action after the update bridge; target/chest/item selection and safe preparation were handled by the harness.
+
+Result: both required Slice 3.5 live mutation paths are now proven against real Adventure Land server confirmation and observed live postconditions. **Slice 3.5 is VERIFIED.**
+
+Phase 4 may be considered for the next planned slice only after this append-only verification record is merged and the resulting `main` CI is fully green.

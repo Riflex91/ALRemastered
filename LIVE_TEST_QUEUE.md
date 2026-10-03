@@ -527,3 +527,39 @@ Install update
 ```
 
 Slice 3.5 remains **unverified** until the alpha.31 real report is reviewed.
+
+
+### Alpha.31 real one-click result: PASSED — Slice 3.5 VERIFIED
+
+Real live report:
+
+- client: `0.1.0-alpha.31` / Windows
+- test ID: `live35-2b341b26-64cd-4cec-95d4-b2d863bf4d48`
+- character: `My_Ranger1` / `CH_denPIHA05KxLLQqVOad9h9vr9KPrL`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- complete diagnostic: 211 records, `Secrets sanitized: yes`
+
+The update bridge succeeded end to end:
+
+- session handoff `present:true`
+- handoff `decoded:true`
+- handoff `consumed:true`
+- account restored from `update_handoff`
+- EU II restored
+- headless character restored automatically
+
+The one-click harness then completed the full Slice 3.5 live chain itself:
+
+- bounded setup attack: exactly one unique `character.attack` request, server accepted
+- generated live chest: `qBf4PJTGWHhTKbv0fsfbnTlaqGFo1l`
+- loot: exactly one unique `character.loot` request, `serverAccepted:true`, chest disappeared and gold changed
+- consumable: exactly one unique `character.consume` request for slot 4 / `hpot0`, `serverAccepted:true`, HP `4168 → 4182`, quantity `7257 → 7256`
+- no duplicate attack/loot/consume request IDs
+- zero WARN/ERROR/FATAL records
+- no crash/disconnect or hidden repeated mutation
+- final log record: `Slice 3.5 one-click live test passed.`
+
+**Canonical queue status: Slice 3.5 = VERIFIED.**
+
+Do not repeat Slice 3.5 merely because its earlier alpha.29/alpha.30 queue entries remain as historical evidence. The next gameplay work may advance beyond Phase 3 only after this verification documentation is merged and post-merge `main` CI is fully green.
