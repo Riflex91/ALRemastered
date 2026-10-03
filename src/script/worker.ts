@@ -216,6 +216,8 @@ function replaceRecord(
 
 function applyApiState(state: ApiState | undefined): void {
   replaceRecord(character, state?.character ?? {});
+  character.on = scriptOn;
+  character.off = scriptOff;
   const nextEntities = state?.Entities ?? {};
   for (const id of Object.keys(Entities)) {
     if (!(id in nextEntities)) delete Entities[id];
@@ -515,6 +517,28 @@ function scriptRespawn(): Promise<unknown> {
   return apiCall("respawn", {});
 }
 
+function scriptSendCm(to: unknown, message: unknown): Promise<unknown> {
+  const recipients = typeof to === "string"
+    ? to.trim()
+    : Array.isArray(to)
+      ? to
+        .filter((value): value is string => typeof value === "string")
+        .map((value) => value.trim())
+        .filter(Boolean)
+      : undefined;
+  if (
+    (typeof recipients === "string" && !recipients) ||
+    (Array.isArray(recipients) && recipients.length === 0) ||
+    recipients === undefined
+  ) {
+    return Promise.reject(scriptApiError(
+      "CM_TARGET_REQUIRED",
+      "send_cm() requires one Character name or an array of Character names.",
+    ));
+  }
+  return apiCall("send_cm", { to: recipients, message });
+}
+
 function scriptApiError(code: string, message: string): Error {
   const error = new Error(message) as Error & { code?: string };
   error.name = "ScriptApiError";
@@ -622,6 +646,7 @@ const sandbox: Record<string, unknown> = {
   use_hp: scriptUseHp,
   use_mp: scriptUseMp,
   respawn: scriptRespawn,
+  send_cm: scriptSendCm,
   on: scriptOn,
   off: scriptOff,
   get: scriptGet,
