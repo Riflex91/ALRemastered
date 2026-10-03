@@ -42,6 +42,7 @@ import { SimpleFarmerTemplateService } from "./script/simple-farmer.ts";
 import { ScriptStorageStore } from "./script/storage.ts";
 import { getReleaseMetadata } from "./release/version-model.ts";
 import { AdventureLandMapModelService } from "./navigation/map-model.ts";
+import { MovementDebugService } from "./navigation/movement-debug.ts";
 import { SimplePathPlannerService } from "./navigation/path-planner.ts";
 import { SmartMoveService } from "./navigation/smart-move.ts";
 import { WatchdogService } from "./recovery/watchdog.ts";
@@ -167,6 +168,7 @@ let slice61LiveTestService: Slice61LiveTestService | undefined;
 let slice62LiveTestService: Slice62LiveTestService | undefined;
 let slice63LiveTestService: Slice63LiveTestService | undefined;
 let mapModelService: AdventureLandMapModelService | undefined;
+let movementDebugService: MovementDebugService | undefined;
 let pathPlannerService: SimplePathPlannerService | undefined;
 let smartMoveService: SmartMoveService | undefined;
 let watchdogService: WatchdogService | undefined;
@@ -419,9 +421,11 @@ mapModelService = new AdventureLandMapModelService({
   logger,
   gameData: () => gameDataService!.data(),
 });
+movementDebugService = new MovementDebugService();
 pathPlannerService = new SimplePathPlannerService({
   logger,
   mapModel: mapModelService,
+  onPlan: (plan) => movementDebugService!.recordPlan(plan),
 });
 
 diagnostics.registerComponent("path-planner", () => {
@@ -472,6 +476,7 @@ movementService = new AdventureLandMovementService({
   gateway: actionGateway!,
   character: characterService!,
   gameData: () => gameDataService!.data(),
+  onConfirmedMovement: (event) => movementDebugService!.recordMovement(event),
 });
 smartMoveService = new SmartMoveService({
   logger,
@@ -480,6 +485,16 @@ smartMoveService = new SmartMoveService({
   planner: pathPlannerService!,
   movement: movementService!,
 });
+diagnostics.registerComponent("movement-debug", () => {
+  const state = movementDebugService!.state();
+  return {
+    name: "movement-debug",
+    status: "healthy",
+    message:
+      `Movement debug ready. ${state.trailPointCount} trail points and ${state.plannedRouteCount} planned routes observed.`,
+  };
+});
+
 diagnostics.registerComponent("smart-move", () => {
   const state = smartMoveService!.state();
   return {
@@ -664,6 +679,7 @@ dashboard = new DashboardServer({
   slice62LiveTestService,
   slice63LiveTestService,
   mapModelService,
+  movementDebugService,
   pathPlannerService,
   smartMoveService,
   watchdogService,
