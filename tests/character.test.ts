@@ -171,6 +171,48 @@ test("headless transport follows welcome-loaded-auth-start without automation ev
   assert.equal(cooldownReceipt.reason, "cooldown");
   assert.equal(cooldownReceipt.cooldownMs, 450);
 
+  const skillPromise = connection.sendSkill({
+    name: "warcry",
+    cooldownKey: "warcry",
+  });
+  const skillPacket = socket.sent.find((packet) =>
+    packet.startsWith('42["skill"') && packet.includes('"warcry"')
+  );
+  assert.ok(skillPacket);
+  assert.deepEqual(JSON.parse(skillPacket.slice(2)), [
+    "skill",
+    { name: "warcry" },
+  ]);
+  socket.message('42["skill_timeout",{"name":"warcry","ms":1200}]');
+  socket.message('42["game_response",{"response":"data","place":"warcry","success":true}]');
+  const skillReceipt = await skillPromise;
+  assert.equal(skillReceipt.name, "warcry");
+  assert.equal(skillReceipt.success, true);
+  assert.ok((skillReceipt.cooldownMs ?? 0) > 0);
+  assert.ok((skillReceipt.cooldownMs ?? 0) <= 1200);
+  assert.ok(connection.skillCooldownRemainingMs("warcry") > 0);
+
+  const targetedSkillPromise = connection.sendSkill({
+    name: "mluck",
+    targetId: "MageStart",
+    cooldownKey: "mluck",
+  });
+  const skillPackets = socket.sent.filter((packet) =>
+    packet.startsWith('42["skill"')
+  );
+  assert.ok(skillPackets.length >= 2);
+  assert.deepEqual(JSON.parse(skillPackets.at(-1)!.slice(2)), [
+    "skill",
+    { name: "mluck", id: "MageStart" },
+  ]);
+  socket.message('42["game_response",{"response":"data","place":"mluck","failed":true,"reason":"cooldown","ms":90}]');
+  const targetedSkillReceipt = await targetedSkillPromise;
+  assert.equal(targetedSkillReceipt.name, "mluck");
+  assert.equal(targetedSkillReceipt.targetId, "MageStart");
+  assert.equal(targetedSkillReceipt.success, false);
+  assert.equal(targetedSkillReceipt.reason, "cooldown");
+  assert.equal(targetedSkillReceipt.cooldownMs, 90);
+
   let liveState = connection.snapshot();
   assert.equal(liveState.entities.length, 2);
   assert.equal(liveState.entities.find((entity) => entity.id === "MageStart")?.type, "mage");
@@ -330,6 +372,17 @@ test("character service allows exactly one connection and disconnects controllab
     attackCooldownRemainingMs() {
       return 0;
     },
+    async sendSkill(input) {
+      return {
+        name: input.name,
+        targetId: input.targetId,
+        success: true,
+        cooldownMs: 600,
+      };
+    },
+    skillCooldownRemainingMs() {
+      return 0;
+    },
     async close() {
       closeCalls += 1;
     },
@@ -373,6 +426,13 @@ test("character service allows exactly one connection and disconnects controllab
     cooldownMs: 750,
   });
   assert.equal(service.attackCooldownRemainingMs(), 0);
+  assert.deepEqual(await service.sendSkill({ name: "warcry" }), {
+    name: "warcry",
+    targetId: undefined,
+    success: true,
+    cooldownMs: 600,
+  });
+  assert.equal(service.skillCooldownRemainingMs("warcry"), 0);
 
   liveListener?.({
     character: {
