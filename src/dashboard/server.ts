@@ -28,6 +28,8 @@ import type { Slice45LiveTestService } from "../live-test/slice-4-5.ts";
 import type { Slice51LiveTestService } from "../live-test/slice-5-1.ts";
 import type { Slice52LiveTestService } from "../live-test/slice-5-2.ts";
 import type { Slice53LiveTestService } from "../live-test/slice-5-3.ts";
+import type { Slice54LiveTestService } from "../live-test/slice-5-4.ts";
+import type { WatchdogComponent, WatchdogService } from "../recovery/watchdog.ts";
 import type { ScriptRuntimeService } from "../script/runtime.ts";
 import type { SimpleFarmerConfig, SimpleFarmerTemplateService } from "../script/simple-farmer.ts";
 import type { UpdateService } from "../update/service.ts";
@@ -55,6 +57,8 @@ export interface DashboardServerOptions {
   readonly slice51LiveTestService?: Slice51LiveTestService;
   readonly slice52LiveTestService?: Slice52LiveTestService;
   readonly slice53LiveTestService?: Slice53LiveTestService;
+  readonly slice54LiveTestService?: Slice54LiveTestService;
+  readonly watchdogService?: WatchdogService;
   readonly simpleFarmerService?: SimpleFarmerTemplateService;
   readonly updateService?: UpdateService;
   readonly diagnostics?: DiagnosticsService;
@@ -85,6 +89,8 @@ export class DashboardServer {
   readonly #slice51LiveTestService?: Slice51LiveTestService;
   readonly #slice52LiveTestService?: Slice52LiveTestService;
   readonly #slice53LiveTestService?: Slice53LiveTestService;
+  readonly #slice54LiveTestService?: Slice54LiveTestService;
+  readonly #watchdogService?: WatchdogService;
   readonly #simpleFarmerService?: SimpleFarmerTemplateService;
   readonly #updateService?: UpdateService;
   readonly #diagnostics?: DiagnosticsService;
@@ -118,6 +124,8 @@ export class DashboardServer {
     this.#slice51LiveTestService = options.slice51LiveTestService;
     this.#slice52LiveTestService = options.slice52LiveTestService;
     this.#slice53LiveTestService = options.slice53LiveTestService;
+    this.#slice54LiveTestService = options.slice54LiveTestService;
+    this.#watchdogService = options.watchdogService;
     this.#simpleFarmerService = options.simpleFarmerService;
     this.#updateService = options.updateService;
     this.#diagnostics = options.diagnostics;
@@ -859,6 +867,64 @@ export class DashboardServer {
         schemaVersion: 1,
         kind: "ALRemastered Slice 5.3 one-click death/respawn recovery test",
         result,
+        character: this.#characterService?.state(),
+        scriptRuntime: this.#scriptRuntime?.state(),
+        diagnostic,
+      };
+      return this.#json(response, {
+        result,
+        reportText: JSON.stringify(report, null, 2),
+        clipboardSuggested: true,
+      });
+    }
+
+    if (method === "GET" && path === "/api/watchdog") {
+      if (!this.#watchdogService) {
+        return this.#json(response, { status: "unavailable", message: "Watchdog service is unavailable." }, 503);
+      }
+      return this.#json(response, this.#watchdogService.state());
+    }
+    if (method === "POST" && path === "/api/watchdog/reset-budget") {
+      if (!this.#watchdogService) {
+        return this.#json(response, { error: "Watchdog service is unavailable." }, 503);
+      }
+      let body: Record<string, unknown>;
+      try {
+        body = await this.#readJsonObject(request);
+      } catch (error) {
+        return this.#json(response, {
+          error: error instanceof Error ? error.message : "Invalid request body.",
+        }, 400);
+      }
+      const component = typeof body.component === "string" ? body.component : "";
+      if (!["core", "character", "script"].includes(component)) {
+        return this.#json(response, { error: "Watchdog component must be core, character, or script." }, 400);
+      }
+      return this.#json(response, this.#watchdogService.resetBudget(component as WatchdogComponent));
+    }
+
+    if (method === "GET" && path === "/api/live-test/slice-5-4") {
+      if (!this.#slice54LiveTestService) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Slice 5.4 watchdog/restart-guard test service is unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#slice54LiveTestService.state());
+    }
+    if (method === "POST" && path === "/api/live-test/slice-5-4/start") {
+      if (!this.#slice54LiveTestService) {
+        return this.#json(response, {
+          error: "Slice 5.4 watchdog/restart-guard test service is unavailable.",
+        }, 503);
+      }
+      const result = await this.#slice54LiveTestService.run();
+      const diagnostic = this.#exportPayload();
+      const report = {
+        schemaVersion: 1,
+        kind: "ALRemastered Slice 5.4 one-click watchdog/restart-guard test",
+        result,
+        watchdog: this.#watchdogService?.state(),
         character: this.#characterService?.state(),
         scriptRuntime: this.#scriptRuntime?.state(),
         diagnostic,

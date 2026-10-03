@@ -1949,3 +1949,78 @@ test("dashboard exposes Slice 5.3 death/respawn recovery one-click test", async 
     runtime.stop();
   }
 });
+
+
+test("dashboard exposes Slice 5.4 watchdog/restart-guard one-click test", async () => {
+  const html = readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
+  const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
+  for (const id of [
+    "start-slice-5-4-live-test",
+    "slice-5-4-live-test-status",
+    "copy-slice-5-4-live-test-result",
+  ]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+  assert.match(html, /restart-budget exhaustion/);
+  assert.match(html, /No gameplay action or raw socket access/);
+  assert.match(script, /\/api\/live-test\/slice-5-4\/start/);
+
+  const runtime = new CoreRuntime();
+  runtime.start();
+  const logger = new Logger({ component: "dashboard-slice54-test" });
+  const fakeWatchdog = {
+    state: () => ({
+      status: "running",
+      checkIntervalMs: 500,
+      restartWindowMs: 30000,
+      maxRestartsPerWindow: 2,
+      checks: 1,
+      components: {
+        core: { monitored: true, stale: false, blocked: false, restartCount: 0, budgetUsed: 0, budgetLimit: 2 },
+        character: { monitored: false, stale: false, blocked: false, restartCount: 0, budgetUsed: 0, budgetLimit: 2 },
+        script: { monitored: false, stale: false, blocked: false, restartCount: 0, budgetUsed: 0, budgetLimit: 2 },
+      },
+      message: "watchdog running",
+    }),
+    resetBudget: () => fakeWatchdog.state(),
+  };
+  const fakeLiveTest = {
+    state: () => ({ status: "idle", message: "ready" }),
+    run: async () => ({
+      testId: "live54-dashboard",
+      slice: "5.4",
+      outcome: "passed",
+      startedAt: "2026-10-03T20:20:00.000Z",
+      completedAt: "2026-10-03T20:20:03.000Z",
+      message: "Slice 5.4 passed.",
+      steps: [],
+    }),
+  };
+  const dashboard = new DashboardServer({
+    logger,
+    runtime,
+    watchdogService: fakeWatchdog as any,
+    slice54LiveTestService: fakeLiveTest as any,
+    host: "127.0.0.1",
+    port: 0,
+  });
+  const url = await dashboard.start();
+  try {
+    const watchdog = await fetch(`${url}/api/watchdog`);
+    assert.equal(watchdog.status, 200);
+    assert.equal((await watchdog.json()).status, "running");
+    const current = await fetch(`${url}/api/live-test/slice-5-4`);
+    assert.equal(current.status, 200);
+    assert.equal((await current.json()).status, "idle");
+    const live = await fetch(`${url}/api/live-test/slice-5-4/start`, { method: "POST" });
+    assert.equal(live.status, 200);
+    const payload = await live.json();
+    assert.equal(payload.result.outcome, "passed");
+    assert.equal(payload.result.slice, "5.4");
+    assert.match(payload.reportText, /ALRemastered Slice 5\.4 one-click watchdog\/restart-guard test/);
+    assert.equal(payload.clipboardSuggested, true);
+  } finally {
+    await dashboard.stop();
+    runtime.stop();
+  }
+});
