@@ -40,6 +40,26 @@ Correction PR #52 targets `0.1.0-alpha.25`. The correction carries `new_map.m` i
 
 **Correction retest rule:** use installed `0.1.0-alpha.25`; repeat the bounded Move success test first. Only if Move changes the real live position and reports server confirmation should XMove be tested. Slice 3.3 must not begin until the corrected Slice 3.2 test passes.
 
+### Live attempt 2 – alpha.25 FAILED / observation fix retest required
+
+- Windows client: `0.1.0-alpha.25`
+- Automatic updater/restart into alpha.25: observed successfully
+- Account/server/character: connected successfully on EU II with `My_Ranger1`
+- Start/observed position during the attempts: `main` at `(-1272.1555957426249, -64.26522650442442)`
+- Four bounded `character.move` requests were recorded:
+  - `act-2ee493f0-0fc6-45a0-8dea-4d4d17beecb0`
+  - `act-ae02f2c2-6b09-4c23-a257-b7b4652d7b36`
+  - `act-71092021-7299-4939-8c9f-f660b3f4336d`
+  - `act-49ca4d17-cdcb-44e8-aa54-d218f87ed26c`
+- Every request used `origin:"dashboard"` and correctly returned `MOVE_NOT_CONFIRMED` after roughly 1.1 seconds.
+- No observed position change occurred; therefore Move still did not satisfy the behavioral PASS criteria.
+- Diagnostic export: `Secrets sanitized: yes`
+- XMove: not attempted because Move still had not passed.
+
+PR #54 targets `0.1.0-alpha.26`. It requests Adventure Land's official read-only `send_updates` snapshots immediately and after 250/650/1000 ms following a bounded Move/XMove packet, retains server entity movement fields, and still requires real positional progress before success.
+
+**Current correction retest rule:** update to installed `0.1.0-alpha.26` and perform exactly one bounded Move attempt first. Do not test XMove or Slice 3.3 unless that Move changes the real live position and is server-confirmed.
+
 ### Original alpha.22 dashboard steps retained for historical test intent
 
 1. Start from installed `0.1.0-alpha.21`, choose **Install update**, and confirm the client restarts into `0.1.0-alpha.22`.
@@ -93,7 +113,7 @@ Treat the live test as failed and stop further movement testing if any of these 
 
 Preserve the full log and the two request IDs. Then proceed to the next release in this queue if one has been published; do not wait for Slice 3.2 to be marked VERIFIED before testing later prepared releases.
 
-> 2026-10-03 execution override: testing is now performed strictly in ROADMAP order. Because the first Slice 3.2 Move attempt failed, do **not** proceed to Slice 3.3 until the alpha.25 correction retest satisfies the Slice 3.2 behavioral PASS criteria. The original alpha.22 update-path requirement remains historical/CI evidence and is not retroactively claimed as a live pass.
+> 2026-10-03 execution override: testing is now performed strictly in ROADMAP order. Because Slice 3.2 has not yet passed real movement, do **not** proceed to Slice 3.3 until the alpha.26 correction retest satisfies the Slice 3.2 behavioral PASS criteria. The original alpha.22 update-path requirement remains historical/CI evidence and is not retroactively claimed as a live pass.
 
 
 ---
