@@ -589,7 +589,7 @@ Noch keine komplexe Botlogik.
 
 ## Slice 3.2 – Move / XMove
 
-**Status: MERGED – AWAITING USER TEST**
+**Status: VERIFIED**
 
 > 2026-10-03: Slice 3.2 merged via PR #46 for release target `0.1.0-alpha.22`. The dashboard now exposes only fixed 32-unit Move/XMove test steps. Every gameplay mutation runs through the central Action Gateway with request ID, dashboard origin, character ID, shared movement rate guard, timeout, structured outcome, and sanitized correlated logging. Direct movement is validated against the loaded Adventure Land map geometry before the official `move` socket packet is emitted with current position and movement sequence. Blocked Move requests are rejected before transport; XMove executes the direct path only and returns `XMOVE_PATH_REQUIRED` rather than silently introducing the later smart/pathfinding navigation stack.
 >
@@ -614,6 +614,8 @@ Noch keine komplexe Botlogik.
 >
 > PR #58 targets `0.1.0-alpha.28`: own-player entity movement snapshots remain available to confirm live movement, but `moving:true` snapshots no longer overwrite canonical `character.x/y`; direct player updates and non-moving entity snapshots may still advance canonical position. Regression coverage reproduces start → intermediate → target → late-intermediate ordering and requires the late moving snapshot not to roll back the target. Exact PR #58 head `feb36d4c2fb45284b1065896f81e85582d388be8`, CI run `37110673856`: Ubuntu 24.04 verify success, Windows verify success, Linux alpha.27 → alpha.28 installer upgrade smoke success, Windows alpha.27 → alpha.28 installer upgrade smoke success. Slice 3.2 remains AWAITING USER TEST and must be retested on alpha.28 before direct-path XMove or Slice 3.3.
 
+> 2026-10-03 alpha.28 verification: the installed Windows client updated and restarted automatically into `0.1.0-alpha.28`, and the diagnostic export reported `Secrets sanitized: yes`. One bounded dashboard Move request `act-7a255dec-8779-49a2-8890-4e0b89dd56d7` completed as `character.move` / `origin:"dashboard"` / `outcome:"success"` in 334 ms and moved canonical position from `(168, -134)` to `(168, -102)`, exactly 32 units, with no later rollback in the captured log. After Move passed, one direct-path dashboard XMove request `act-4abd98ad-837b-4f10-9c77-0233e65c2488` completed as `character.xmove` / `origin:"dashboard"` / `outcome:"success"` in 329 ms and moved canonical position from `(168, -102)` through the observed intermediate `y=-82.01300097592767` to the exact 32-unit target `(168, -70)`. No rollback, autonomous movement, unexpected map change, crash, or disconnect was observed in the supplied log. Slice 3.2 is therefore VERIFIED on the corrected release; Slice 3.3 may now begin in ROADMAP order.
+>
 - einfache Bewegung
 - Validierung
 - Action-Logging
