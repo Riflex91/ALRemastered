@@ -8,6 +8,10 @@ export interface AdventureLandVisibleEntity {
   readonly map?: string;
   readonly x?: number;
   readonly y?: number;
+  readonly moving?: boolean;
+  readonly goingX?: number;
+  readonly goingY?: number;
+  readonly moveNum?: number;
   readonly hp?: number;
   readonly maxHp?: number;
   readonly level?: number;
@@ -186,6 +190,10 @@ function parseEntity(
     map: "map" in raw ? stringValue(raw.map) : previous?.map,
     x: "x" in raw ? finiteNumber(raw.x) : previous?.x,
     y: "y" in raw ? finiteNumber(raw.y) : previous?.y,
+    moving: "moving" in raw ? Boolean(raw.moving) : previous?.moving,
+    goingX: "going_x" in raw ? finiteNumber(raw.going_x) : previous?.goingX,
+    goingY: "going_y" in raw ? finiteNumber(raw.going_y) : previous?.goingY,
+    moveNum: "move_num" in raw ? finiteNumber(raw.move_num) : previous?.moveNum,
     hp: "hp" in raw ? finiteNumber(raw.hp) : previous?.hp,
     maxHp: "max_hp" in raw ? finiteNumber(raw.max_hp) : previous?.maxHp,
     level: "level" in raw ? finiteNumber(raw.level) : previous?.level,
