@@ -2024,3 +2024,106 @@ test("dashboard exposes Slice 5.4 watchdog/restart-guard one-click test", async 
     runtime.stop();
   }
 });
+
+test("dashboard exposes Slice 6.1 map/geometry-model APIs and one-click test", async () => {
+  const html = readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
+  const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
+  for (const id of [
+    "start-slice-6-1-live-test",
+    "slice-6-1-live-test-status",
+    "copy-slice-6-1-live-test-result",
+  ]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+  assert.match(html, /map boundaries, door\/transition target-spawn resolution/);
+  assert.match(html, /No movement, pathfinding, gameplay action, or raw socket access/);
+  assert.match(script, /\/api\/live-test\/slice-6-1\/start/);
+
+  const runtime = new CoreRuntime();
+  runtime.start();
+  const logger = new Logger({ component: "dashboard-slice61-test" });
+  const fakeMap = {
+    key: "main",
+    name: "Mainland",
+    ignored: false,
+    instance: false,
+    outside: true,
+    safe: false,
+    spawnPoints: [{ x: 0, y: 0, direction: 3 }],
+    bounds: { minX: -100, minY: -100, maxX: 100, maxY: 100, source: "geometry" },
+    collision: { xLines: [[0, -100, 100]], yLines: [], lineCount: 1 },
+    transitions: [],
+  };
+  const fakeMapModel = {
+    state: () => ({
+      status: "ready",
+      version: 17397,
+      mapCount: 1,
+      geometryMapCount: 1,
+      mapsWithBounds: 1,
+      collisionLineCount: 1,
+      transitionCount: 0,
+      invalidTransitionCount: 0,
+      missingGeometryMapKeys: [],
+      message: "Map/geometry model is ready.",
+    }),
+    map: (key: string) => key === "main" ? fakeMap : undefined,
+  };
+  const fakeLiveTest = {
+    state: () => ({ status: "idle", message: "ready" }),
+    run: async () => ({
+      testId: "live61-dashboard",
+      slice: "6.1",
+      outcome: "passed",
+      startedAt: "2026-10-03T21:10:00.000Z",
+      completedAt: "2026-10-03T21:10:01.000Z",
+      message: "Slice 6.1 passed.",
+      steps: [],
+    }),
+  };
+  const dashboard = new DashboardServer({
+    logger,
+    runtime,
+    mapModelService: fakeMapModel as any,
+    slice61LiveTestService: fakeLiveTest as any,
+    host: "127.0.0.1",
+    port: 0,
+  });
+  const url = await dashboard.start();
+  try {
+    const model = await fetch(`${url}/api/navigation/map-model`);
+    assert.equal(model.status, 200);
+    assert.equal((await model.json()).status, "ready");
+
+    const map = await fetch(`${url}/api/navigation/map-model/map`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ key: "main" }),
+    });
+    assert.equal(map.status, 200);
+    assert.equal((await map.json()).key, "main");
+
+    const missingMap = await fetch(`${url}/api/navigation/map-model/map`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ key: "missing" }),
+    });
+    assert.equal(missingMap.status, 404);
+
+    const current = await fetch(`${url}/api/live-test/slice-6-1`);
+    assert.equal(current.status, 200);
+    assert.equal((await current.json()).status, "idle");
+
+    const live = await fetch(`${url}/api/live-test/slice-6-1/start`, { method: "POST" });
+    assert.equal(live.status, 200);
+    const payload = await live.json();
+    assert.equal(payload.result.outcome, "passed");
+    assert.equal(payload.result.slice, "6.1");
+    assert.match(payload.reportText, /ALRemastered Slice 6\.1 one-click map\/geometry-model test/);
+    assert.equal(payload.clipboardSuggested, true);
+  } finally {
+    await dashboard.stop();
+    runtime.stop();
+  }
+});
+
