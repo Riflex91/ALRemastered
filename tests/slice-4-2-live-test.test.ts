@@ -94,19 +94,35 @@ test("Slice 4.2 one-click farmer runs compatible script API through the producti
 
   let attackCalls = 0;
   let lootCalls = 0;
+  let stateReads = 0;
   const movementCalls: Array<{ x: number; y: number }> = [];
   const character = {
-    state: () => structuredClone(state),
+    state: () => {
+      stateReads += 1;
+      if (
+        stateReads === 2 &&
+        state.entities.length === 1 &&
+        state.entities[0]?.id === "monster-1"
+      ) {
+        state.entities = [{
+          ...state.entities[0],
+          id: "monster-2",
+          name: "monster-2",
+          x: 145,
+        }];
+      }
+      return structuredClone(state);
+    },
     attackCooldownRemainingMs: () => 0,
     skillCooldownRemainingMs: () => 0,
     async sendAttack({ targetId }: { targetId: string }) {
       attackCalls += 1;
-      assert.equal(targetId, "monster-1");
+      assert.equal(targetId, "monster-2");
       state.entities = [];
       state.lootChests = [{
         id: "chest-live42",
         map: "main",
-        x: 140,
+        x: 145,
         y: 100,
         items: 1,
         chest: "chest1",
@@ -214,6 +230,20 @@ test("Slice 4.2 one-click farmer runs compatible script API through the producti
         record.message === "Action gateway request completed." &&
         (record.context as any)?.origin === "script" &&
         (record.context as any)?.action === "character.attack"
+      ),
+      true,
+    );
+    assert.equal(
+      logs.some((record) =>
+        record.component === "script:slice-4-2-live-farmer" &&
+        record.message === "slice42:target-reacquired:monster-1:monster-2"
+      ),
+      true,
+    );
+    assert.equal(
+      logs.some((record) =>
+        record.component === "script:slice-4-2-live-farmer" &&
+        record.message === "slice42:target-locked:monster-2"
       ),
       true,
     );
