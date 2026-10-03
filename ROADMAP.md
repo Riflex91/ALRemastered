@@ -18,6 +18,9 @@ Diese Regeln gelten für die gesamte Entwicklung:
 - **“Remind me tomorrow”** unterdrückt die angebotene Version für 24 Stunden und zeigt sie danach erneut an, sofern sie noch aktuell ist.
 - Entwicklung erfolgt in **kleinen, testbaren Slices**.
 - Jeder Slice folgt strikt: **implementieren → prüfen → PR → mergen → Benutzer-Livetest → erst danach nächster Slice**.
+- **Verbindlicher Livetest-Bedienstandard:** Der Benutzer soll für einen Livetest keine Gameplay-Situation manuell vorbereiten, keine Monster/Targets/Items/Chests manuell beschaffen oder positionieren und keine mehrstufigen Dashboard-Testanweisungen abarbeiten müssen. Der normale Benutzerablauf ist **lokale Repo bzw. installierten gemergten Teststand aktualisieren → einen Test starten → vollständiges Ergebnis/Diagnose-Log liefern**.
+- **Der Test-Harness ist für die Vorbereitung verantwortlich.** Er muss benötigten sicheren Spielzustand selbst herstellen oder aus dem aktuellen Live-State sicher auswählen, die vorgesehenen bounded Actions selbst in der richtigen Reihenfolge ausführen, Erfolg/Fehler selbst korrelieren und danach ein vollständiges maschinenlesbares Testergebnis erzeugen. Kann ein erforderlicher Zustand nicht sicher automatisch hergestellt werden, muss der Test mit einem klaren Blockierungsgrund enden statt manuelle Gameplay-Vorbereitung vom Benutzer zu verlangen.
+- Benutzerinteraktion innerhalb eines Tests ist nur dort zulässig, wo eine externe Plattform zwingend eine bewusste Benutzerentscheidung verlangt, z. B. Login/Account-Freigabe oder **Install update**. Solche Schritte dürfen nicht als Ersatz für fehlende Testautomation verwendet werden.
 - Kein Folge-Slice wird begonnen, solange der vorherige Slice im realen Test noch einen ungeklärten Fehler hat.
 - Jeder neue Funktionsbereich muss vor oder zusammen mit seiner Funktion ausreichendes strukturiertes Logging bekommen.
 - Der Benutzer kann bei Problemen jederzeit über die Debug-Konsole **„Gesamten Log kopieren“** verwenden und den Log zur Fehleranalyse schicken.
@@ -48,13 +51,13 @@ Jeder Roadmap-Slice ist eine eigene abgeschlossene Einheit.
 6. Pull Request erstellen
 7. PR gegen aktuellen `main` prüfen
 8. nur bei sauberem Stand mergen
-9. Benutzer testet den **gemergten `main`**
-10. bei Fehler:
-    - Debug-Konsole öffnen
-    - **Gesamten Log kopieren**
+9. Livetest-Harness für den **gemergten `main`** bereitstellen; der Benutzer aktualisiert nur den lokalen/installierten Teststand und startet den Test
+10. Test-Harness bereitet die benötigte sichere Spielsituation selbst vor bzw. wählt sie sicher aus, führt die bounded Testaktionen aus und erzeugt das vollständige Ergebnis/Diagnose-Log
+11. bei Fehler oder Blockierung:
+    - vollständiges Testergebnis bzw. **Gesamten Log kopieren**
     - Log zur Analyse schicken
     - Fehler in einem Fix-Slice beheben
-11. erst nach bestandenem Livetest den nächsten geplanten Slice freigeben
+12. erst nach bestandenem Livetest den nächsten geplanten Slice freigeben
 
 ## Definition of Done für jeden Slice
 
