@@ -977,7 +977,7 @@ function confirmedMovementPoint(
       typeof candidate.y !== "number" ||
       !Number.isFinite(candidate.y)
     ) continue;
-    if (movementProgressedToward(
+    if (movementReachedTarget(
       fromX,
       fromY,
       targetX,
@@ -991,7 +991,7 @@ function confirmedMovementPoint(
   return undefined;
 }
 
-function movementProgressedToward(
+function movementReachedTarget(
   fromX: number,
   fromY: number,
   targetX: number,
@@ -999,13 +999,12 @@ function movementProgressedToward(
   currentX: number,
   currentY: number,
 ): boolean {
-  const epsilon = 0.25;
+  const movementEpsilon = 0.05;
+  const targetEpsilon = 0.75;
   const moved = Math.hypot(currentX - fromX, currentY - fromY);
-  if (moved <= epsilon) return false;
+  if (moved <= movementEpsilon) return false;
 
-  const initialDistance = Math.hypot(targetX - fromX, targetY - fromY);
-  const currentDistance = Math.hypot(targetX - currentX, targetY - currentY);
-  return currentDistance + epsilon < initialDistance;
+  return Math.hypot(targetX - currentX, targetY - currentY) <= targetEpsilon;
 }
 
 function disconnectedState(): AdventureLandCharacterConnectionState {
