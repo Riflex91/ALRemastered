@@ -11,10 +11,12 @@ import type {
 import type { AdventureLandVisibleEntity } from "../character/world-state.ts";
 import type { AdventureLandGameEvent } from "../character/game-events.ts";
 import type { AdventureLandGameData } from "../game/data-source.ts";
+import { SmartMoveError, type SmartMoveService } from "../navigation/smart-move.ts";
 
 export type ScriptAdventureApiMethod =
   | "move"
   | "xmove"
+  | "smart_move"
   | "attack"
   | "loot"
   | "consume"
@@ -48,6 +50,7 @@ export interface AdventureLandScriptApiBridgeOptions {
     "state" | "attackCooldownRemainingMs"
   > & Partial<Pick<AdventureLandCharacterService, "onGameEvent">>;
   readonly movement: Pick<AdventureLandMovementService, "runScript">;
+  readonly smartMove?: Pick<SmartMoveService, "run">;
   readonly attack: Pick<AdventureLandAttackService, "run">;
   readonly loot?: Pick<AdventureLandLootConsumableService, "runLoot">;
   readonly lootConsumable?: Pick<
@@ -64,6 +67,7 @@ export class AdventureLandScriptApiBridge implements ScriptAdventureApiBridge {
     "state" | "attackCooldownRemainingMs"
   > & Partial<Pick<AdventureLandCharacterService, "onGameEvent">>;
   readonly #movement: Pick<AdventureLandMovementService, "runScript">;
+  readonly #smartMove?: Pick<SmartMoveService, "run">;
   readonly #attack: Pick<AdventureLandAttackService, "run">;
   readonly #loot: Pick<AdventureLandLootConsumableService, "runLoot">;
   readonly #lootConsumable?: Pick<
@@ -76,6 +80,7 @@ export class AdventureLandScriptApiBridge implements ScriptAdventureApiBridge {
   constructor(options: AdventureLandScriptApiBridgeOptions) {
     this.#character = options.character;
     this.#movement = options.movement;
+    this.#smartMove = options.smartMove;
     this.#attack = options.attack;
     this.#loot = options.lootConsumable ?? options.loot ?? {
       runLoot: async () => {
@@ -140,6 +145,27 @@ export class AdventureLandScriptApiBridge implements ScriptAdventureApiBridge {
           y,
         });
         return unwrapGateway(result);
+      }
+      case "smart_move": {
+        if (!this.#smartMove) {
+          throw new ScriptAdventureApiCallError(
+            "SCRIPT_SMART_MOVE_UNAVAILABLE",
+            "Adventure Land smart_move() compatibility is unavailable.",
+          );
+        }
+        try {
+          return await this.#smartMove.run(input.target);
+        } catch (error) {
+          if (error instanceof SmartMoveError) {
+            throw new ScriptAdventureApiCallError(
+              error.code,
+              error.message,
+              error.retryAfterMs,
+              error.requestId,
+            );
+          }
+          throw error;
+        }
       }
       case "attack": {
         const targetId = stringValue(input.targetId);

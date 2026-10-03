@@ -403,6 +403,7 @@ export class ScriptRuntimeService {
     const supported: readonly ScriptAdventureApiMethod[] = [
       "move",
       "xmove",
+      "smart_move",
       "attack",
       "loot",
       "consume",

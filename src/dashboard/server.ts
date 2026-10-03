@@ -31,8 +31,10 @@ import type { Slice53LiveTestService } from "../live-test/slice-5-3.ts";
 import type { Slice54LiveTestService } from "../live-test/slice-5-4.ts";
 import type { Slice61LiveTestService } from "../live-test/slice-6-1.ts";
 import type { Slice62LiveTestService } from "../live-test/slice-6-2.ts";
+import type { Slice63LiveTestService } from "../live-test/slice-6-3.ts";
 import type { AdventureLandMapModelService } from "../navigation/map-model.ts";
 import type { SimplePathPlannerService } from "../navigation/path-planner.ts";
+import type { SmartMoveService } from "../navigation/smart-move.ts";
 import type { WatchdogComponent, WatchdogService } from "../recovery/watchdog.ts";
 import type { ScriptRuntimeService } from "../script/runtime.ts";
 import type { SimpleFarmerConfig, SimpleFarmerTemplateService } from "../script/simple-farmer.ts";
@@ -64,8 +66,10 @@ export interface DashboardServerOptions {
   readonly slice54LiveTestService?: Slice54LiveTestService;
   readonly slice61LiveTestService?: Slice61LiveTestService;
   readonly slice62LiveTestService?: Slice62LiveTestService;
+  readonly slice63LiveTestService?: Slice63LiveTestService;
   readonly mapModelService?: AdventureLandMapModelService;
   readonly pathPlannerService?: SimplePathPlannerService;
+  readonly smartMoveService?: SmartMoveService;
   readonly watchdogService?: WatchdogService;
   readonly simpleFarmerService?: SimpleFarmerTemplateService;
   readonly updateService?: UpdateService;
@@ -100,8 +104,10 @@ export class DashboardServer {
   readonly #slice54LiveTestService?: Slice54LiveTestService;
   readonly #slice61LiveTestService?: Slice61LiveTestService;
   readonly #slice62LiveTestService?: Slice62LiveTestService;
+  readonly #slice63LiveTestService?: Slice63LiveTestService;
   readonly #mapModelService?: AdventureLandMapModelService;
   readonly #pathPlannerService?: SimplePathPlannerService;
+  readonly #smartMoveService?: SmartMoveService;
   readonly #watchdogService?: WatchdogService;
   readonly #simpleFarmerService?: SimpleFarmerTemplateService;
   readonly #updateService?: UpdateService;
@@ -139,8 +145,10 @@ export class DashboardServer {
     this.#slice54LiveTestService = options.slice54LiveTestService;
     this.#slice61LiveTestService = options.slice61LiveTestService;
     this.#slice62LiveTestService = options.slice62LiveTestService;
+    this.#slice63LiveTestService = options.slice63LiveTestService;
     this.#mapModelService = options.mapModelService;
     this.#pathPlannerService = options.pathPlannerService;
+    this.#smartMoveService = options.smartMoveService;
     this.#watchdogService = options.watchdogService;
     this.#simpleFarmerService = options.simpleFarmerService;
     this.#updateService = options.updateService;
@@ -1014,6 +1022,16 @@ export class DashboardServer {
       return this.#json(response, this.#pathPlannerService.plan(from, to));
     }
 
+    if (method === "GET" && path === "/api/navigation/smart-move") {
+      if (!this.#smartMoveService) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Smart-move compatibility service is unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#smartMoveService.state());
+    }
+
     if (method === "GET" && path === "/api/live-test/slice-6-1") {
       if (!this.#slice61LiveTestService) {
         return this.#json(response, {
@@ -1070,6 +1088,41 @@ export class DashboardServer {
         pathPlanner: this.#pathPlannerService?.state(),
         mapModel: this.#mapModelService?.state(),
         character: this.#characterService?.state(),
+        diagnostic,
+      };
+      return this.#json(response, {
+        result,
+        reportText: JSON.stringify(report, null, 2),
+        clipboardSuggested: true,
+      });
+    }
+
+    if (method === "GET" && path === "/api/live-test/slice-6-3") {
+      if (!this.#slice63LiveTestService) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Slice 6.3 smart_move() compatibility test service is unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#slice63LiveTestService.state());
+    }
+    if (method === "POST" && path === "/api/live-test/slice-6-3/start") {
+      if (!this.#slice63LiveTestService) {
+        return this.#json(response, {
+          error: "Slice 6.3 smart_move() compatibility test service is unavailable.",
+        }, 503);
+      }
+      const result = await this.#slice63LiveTestService.run();
+      const diagnostic = this.#exportPayload();
+      const report = {
+        schemaVersion: 1,
+        kind: "ALRemastered Slice 6.3 one-click smart_move compatibility test",
+        result,
+        smartMove: this.#smartMoveService?.state(),
+        pathPlanner: this.#pathPlannerService?.state(),
+        mapModel: this.#mapModelService?.state(),
+        character: this.#characterService?.state(),
+        scriptRuntime: this.#scriptRuntime?.state(),
         diagnostic,
       };
       return this.#json(response, {

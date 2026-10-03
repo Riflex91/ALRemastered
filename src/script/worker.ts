@@ -462,6 +462,31 @@ function scriptXMove(x: unknown, y: unknown): Promise<unknown> {
   return apiCall("xmove", { x: targetX, y: targetY });
 }
 
+function scriptSmartMove(destination: unknown, y?: unknown): Promise<unknown> {
+  let target: unknown = destination;
+  const x = finiteNumber(destination);
+  const targetY = finiteNumber(y);
+  if (x !== undefined || targetY !== undefined) {
+    if (x === undefined || targetY === undefined) {
+      return Promise.reject(scriptApiError(
+        "SMART_MOVE_TARGET_INVALID",
+        "smart_move(x, y) requires two finite coordinates.",
+      ));
+    }
+    target = { x, y: targetY };
+  }
+  if (
+    typeof target !== "string" &&
+    !isRecord(target)
+  ) {
+    return Promise.reject(scriptApiError(
+      "SMART_MOVE_TARGET_INVALID",
+      "smart_move() requires a map name, destination object, or finite x/y pair.",
+    ));
+  }
+  return apiCall("smart_move", { target });
+}
+
 function scriptAttack(target: unknown): Promise<unknown> {
   const targetId = resolveTargetId(target);
   if (!targetId) {
@@ -591,6 +616,7 @@ const sandbox: Record<string, unknown> = {
   can_attack: canAttack,
   move: scriptMove,
   xmove: scriptXMove,
+  smart_move: scriptSmartMove,
   attack: scriptAttack,
   loot: scriptLoot,
   use_hp: scriptUseHp,
