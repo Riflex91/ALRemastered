@@ -29,6 +29,8 @@ const state = {
   slice51LastReport: null,
   slice52LiveTest: null,
   slice52LastReport: null,
+  slice53LiveTest: null,
+  slice53LastReport: null,
   update: null,
   gameVersion: null,
   gameData: null,
@@ -161,6 +163,10 @@ const elements = {
   slice52LiveTestStatus: document.querySelector("#slice-5-2-live-test-status"),
   slice52LiveTestNote: document.querySelector("#slice-5-2-live-test-note"),
   copySlice52LiveTestResult: document.querySelector("#copy-slice-5-2-live-test-result"),
+  startSlice53LiveTest: document.querySelector("#start-slice-5-3-live-test"),
+  slice53LiveTestStatus: document.querySelector("#slice-5-3-live-test-status"),
+  slice53LiveTestNote: document.querySelector("#slice-5-3-live-test-note"),
+  copySlice53LiveTestResult: document.querySelector("#copy-slice-5-3-live-test-result"),
   gameVersion: document.querySelector("#game-version"),
   gameVersionStatus: document.querySelector("#game-version-status"),
   gameLastDeploy: document.querySelector("#game-last-deploy"),
@@ -1286,6 +1292,32 @@ function renderSlice52LiveTest() {
   }
 }
 
+function renderSlice53LiveTest() {
+  const test = state.slice53LiveTest;
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    blocked: "BLOCKED",
+    failed: "FAILED",
+    unavailable: "Unavailable",
+  };
+  const status = test?.status ?? "idle";
+  elements.slice53LiveTestStatus.textContent = labels[status] ?? status;
+  elements.startSlice53LiveTest.disabled = status === "running";
+  elements.copySlice53LiveTestResult.hidden = !state.slice53LastReport;
+  if (status === "running") {
+    elements.slice53LiveTestNote.textContent =
+      "Verifying real death evidence, server-confirmed respawn through the central Action Gateway, and continuation of the same isolated script run.";
+  } else if (test?.message) {
+    elements.slice53LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  } else {
+    elements.slice53LiveTestNote.textContent =
+      "Requires a real server-observed dead Character. The harness handles respawn and script-continuation verification without raw socket access.";
+  }
+}
+
 function renderGameVersion() {
   const gameVersion = state.gameVersion;
   if (!gameVersion) return;
@@ -1802,6 +1834,22 @@ async function refreshSlice52LiveTest() {
       message: "Slice 5.2 reconnect-test status could not be loaded.",
     };
     renderSlice52LiveTest();
+  }
+}
+
+async function refreshSlice53LiveTest() {
+  try {
+    const response = await fetch("/api/live-test/slice-5-3", { cache: "no-store" });
+    state.slice53LiveTest = response.ok
+      ? await response.json()
+      : { status: "unavailable", message: "Slice 5.3 death/respawn recovery test is unavailable." };
+    renderSlice53LiveTest();
+  } catch {
+    state.slice53LiveTest = {
+      status: "unavailable",
+      message: "Slice 5.3 death/respawn recovery status could not be loaded.",
+    };
+    renderSlice53LiveTest();
   }
 }
 
@@ -2446,6 +2494,38 @@ async function startSlice52LiveTest(clipboardWrite) {
   const copied = await clipboardWrite.finish(payload.reportText);
   renderSlice52LiveTest();
   await refreshCharacterConnection();
+  await refreshDiagnostics();
+  return { payload, copied };
+}
+
+async function startSlice53LiveTest(clipboardWrite) {
+  state.slice53LiveTest = {
+    status: "running",
+    message: "Slice 5.3 death/respawn recovery test is running.",
+  };
+  renderSlice53LiveTest();
+  const response = await fetch("/api/live-test/slice-5-3/start", { method: "POST" });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      payload.error ??
+        payload.message ??
+        `Slice 5.3 death/respawn recovery test failed with HTTP ${response.status}`,
+    );
+  }
+  if (!payload.reportText || typeof payload.reportText !== "string") {
+    throw new Error("Slice 5.3 death/respawn recovery test returned no copyable report.");
+  }
+  state.slice53LastReport = payload.reportText;
+  state.slice53LiveTest = {
+    status: payload.result?.outcome ?? "failed",
+    message: payload.result?.message ?? "Slice 5.3 death/respawn recovery test finished.",
+    lastResult: payload.result,
+  };
+  const copied = await clipboardWrite.finish(payload.reportText);
+  renderSlice53LiveTest();
+  await refreshCharacterConnection();
+  await refreshScriptRuntime();
   await refreshDiagnostics();
   return { payload, copied };
 }
@@ -3291,6 +3371,45 @@ elements.copySlice52LiveTestResult.addEventListener("click", async () => {
   }
 });
 
+elements.startSlice53LiveTest.addEventListener("click", async () => {
+  if (state.slice53LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice53LastReport = null;
+  elements.copySlice53LiveTestResult.hidden = true;
+  setFeedback(
+    "Slice 5.3 recovery test started. A real server-observed death state is required; respawn and script continuation are handled automatically.",
+  );
+  try {
+    const { payload, copied } = await startSlice53LiveTest(clipboardWrite);
+    const outcome = payload.result?.outcome ?? "failed";
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 5.3 test ${String(outcome).toUpperCase()}. ${copyMessage}`,
+      outcome === "passed" && copied ? "success" : outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    await refreshSlice53LiveTest();
+    setFeedback(`Slice 5.3 death/respawn recovery test could not finish: ${error.message}`, "error");
+  } finally {
+    renderSlice53LiveTest();
+  }
+});
+
+elements.copySlice53LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice53LastReport) return;
+  try {
+    await writeClipboard(state.slice53LastReport);
+    setFeedback(
+      "Complete Slice 5.3 death/respawn recovery result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Death/respawn recovery-result copy failed: ${error.message}`, "error");
+  }
+});
+
 elements.reloadGameData.addEventListener("click", async () => {
   elements.reloadGameData.disabled = true;
   setFeedback("Reloading Adventure Land game data…");
@@ -3409,6 +3528,7 @@ await refreshSimpleFarmer();
 await refreshSlice45LiveTest();
 await refreshSlice51LiveTest();
 await refreshSlice52LiveTest();
+await refreshSlice53LiveTest();
 await refreshGameVersion();
 await refreshGameData();
 await refreshUpdate();
@@ -3432,6 +3552,7 @@ setInterval(refreshSimpleFarmer, 1500);
 setInterval(refreshSlice45LiveTest, 1500);
 setInterval(refreshSlice51LiveTest, 1500);
 setInterval(refreshSlice52LiveTest, 1500);
+setInterval(refreshSlice53LiveTest, 1500);
 setInterval(refreshGameVersion, 2000);
 setInterval(refreshGameData, 2000);
 setInterval(refreshUpdate, 1500);
