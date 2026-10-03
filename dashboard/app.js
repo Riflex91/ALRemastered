@@ -21,6 +21,10 @@ const state = {
   slice43LastReport: null,
   slice44LiveTest: null,
   slice44LastReport: null,
+  simpleFarmerOptions: null,
+  simpleFarmer: null,
+  slice45LiveTest: null,
+  slice45LastReport: null,
   update: null,
   gameVersion: null,
   gameData: null,
@@ -132,6 +136,19 @@ const elements = {
   slice44LiveTestStatus: document.querySelector("#slice-4-4-live-test-status"),
   slice44LiveTestNote: document.querySelector("#slice-4-4-live-test-note"),
   copySlice44LiveTestResult: document.querySelector("#copy-slice-4-4-live-test-result"),
+  simpleFarmerMonster: document.querySelector("#simple-farmer-monster"),
+  simpleFarmerHpThreshold: document.querySelector("#simple-farmer-hp-threshold"),
+  simpleFarmerMpThreshold: document.querySelector("#simple-farmer-mp-threshold"),
+  simpleFarmerLoot: document.querySelector("#simple-farmer-loot"),
+  simpleFarmerRespawn: document.querySelector("#simple-farmer-respawn"),
+  simpleFarmerStart: document.querySelector("#simple-farmer-start"),
+  simpleFarmerStop: document.querySelector("#simple-farmer-stop"),
+  simpleFarmerStatus: document.querySelector("#simple-farmer-status"),
+  simpleFarmerNote: document.querySelector("#simple-farmer-note"),
+  startSlice45LiveTest: document.querySelector("#start-slice-4-5-live-test"),
+  slice45LiveTestStatus: document.querySelector("#slice-4-5-live-test-status"),
+  slice45LiveTestNote: document.querySelector("#slice-4-5-live-test-note"),
+  copySlice45LiveTestResult: document.querySelector("#copy-slice-4-5-live-test-result"),
   gameVersion: document.querySelector("#game-version"),
   gameVersionStatus: document.querySelector("#game-version-status"),
   gameLastDeploy: document.querySelector("#game-last-deploy"),
@@ -1143,6 +1160,68 @@ function renderSlice44LiveTest() {
   }
 }
 
+function renderSimpleFarmer() {
+  const options = state.simpleFarmerOptions;
+  const farmer = state.simpleFarmer;
+  const selected = elements.simpleFarmerMonster.value;
+  const monsters = Array.isArray(options?.monsters) ? options.monsters : [];
+  elements.simpleFarmerMonster.replaceChildren();
+  if (!monsters.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "No visible monsters";
+    elements.simpleFarmerMonster.append(option);
+  } else {
+    for (const monster of monsters) {
+      const option = document.createElement("option");
+      option.value = monster;
+      option.textContent = monster;
+      elements.simpleFarmerMonster.append(option);
+    }
+    elements.simpleFarmerMonster.value = monsters.includes(selected) ? selected : monsters[0];
+  }
+
+  const running = farmer?.status === "running";
+  elements.simpleFarmerStatus.textContent = running
+    ? "Running"
+    : farmer?.status === "error"
+      ? "Error"
+      : farmer?.status === "stopped"
+        ? "Stopped"
+        : "Idle";
+  elements.simpleFarmerStart.disabled = options?.status !== "ready" || !monsters.length || running;
+  elements.simpleFarmerStop.disabled = !running;
+  elements.simpleFarmerNote.textContent = farmer?.message ??
+    options?.message ??
+    "Configure a currently visible monster type. Slice 4.5 does not navigate.";
+}
+
+function renderSlice45LiveTest() {
+  const test = state.slice45LiveTest;
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    blocked: "BLOCKED",
+    failed: "FAILED",
+    unavailable: "Unavailable",
+  };
+  const status = test?.status ?? "idle";
+  elements.slice45LiveTestStatus.textContent = labels[status] ?? status;
+  elements.startSlice45LiveTest.disabled = status === "running";
+  elements.copySlice45LiveTestResult.hidden = !state.slice45LastReport;
+  if (status === "running") {
+    elements.slice45LiveTestNote.textContent =
+      "The bounded Simple Farmer is waiting for one real server-confirmed automated attack. No navigation is performed.";
+  } else if (test?.message) {
+    elements.slice45LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  } else {
+    elements.slice45LiveTestNote.textContent =
+      "The test selects one low-risk visible in-range monster, starts the no-code Simple Farmer, proves a script-origin attack, then stops and verifies cleanup.";
+  }
+}
+
 function renderGameVersion() {
   const gameVersion = state.gameVersion;
   if (!gameVersion) return;
@@ -1595,6 +1674,38 @@ async function refreshSlice44LiveTest() {
       message: "Slice 4.4 one-click storage-test status could not be loaded.",
     };
     renderSlice44LiveTest();
+  }
+}
+
+async function refreshSimpleFarmer() {
+  try {
+    const [optionsResponse, stateResponse] = await Promise.all([
+      fetch("/api/simple-farmer/options", { cache: "no-store" }),
+      fetch("/api/simple-farmer", { cache: "no-store" }),
+    ]);
+    state.simpleFarmerOptions = await optionsResponse.json();
+    state.simpleFarmer = await stateResponse.json();
+    renderSimpleFarmer();
+  } catch {
+    state.simpleFarmerOptions = { status: "unavailable", monsters: [], message: "Simple Farmer status could not be loaded." };
+    state.simpleFarmer = { status: "error", message: "Simple Farmer status could not be loaded." };
+    renderSimpleFarmer();
+  }
+}
+
+async function refreshSlice45LiveTest() {
+  try {
+    const response = await fetch("/api/live-test/slice-4-5", { cache: "no-store" });
+    state.slice45LiveTest = response.ok
+      ? await response.json()
+      : { status: "unavailable", message: "Slice 4.5 one-click live test is unavailable." };
+    renderSlice45LiveTest();
+  } catch {
+    state.slice45LiveTest = {
+      status: "unavailable",
+      message: "Slice 4.5 one-click live-test status could not be loaded.",
+    };
+    renderSlice45LiveTest();
   }
 }
 
@@ -2139,6 +2250,51 @@ async function startSlice44LiveTest(clipboardWrite) {
   await refreshScriptRuntime();
   await refreshDiagnostics();
 
+  return { payload, copied };
+}
+
+async function simpleFarmerAction(path, body) {
+  const options = { method: "POST" };
+  if (body !== undefined) {
+    options.headers = { "Content-Type": "application/json" };
+    options.body = JSON.stringify(body);
+  }
+  const response = await fetch(path, options);
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error ?? payload.message ?? `HTTP ${response.status}`);
+  state.simpleFarmer = payload;
+  renderSimpleFarmer();
+  await refreshScriptRuntime();
+  return payload;
+}
+
+async function startSlice45LiveTest(clipboardWrite) {
+  state.slice45LiveTest = {
+    status: "running",
+    message: "Slice 4.5 one-click live test is running.",
+  };
+  renderSlice45LiveTest();
+  const response = await fetch("/api/live-test/slice-4-5/start", { method: "POST" });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error ?? payload.message ?? `Slice 4.5 live test failed with HTTP ${response.status}`);
+  }
+  if (!payload.reportText || typeof payload.reportText !== "string") {
+    throw new Error("Slice 4.5 live test returned no copyable report.");
+  }
+  state.slice45LastReport = payload.reportText;
+  state.slice45LiveTest = {
+    status: payload.result?.outcome ?? "failed",
+    message: payload.result?.message ?? "Slice 4.5 live test finished.",
+    lastResult: payload.result,
+  };
+  const copied = await clipboardWrite.finish(payload.reportText);
+  renderSlice45LiveTest();
+  await refreshSimpleFarmer();
+  await refreshScriptRuntime();
+  await refreshCharacterConnection();
+  await refreshActionGateway();
+  await refreshDiagnostics();
   return { payload, copied };
 }
 
@@ -2850,6 +3006,71 @@ elements.copySlice44LiveTestResult.addEventListener("click", async () => {
   }
 });
 
+elements.simpleFarmerStart.addEventListener("click", async () => {
+  setFeedback("Starting the no-code Simple Farmer Template…");
+  try {
+    const farmer = await simpleFarmerAction("/api/simple-farmer/start", {
+      monster: elements.simpleFarmerMonster.value,
+      hpThresholdPercent: Number(elements.simpleFarmerHpThreshold.value),
+      mpThresholdPercent: Number(elements.simpleFarmerMpThreshold.value),
+      loot: elements.simpleFarmerLoot.checked,
+      respawn: elements.simpleFarmerRespawn.checked,
+    });
+    setFeedback(farmer.message ?? "Simple Farmer started.", "success");
+  } catch (error) {
+    setFeedback(`Simple Farmer start failed: ${error.message}`, "error");
+  } finally {
+    await refreshSimpleFarmer();
+  }
+});
+
+elements.simpleFarmerStop.addEventListener("click", async () => {
+  setFeedback("Stopping Simple Farmer…");
+  try {
+    const farmer = await simpleFarmerAction("/api/simple-farmer/stop");
+    setFeedback(farmer.message ?? "Simple Farmer stopped.", "success");
+  } catch (error) {
+    setFeedback(`Simple Farmer stop failed: ${error.message}`, "error");
+  } finally {
+    await refreshSimpleFarmer();
+  }
+});
+
+elements.startSlice45LiveTest.addEventListener("click", async () => {
+  if (state.slice45LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice45LastReport = null;
+  elements.copySlice45LiveTestResult.hidden = true;
+  setFeedback("Slice 4.5 live farm test started. One bounded real automated attack will be verified.");
+  try {
+    const { payload, copied } = await startSlice45LiveTest(clipboardWrite);
+    const outcome = payload.result?.outcome ?? "failed";
+    const outcomeLabel = String(outcome).toUpperCase();
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 4.5 test ${outcomeLabel}. ${copyMessage}`,
+      outcome === "passed" && copied ? "success" : outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    await refreshSlice45LiveTest();
+    setFeedback(`Slice 4.5 one-click test could not finish: ${error.message}`, "error");
+  } finally {
+    renderSlice45LiveTest();
+  }
+});
+
+elements.copySlice45LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice45LastReport) return;
+  try {
+    await writeClipboard(state.slice45LastReport);
+    setFeedback("Complete Slice 4.5 test result and sanitized diagnostic log copied.", "success");
+  } catch (error) {
+    setFeedback(`Test-result copy failed: ${error.message}`, "error");
+  }
+});
+
 elements.reloadGameData.addEventListener("click", async () => {
   elements.reloadGameData.disabled = true;
   setFeedback("Reloading Adventure Land game data…");
@@ -2964,6 +3185,8 @@ await refreshSlice41LiveTest();
 await refreshSlice42LiveTest();
 await refreshSlice43LiveTest();
 await refreshSlice44LiveTest();
+await refreshSimpleFarmer();
+await refreshSlice45LiveTest();
 await refreshGameVersion();
 await refreshGameData();
 await refreshUpdate();
@@ -2983,6 +3206,8 @@ setInterval(refreshSlice41LiveTest, 1500);
 setInterval(refreshSlice42LiveTest, 1500);
 setInterval(refreshSlice43LiveTest, 1500);
 setInterval(refreshSlice44LiveTest, 1500);
+setInterval(refreshSimpleFarmer, 1500);
+setInterval(refreshSlice45LiveTest, 1500);
 setInterval(refreshGameVersion, 2000);
 setInterval(refreshGameData, 2000);
 setInterval(refreshUpdate, 1500);

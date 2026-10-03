@@ -533,6 +533,58 @@
         </div>
       </div>
 
+      <div class="selection-content" id="simple-farmer-panel">
+        <div>
+          <h3>Simple Farmer Template</h3>
+          <div class="script-runtime-editor">
+            <label>
+              <span class="label">Monster</span>
+              <select id="simple-farmer-monster" aria-label="Simple Farmer monster">
+                <option value="">No visible monsters</option>
+              </select>
+            </label>
+            <label>
+              <span class="label">HP threshold %</span>
+              <input id="simple-farmer-hp-threshold" type="number" min="1" max="99" step="1" value="50">
+            </label>
+            <label>
+              <span class="label">MP threshold %</span>
+              <input id="simple-farmer-mp-threshold" type="number" min="1" max="99" step="1" value="30">
+            </label>
+            <label>
+              <span class="label">Loot</span>
+              <input id="simple-farmer-loot" type="checkbox" checked>
+            </label>
+            <label>
+              <span class="label">Respawn</span>
+              <input id="simple-farmer-respawn" type="checkbox" checked>
+            </label>
+          </div>
+          <div class="toolbar">
+            <button id="simple-farmer-start" type="button">Start Simple Farmer</button>
+            <button id="simple-farmer-stop" type="button">Stop Simple Farmer</button>
+            <strong id="simple-farmer-status" aria-live="polite">Idle</strong>
+          </div>
+          <small class="selection-note" id="simple-farmer-note">
+            Configure a currently visible monster type without writing code. Slice 4.5 attacks only visible targets already inside attack range; automatic navigation remains reserved for Phase 6.
+          </small>
+        </div>
+      </div>
+
+      <div class="selection-content">
+        <div>
+          <h3>Slice 4.5 one-click live farm test</h3>
+          <div class="server-picker">
+            <button id="start-slice-4-5-live-test" type="button">Start test</button>
+            <strong id="slice-4-5-live-test-status" aria-live="polite">Ready</strong>
+            <button id="copy-slice-4-5-live-test-result" type="button" hidden>Copy last test result</button>
+          </div>
+          <small class="selection-note" id="slice-4-5-live-test-note">
+            The test automatically selects one bounded low-risk visible monster already inside attack range, starts the real no-code Simple Farmer Template, waits for a server-confirmed script-origin attack, then stops and verifies worker cleanup. It never navigates or intentionally kills the character to test respawn.
+          </small>
+        </div>
+      </div>
+
       <details id="script-runtime-developer-controls">
         <summary>Script runtime developer controls</summary>
         <div class="selection-content">
@@ -556,7 +608,7 @@ setInterval(() =&gt; console.info("timer tick"), 1000);</textarea>
               <button id="script-runtime-stop" type="button">Stop script</button>
             </div>
             <small class="selection-note">
-              Slice 4.2 exposes character, G, Entities, get_nearest_monster(), is_in_range(), can_attack(), and validated move(), xmove(), attack(), and loot() through the isolated worker and central Action Gateway. Slice 4.3 adds controlled on()/off() game event listeners with safe snapshot payloads and lifecycle cleanup. Slice 4.4 adds namespaced persistent get()/set()/del() script storage backed by the local data directory.
+              Slice 4.2 exposes character, G, Entities, get_nearest_monster(), is_in_range(), can_attack(), and validated move(), xmove(), attack(), and loot() through the isolated worker and central Action Gateway. Slice 4.3 adds controlled on()/off() game event listeners with safe snapshot payloads and lifecycle cleanup. Slice 4.4 adds namespaced persistent get()/set()/del() script storage backed by the local data directory. Slice 4.5 adds validated use_hp(), use_mp(), respawn(), and the no-code Simple Farmer Template for visible in-range monsters.
             </small>
           </div>
         </div>
