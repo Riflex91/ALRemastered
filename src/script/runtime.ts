@@ -5,7 +5,8 @@ import type {
   ScriptAdventureApiBridge,
   ScriptAdventureApiMethod,
 } from "./adventure-api.ts";
-import type { AdventureLandGameEvent } from "../character/game-events.ts";\nimport type { ScriptStorageStore } from "./storage.ts";
+import type { AdventureLandGameEvent } from "../character/game-events.ts";
+import type { ScriptStorageStore } from "./storage.ts";
 
 export type ScriptRuntimeStatus =
   | "unloaded"
@@ -47,6 +48,7 @@ export interface ScriptRuntimeOptions {
   readonly pauseTimeoutMs?: number;
   readonly api?: ScriptAdventureApiBridge;
   readonly apiStateIntervalMs?: number;
+  readonly storage?: ScriptStorageStore;
 }
 
 interface WorkerMessage {
@@ -60,6 +62,9 @@ interface WorkerMessage {
   readonly input?: Readonly<Record<string, unknown>>;
   readonly activeEventListeners?: number;
   readonly eventNames?: readonly string[];
+  readonly storageOperation?: string;
+  readonly key?: string;
+  readonly value?: unknown;
   readonly error?: {
     readonly name?: string;
     readonly message?: string;
@@ -81,6 +86,7 @@ export class ScriptRuntimeService {
   readonly #pauseTimeoutMs: number;
   readonly #api?: ScriptAdventureApiBridge;
   readonly #apiStateIntervalMs: number;
+  readonly #storage?: ScriptStorageStore;
   #source?: string;
   #worker?: Worker;
   #apiStateTimer?: NodeJS.Timeout;
@@ -103,6 +109,7 @@ export class ScriptRuntimeService {
     this.#pauseTimeoutMs = options.pauseTimeoutMs ?? 750;
     this.#api = options.api;
     this.#apiStateIntervalMs = Math.max(50, options.apiStateIntervalMs ?? 100);
+    this.#storage = options.storage;
   }
 
   state(): ScriptRuntimeState {
@@ -152,12 +159,14 @@ export class ScriptRuntimeService {
       import.meta.url,
     );
     const apiBootstrap = this.#api?.bootstrap();
+    const storageBootstrap = this.#storage?.snapshot(scriptName);
     const worker = new Worker(workerUrl, {
       workerData: {
         source: this.#source,
         scriptName,
         runId,
         apiBootstrap,
+        storageEntries: storageBootstrap?.entries ?? [],
       },
     });
     this.#worker = worker;
@@ -192,6 +201,8 @@ export class ScriptRuntimeService {
       scriptName,
       runId,
       adventureApi: Boolean(this.#api),
+      scriptStorage: Boolean(this.#storage),
+      storedValues: storageBootstrap?.entries.length ?? 0,
     }, { component: this.#component(scriptName) });
     this.#startApiStatePump(worker);
     this.#startApiEventBridge(worker);
@@ -271,6 +282,10 @@ export class ScriptRuntimeService {
     if (worker !== this.#worker) return;
     if (message.type === "api_call") {
       void this.#handleApiCall(worker, message);
+      return;
+    }
+    if (message.type === "storage_call") {
+      void this.#handleStorageCall(worker, message);
       return;
     }
     if (message.type === "event_listener_state") {

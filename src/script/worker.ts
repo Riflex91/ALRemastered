@@ -25,6 +25,10 @@ interface WorkerInput {
   readonly scriptName: string;
   readonly runId: string;
   readonly apiBootstrap?: ApiBootstrap;
+  readonly storageEntries?: readonly {
+    readonly key: string;
+    readonly value: unknown;
+  }[];
 }
 
 interface ApiResultMessage {
@@ -51,16 +55,24 @@ const pendingApiCalls = new Map<
   number,
   { resolve: (value: unknown) => void; reject: (error: Error) => void }
 >();
-const pendingStorageCalls = new Map<\n  number,\n  { resolve: (value: unknown) => void; reject: (error: Error) => void }\n>();\nconst eventListeners = new Map<
+const pendingStorageCalls = new Map<
+  number,
+  { resolve: (value: unknown) => void; reject: (error: Error) => void }
+>();
+const eventListeners = new Map<
   AdventureLandGameEventName,
   Set<(payload: Readonly<Record<string, unknown>>) => void>
 >();
 const character: Record<string, unknown> = {};
 const Entities: Record<string, Record<string, unknown>> = {};
 const G = input.apiBootstrap?.G ?? {};
+const storageValues = new Map<string, unknown>(
+  (input.storageEntries ?? []).map((entry) => [entry.key, structuredClone(entry.value)]),
+);
 let attackCooldownMs = 0;
 let nextTimerId = 1;
 let nextApiCallId = 1;
+let nextStorageCallId = 1;
 let terminal = false;
 let paused = false;
 
@@ -493,7 +505,15 @@ parentPort.on("message", (raw: unknown) => {
     dispatchGameEvent(message.event);
     return;
   }
-  if (type === "storage_result" && typeof message.callId === "number") {\n    const pending = pendingStorageCalls.get(message.callId);\n    if (!pending) return;\n    pendingStorageCalls.delete(message.callId);\n    if (message.ok) pending.resolve(message.result);\n    else pending.reject(apiResultError(message));\n    return;\n  }\n  if (type === "api_result" && typeof message.callId === "number") {
+  if (type === "storage_result" && typeof message.callId === "number") {
+    const pending = pendingStorageCalls.get(message.callId);
+    if (!pending) return;
+    pendingStorageCalls.delete(message.callId);
+    if (message.ok) pending.resolve(message.result);
+    else pending.reject(apiResultError(message));
+    return;
+  }
+  if (type === "api_result" && typeof message.callId === "number") {
     const pending = pendingApiCalls.get(message.callId);
     if (!pending) return;
     pendingApiCalls.delete(message.callId);
@@ -544,6 +564,9 @@ const sandbox: Record<string, unknown> = {
   loot: scriptLoot,
   on: scriptOn,
   off: scriptOff,
+  get: scriptGet,
+  set: scriptSet,
+  del: scriptDel,
 };
 sandbox.globalThis = sandbox;
 sandbox.self = sandbox;
