@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { AdventureLandCharacterConnectionState, AdventureLandCharacterService } from "../character/service.ts";
 import type { AdventureLandVisibleEntity } from "../character/world-state.ts";
 import type { AdventureLandGameData } from "../game/data-source.ts";
+import type { AdventureLandMovementService } from "../action/movement.ts";
 import type { Logger, LogRecord } from "../logging/logger.ts";
 import type { ScriptRuntimeService } from "../script/runtime.ts";
 import type { SimpleFarmerTemplateService } from "../script/simple-farmer.ts";
@@ -44,6 +45,7 @@ export interface Slice45LiveTestServiceOptions {
   readonly runtime: Pick<ScriptRuntimeService, "state">;
   readonly farmer: Pick<SimpleFarmerTemplateService, "start" | "stop" | "state">;
   readonly character: Pick<AdventureLandCharacterService, "state">;
+  readonly movement: Pick<AdventureLandMovementService, "runScript">;
   readonly gameData: () => AdventureLandGameData | undefined;
   readonly now?: () => Date;
   readonly delay?: (milliseconds: number) => Promise<void>;
@@ -58,8 +60,10 @@ interface SafeMonsterCandidate {
 }
 
 const MAX_TEST_MS = 25_000;
-const PREFLIGHT_TARGET_WAIT_MS = 5_000;
-const PREFLIGHT_TARGET_POLL_MS = 125;
+const PREFLIGHT_TARGET_WAIT_MS = 12_000;
+const PREFLIGHT_TARGET_POLL_MS = 200;
+const APPROACH_SETTLE_MS = 250;
+const MAX_APPROACH_MOVES = 4;
 const MAX_ATTACKS = 12;
 
 export class Slice45LiveTestService {
@@ -67,6 +71,7 @@ export class Slice45LiveTestService {
   readonly #runtime: Pick<ScriptRuntimeService, "state">;
   readonly #farmer: Pick<SimpleFarmerTemplateService, "start" | "stop" | "state">;
   readonly #character: Pick<AdventureLandCharacterService, "state">;
+  readonly #movement: Pick<AdventureLandMovementService, "runScript">;
   readonly #gameData: () => AdventureLandGameData | undefined;
   readonly #now: () => Date;
   readonly #delay: (milliseconds: number) => Promise<void>;
@@ -82,6 +87,7 @@ export class Slice45LiveTestService {
     this.#runtime = options.runtime;
     this.#farmer = options.farmer;
     this.#character = options.character;
+    this.#movement = options.movement;
     this.#gameData = options.gameData;
     this.#now = options.now ?? (() => new Date());
     this.#delay = options.delay ?? ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
@@ -113,7 +119,8 @@ export class Slice45LiveTestService {
       testId,
       bounded: true,
       automation: "simple-farmer",
-      navigation: false,
+      navigation: "bounded-direct-preflight",
+      maxApproachMoves: MAX_APPROACH_MOVES,
       maxAttacks: MAX_ATTACKS,
       intentionalRespawn: false,
     });
@@ -129,37 +136,38 @@ export class Slice45LiveTestService {
       }
 
       const data = this.#gameData();
-      let preflight = this.#character.state();
-      this.#requireReady(preflight, data);
-      target = this.#selectSafeInRangeMonster(preflight, data!);
-      let waitedMs = 0;
-      if (!target) {
-        const waited = await this.#waitForTarget(data!);
-        target = waited?.target;
-        preflight = waited?.state ?? preflight;
-        waitedMs = waited?.waitedMs ?? PREFLIGHT_TARGET_WAIT_MS;
-      }
-      if (!target) {
+      const acquired = await this.#acquireSafeTarget(data!);
+      target = acquired?.target;
+      const preflight = acquired?.state ?? this.#character.state();
+      if (!target || !acquired) {
+        const safeVisible = this.#safeVisibleCandidates(preflight, data!);
         throw new Slice45LiveTestFailure(
-          "LIVE_TEST_NO_SAFE_FARM_TARGET",
-          "No bounded low-risk, untargeted monster appeared inside attack range during the 5-second preflight window.",
+          "LIVE_TEST_NO_REACHABLE_SAFE_FARM_TARGET",
+          "The one-click test could not find and directly approach a bounded low-risk, untargeted visible monster within the preflight budget.",
           true,
           "preflight",
-          { waitedMs, visibleMonsters: preflight.entities?.filter((entry) => entry.kind === "monster").length ?? 0 },
+          {
+            waitedMs: PREFLIGHT_TARGET_WAIT_MS,
+            visibleMonsters: preflight.entities?.filter((entry) => entry.kind === "monster").length ?? 0,
+            safeVisibleMonsters: safeVisible.length,
+            maxApproachMoves: MAX_APPROACH_MOVES,
+          },
         );
       }
 
       steps.push(Object.freeze({
         name: "preflight",
         outcome: "passed",
-        message: "A connected healthy character and low-risk visible in-range monster are available.",
+        message: "The test selected a low-risk visible monster and automatically reached attack range when necessary.",
         evidence: Object.freeze({
           targetId: target.entity.id,
           targetType: target.entity.type,
           targetHp: target.hp,
           targetAttack: target.attack,
           targetDistance: roundOne(target.distance),
-          waitedMs,
+          waitedMs: acquired.waitedMs,
+          approachMoveCount: acquired.movementRequestIds.length,
+          approachRequestIds: Object.freeze(acquired.movementRequestIds),
         }),
       }));
 
@@ -190,7 +198,8 @@ export class Slice45LiveTestService {
           mpThresholdPercent: config.mpThresholdPercent,
           loot: config.loot,
           respawn: config.respawn,
-          navigation: false,
+          farmerNavigation: false,
+          preflightNavigation: "bounded-direct",
         }),
       }));
 
@@ -252,7 +261,7 @@ export class Slice45LiveTestService {
         evidence: Object.freeze({
           attackCount: attacks.length,
           requestIds: Object.freeze(attacks.map((record) => record.requestId).filter(Boolean)),
-          navigationActions: 0,
+          farmerNavigationActions: 0,
         }),
       }));
       steps.push(Object.freeze({
@@ -305,7 +314,7 @@ export class Slice45LiveTestService {
         attackCount: attacks.length,
         lootCount: loots.length,
         message:
-          "Slice 4.5 passed: the no-code Simple Farmer Template completed a bounded real attack-and-loot farm cycle without navigation.",
+          "Slice 4.5 passed: the test selected and approached a safe visible monster automatically, then the no-code Simple Farmer completed a bounded real attack-and-loot cycle.",
         steps: Object.freeze(steps),
       });
       this.#state = Object.freeze({ status: "passed", message: result.message, lastResult: result });
@@ -315,7 +324,7 @@ export class Slice45LiveTestService {
         targetType: result.targetType,
         attackCount: result.attackCount,
         lootCount: result.lootCount,
-        navigationActions: 0,
+        farmerNavigationActions: 0,
       });
       return result;
     } catch (error) {
@@ -407,36 +416,128 @@ export class Slice45LiveTestService {
     }
   }
 
-  async #waitForTarget(data: AdventureLandGameData): Promise<{
+  async #acquireSafeTarget(data: AdventureLandGameData): Promise<{
     readonly target: SafeMonsterCandidate;
     readonly state: AdventureLandCharacterConnectionState;
     readonly waitedMs: number;
+    readonly movementRequestIds: readonly string[];
   } | undefined> {
     const attempts = Math.ceil(PREFLIGHT_TARGET_WAIT_MS / PREFLIGHT_TARGET_POLL_MS);
-    for (let attempt = 1; attempt <= attempts; attempt += 1) {
-      await this.#delay(PREFLIGHT_TARGET_POLL_MS);
+    const movementRequestIds: string[] = [];
+
+    for (let attempt = 0; attempt <= attempts; attempt += 1) {
       const state = this.#character.state();
       this.#requireReady(state, data);
-      const target = this.#selectSafeInRangeMonster(state, data);
-      if (target) return Object.freeze({ target, state, waitedMs: attempt * PREFLIGHT_TARGET_POLL_MS });
+      const inRange = this.#selectSafeInRangeMonster(state, data);
+      if (inRange) {
+        return Object.freeze({
+          target: inRange,
+          state,
+          waitedMs: attempt * PREFLIGHT_TARGET_POLL_MS,
+          movementRequestIds: Object.freeze([...movementRequestIds]),
+        });
+      }
+
+      if (movementRequestIds.length < MAX_APPROACH_MOVES) {
+        const candidates = this.#safeVisibleCandidates(state, data);
+        for (const candidate of candidates) {
+          const moved = await this.#approachCandidate(candidate, state);
+          if (!moved) continue;
+          movementRequestIds.push(moved);
+          await this.#delay(APPROACH_SETTLE_MS);
+          const refreshed = this.#character.state();
+          this.#requireReady(refreshed, data);
+          const reached = this.#selectSafeInRangeMonster(refreshed, data);
+          if (reached) {
+            return Object.freeze({
+              target: reached,
+              state: refreshed,
+              waitedMs: attempt * PREFLIGHT_TARGET_POLL_MS,
+              movementRequestIds: Object.freeze([...movementRequestIds]),
+            });
+          }
+          break;
+        }
+      }
+
+      if (attempt < attempts) await this.#delay(PREFLIGHT_TARGET_POLL_MS);
     }
     return undefined;
+  }
+
+  async #approachCandidate(
+    candidate: SafeMonsterCandidate,
+    state: AdventureLandCharacterConnectionState,
+  ): Promise<string | undefined> {
+    const character = state.character;
+    const entity = candidate.entity;
+    if (
+      !character ||
+      character.x === undefined ||
+      character.y === undefined ||
+      character.range === undefined ||
+      character.range <= 0 ||
+      entity.x === undefined ||
+      entity.y === undefined
+    ) return undefined;
+
+    if (candidate.distance <= character.range) return undefined;
+    const desiredDistance = Math.max(8, Math.min(character.range * 0.65, character.range - 8));
+    const dx = entity.x - character.x;
+    const dy = entity.y - character.y;
+    const distance = Math.hypot(dx, dy);
+    if (!Number.isFinite(distance) || distance <= desiredDistance) return undefined;
+    const travel = distance - desiredDistance;
+    const x = character.x + dx / distance * travel;
+    const y = character.y + dy / distance * travel;
+
+    const result = await this.#movement.runScript({ mode: "move", x, y });
+    if (result.outcome === "success") return result.requestId;
+    if (result.outcome === "rate_limited") {
+      await this.#delay(Math.max(25, result.retryAfterMs ?? PREFLIGHT_TARGET_POLL_MS));
+      return undefined;
+    }
+    if (
+      result.error?.code === "MOVE_BLOCKED" ||
+      result.error?.code === "MOVE_TARGET_INVALID"
+    ) return undefined;
+
+    throw new Slice45LiveTestFailure(
+      "LIVE_TEST_APPROACH_FAILED",
+      result.error?.message ?? "Automatic preflight movement failed.",
+      true,
+      "preflight",
+      {
+        targetId: candidate.entity.id,
+        targetType: candidate.entity.type,
+        movementCode: result.error?.code,
+        movementOutcome: result.outcome,
+      },
+    );
   }
 
   #selectSafeInRangeMonster(
     state: AdventureLandCharacterConnectionState,
     data: AdventureLandGameData,
   ): SafeMonsterCandidate | undefined {
+    const range = state.character?.range;
+    if (typeof range !== "number" || !Number.isFinite(range) || range <= 0) return undefined;
+    return this.#safeVisibleCandidates(state, data)
+      .filter((candidate) => candidate.distance <= range)[0];
+  }
+
+  #safeVisibleCandidates(
+    state: AdventureLandCharacterConnectionState,
+    data: AdventureLandGameData,
+  ): SafeMonsterCandidate[] {
     const character = state.character;
     if (
       !character ||
       character.x === undefined ||
       character.y === undefined ||
       character.maxHp === undefined ||
-      character.maxHp <= 0 ||
-      character.range === undefined ||
-      character.range <= 0
-    ) return undefined;
+      character.maxHp <= 0
+    ) return [];
 
     return (state.entities ?? [])
       .flatMap((entity) => {
@@ -464,11 +565,10 @@ export class Slice45LiveTestService {
         const gold = Math.max(0, finiteNumber(raw.gold) ?? 0);
         if (hp === undefined || hp <= 0 || (xp <= 0 && gold <= 0)) return [];
         if (
-          hp > Math.max(1_500, character.maxHp! * 0.75) ||
-          attack > Math.max(120, character.maxHp! * 0.05)
+          hp > Math.max(1_500, character.maxHp * 0.75) ||
+          attack > Math.max(120, character.maxHp * 0.05)
         ) return [];
-        const distance = Math.hypot(entity.x - character.x!, entity.y - character.y!);
-        if (distance > character.range!) return [];
+        const distance = Math.hypot(entity.x - character.x, entity.y - character.y);
         return [{ entity, hp, attack, distance }];
       })
       .sort((left, right) =>
@@ -476,7 +576,7 @@ export class Slice45LiveTestService {
         left.attack - right.attack ||
         left.distance - right.distance ||
         left.entity.id.localeCompare(right.entity.id)
-      )[0];
+      );
   }
 
   async #waitForFarmCycle(logStartId: number): Promise<{

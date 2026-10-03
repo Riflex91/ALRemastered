@@ -58,6 +58,11 @@ test("Slice 4.5 bounded farm test starts no-code template, observes script attac
     runtime: { state: () => structuredClone(runtime) } as any,
     farmer: farmer as any,
     character: { state: () => structuredClone(characterState) } as any,
+    movement: {
+      runScript: async () => {
+        throw new Error("movement should not be needed for an in-range target");
+      },
+    } as any,
     gameData: () => ({
       monsters: { goo: { hp: 80, attack: 10, xp: 50, gold: 10 } },
     } as any),
@@ -97,6 +102,7 @@ test("Slice 4.5 live test blocks when no headless character is connected", async
     runtime: { state: () => runtime } as any,
     farmer: { start: async () => ({ status: "running" }), stop: async () => ({ status: "stopped" }), state: () => ({ status: "stopped" }) } as any,
     character: { state: () => ({ status: "idle", message: "idle" }) } as any,
+    movement: { runScript: async () => ({ outcome: "error" }) } as any,
     gameData: () => ({ monsters: {} } as any),
     idFactory: () => "live45-blocked",
     delay: async () => undefined,
@@ -104,4 +110,93 @@ test("Slice 4.5 live test blocks when no headless character is connected", async
   const result = await service.run();
   assert.equal(result.outcome, "blocked");
   assert.equal(result.errorCode, "LIVE_TEST_CHARACTER_NOT_CONNECTED");
+});
+
+
+test("Slice 4.5 automatically approaches a safe visible monster before starting the farmer", async () => {
+  const logger = new Logger({ component: "slice45-approach-test" });
+  let runtime:any = {
+    status: "stopped",
+    scriptName: "simple-farmer-template",
+    activeTimers: 0,
+    activeEventListeners: 0,
+    storageEntries: 0,
+    logRecords: 0,
+    message: "stopped",
+  };
+  const characterState:any = {
+    status: "connected",
+    characterId: "CH_2",
+    characterName: "Merchant",
+    serverKey: "EU_II",
+    message: "connected",
+    character: {
+      id: "CH_2", name: "Merchant", type: "merchant", dead: false,
+      x: 0, y: 0, hp: 3000, maxHp: 3000, range: 100,
+    },
+    entities: [{
+      id: "H1", name: "Chicken", kind: "monster", type: "hen",
+      x: 260, y: 0, hp: 60, maxHp: 60,
+    }],
+  };
+  const movementRequests:any[] = [];
+  const farmer = {
+    state: () => ({ status: runtime.status === "running" ? "running" : "stopped", message: "farmer" }),
+    start: async (config:any) => {
+      runtime = { ...runtime, status: "running", activeTimers: 1 };
+      logger.info(
+        "Action gateway request completed.",
+        { action: "character.attack", origin: "script", outcome: "success" },
+        { requestId: "act-approach-attack", characterId: "CH_2" },
+      );
+      logger.info(
+        "Action gateway request completed.",
+        { action: "character.loot", origin: "script", outcome: "success" },
+        { requestId: "act-approach-loot", characterId: "CH_2" },
+      );
+      return { status: "running", message: "running", config };
+    },
+    stop: async () => {
+      runtime = { ...runtime, status: "stopped", activeTimers: 0, activeEventListeners: 0 };
+      return { status: "stopped", message: "stopped" };
+    },
+  };
+
+  const service = new Slice45LiveTestService({
+    logger,
+    runtime: { state: () => structuredClone(runtime) } as any,
+    farmer: farmer as any,
+    character: { state: () => structuredClone(characterState) } as any,
+    movement: {
+      runScript: async (request:any) => {
+        movementRequests.push(request);
+        characterState.character.x = request.x;
+        characterState.character.y = request.y;
+        return {
+          requestId: "act-approach-move",
+          action: "character.move",
+          origin: "script",
+          characterId: "CH_2",
+          outcome: "success",
+          startedAt: "2026-10-03T18:00:00.000Z",
+          completedAt: "2026-10-03T18:00:00.100Z",
+          durationMs: 100,
+          result: { confirmedX: request.x, confirmedY: request.y },
+        };
+      },
+    } as any,
+    gameData: () => ({
+      monsters: { hen: { hp: 60, attack: 48, xp: 10, gold: 40 } },
+    } as any),
+    idFactory: () => "live45-approach",
+    delay: async () => undefined,
+  });
+
+  const result = await service.run();
+  assert.equal(result.outcome, "passed");
+  assert.equal(result.targetType, "hen");
+  assert.equal(movementRequests.length, 1);
+  assert.equal(result.steps[0]?.name, "preflight");
+  assert.equal((result.steps[0]?.evidence as any)?.approachMoveCount, 1);
+  assert.deepEqual((result.steps[0]?.evidence as any)?.approachRequestIds, ["act-approach-move"]);
 });

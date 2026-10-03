@@ -1212,13 +1212,13 @@ function renderSlice45LiveTest() {
   elements.copySlice45LiveTestResult.hidden = !state.slice45LastReport;
   if (status === "running") {
     elements.slice45LiveTestNote.textContent =
-      "The bounded Simple Farmer is waiting for one real server-confirmed automated attack. No navigation is performed.";
+      "The bounded test is selecting a safe visible monster, approaching it automatically when needed, then verifying real server-confirmed attack and loot.";
   } else if (test?.message) {
     elements.slice45LiveTestNote.textContent =
       `${test.message} The complete report is copied automatically when the test finishes.`;
   } else {
     elements.slice45LiveTestNote.textContent =
-      "The test selects one low-risk visible in-range monster, starts the no-code Simple Farmer, proves a script-origin attack, then stops and verifies cleanup.";
+      "The test selects one low-risk visible monster, approaches it automatically when needed, starts the no-code Simple Farmer, proves script-origin attack and loot, then stops and verifies cleanup.";
   }
 }
 
@@ -3041,7 +3041,7 @@ elements.startSlice45LiveTest.addEventListener("click", async () => {
   const clipboardWrite = beginDeferredClipboardWrite();
   state.slice45LastReport = null;
   elements.copySlice45LiveTestResult.hidden = true;
-  setFeedback("Slice 4.5 live farm test started. One bounded real automated attack will be verified.");
+  setFeedback("Slice 4.5 live farm test started. The test will select and approach a safe monster automatically, then verify attack and loot.");
   try {
     const { payload, copied } = await startSlice45LiveTest(clipboardWrite);
     const outcome = payload.result?.outcome ?? "failed";
