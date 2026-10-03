@@ -728,6 +728,51 @@
         </div>
       </div>
 
+      <div class="selection-content">
+        <div>
+          <h3>Multi-character sessions</h3>
+          <div class="status-grid" aria-label="Multi-character session status">
+            <article class="card">
+              <span class="label">Session manager</span>
+              <strong id="character-sessions-status">Waiting</strong>
+            </article>
+            <article class="card">
+              <span class="label">Active sessions</span>
+              <strong id="character-sessions-active">0</strong>
+            </article>
+            <article class="card">
+              <span class="label">Character limit</span>
+              <strong id="character-sessions-limit">4</strong>
+            </article>
+            <article class="card">
+              <span class="label">Shared game data</span>
+              <strong id="character-sessions-game-data">Waiting</strong>
+            </article>
+          </div>
+          <label>
+            <span class="label">Current Character sessions</span>
+            <textarea id="character-sessions-list" rows="5" readonly spellcheck="false">No active Character sessions.</textarea>
+          </label>
+          <small class="selection-note" id="character-sessions-note">
+            The existing primary Character remains compatible with earlier slices. Additional Characters run in isolated headless sessions, share the same process-level static game data, and are bounded by the Adventure Land concurrent Character limit.
+          </small>
+        </div>
+      </div>
+
+      <div class="selection-content">
+        <div>
+          <h3>Slice 7.1 one-click multi-character session test</h3>
+          <div class="server-picker">
+            <button id="start-slice-7-1-live-test" type="button">Start multi-character test</button>
+            <strong id="slice-7-1-live-test-status" aria-live="polite">Ready</strong>
+            <button id="copy-slice-7-1-live-test-result" type="button" hidden>Copy last test result</button>
+          </div>
+          <small class="selection-note" id="slice-7-1-live-test-note">
+            Requires one connected primary headless Character, one additional offline Character, loaded game data, and no running or paused user script. The test starts one bounded additional session, verifies parallel isolation plus duplicate/limit guards, then stops only the added test session. It performs no gameplay mutation and does not use a raw-socket bypass.
+          </small>
+        </div>
+      </div>
+
       <details id="script-runtime-developer-controls">
         <summary>Script runtime developer controls</summary>
         <div class="selection-content">
