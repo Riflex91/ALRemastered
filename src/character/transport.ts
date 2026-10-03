@@ -67,6 +67,8 @@ export interface AdventureLandDirectMovementReceipt {
   readonly fromY: number;
   readonly targetX: number;
   readonly targetY: number;
+  readonly confirmedX?: number;
+  readonly confirmedY?: number;
 }
 
 export interface AdventureLandAttackInput {
