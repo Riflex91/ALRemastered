@@ -505,6 +505,20 @@
         </div>
       </div>
 
+      <div class="selection-content">
+        <div>
+          <h3>Slice 4.3 one-click live test</h3>
+          <div class="server-picker">
+            <button id="start-slice-4-3-live-test" type="button">Start test</button>
+            <strong id="slice-4-3-live-test-status" aria-live="polite">Ready</strong>
+            <button id="copy-slice-4-3-live-test-result" type="button" hidden>Copy last test result</button>
+          </div>
+          <small class="selection-note" id="slice-4-3-live-test-note">
+            The test subscribes to a real headless player event, validates its safe snapshot inside the isolated worker, then verifies off(), pause, stop, restart, and handler-crash cleanup. It uses read-only live-state refreshes and performs no gameplay mutation.
+          </small>
+        </div>
+      </div>
+
       <details id="script-runtime-developer-controls">
         <summary>Script runtime developer controls</summary>
         <div class="selection-content">
@@ -528,7 +542,7 @@ setInterval(() =&gt; console.info("timer tick"), 1000);</textarea>
               <button id="script-runtime-stop" type="button">Stop script</button>
             </div>
             <small class="selection-note">
-              Slice 4.2 exposes character, G, Entities, get_nearest_monster(), is_in_range(), can_attack(), and validated move(), xmove(), attack(), and loot() through the isolated worker and central Action Gateway. Script event listeners are added later in Slice 4.3.
+              Slice 4.2 exposes character, G, Entities, get_nearest_monster(), is_in_range(), can_attack(), and validated move(), xmove(), attack(), and loot() through the isolated worker and central Action Gateway. Slice 4.3 adds controlled on()/off() game event listeners with safe snapshot payloads and lifecycle cleanup.
             </small>
           </div>
         </div>

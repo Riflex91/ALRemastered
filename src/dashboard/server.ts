@@ -22,6 +22,7 @@ import type { Logger, LogRecord } from "../logging/logger.ts";
 import type { Slice35LiveTestService } from "../live-test/slice-3-5.ts";
 import type { Slice41LiveTestService } from "../live-test/slice-4-1.ts";
 import type { Slice42LiveTestService } from "../live-test/slice-4-2.ts";
+import type { Slice43LiveTestService } from "../live-test/slice-4-3.ts";
 import type { ScriptRuntimeService } from "../script/runtime.ts";
 import type { UpdateService } from "../update/service.ts";
 
@@ -42,6 +43,7 @@ export interface DashboardServerOptions {
   readonly scriptRuntime?: ScriptRuntimeService;
   readonly slice41LiveTestService?: Slice41LiveTestService;
   readonly slice42LiveTestService?: Slice42LiveTestService;
+  readonly slice43LiveTestService?: Slice43LiveTestService;
   readonly updateService?: UpdateService;
   readonly diagnostics?: DiagnosticsService;
   readonly gameVersionService?: AdventureLandVersionService;
@@ -65,6 +67,7 @@ export class DashboardServer {
   readonly #scriptRuntime?: ScriptRuntimeService;
   readonly #slice41LiveTestService?: Slice41LiveTestService;
   readonly #slice42LiveTestService?: Slice42LiveTestService;
+  readonly #slice43LiveTestService?: Slice43LiveTestService;
   readonly #updateService?: UpdateService;
   readonly #diagnostics?: DiagnosticsService;
   readonly #gameVersionService?: AdventureLandVersionService;
@@ -91,6 +94,7 @@ export class DashboardServer {
     this.#scriptRuntime = options.scriptRuntime;
     this.#slice41LiveTestService = options.slice41LiveTestService;
     this.#slice42LiveTestService = options.slice42LiveTestService;
+    this.#slice43LiveTestService = options.slice43LiveTestService;
     this.#updateService = options.updateService;
     this.#diagnostics = options.diagnostics;
     this.#gameVersionService = options.gameVersionService;
@@ -594,6 +598,38 @@ export class DashboardServer {
       const report = {
         schemaVersion: 1,
         kind: "ALRemastered Slice 4.2 one-click live test",
+        result,
+        scriptRuntime: this.#scriptRuntime?.state(),
+        diagnostic,
+      };
+      return this.#json(response, {
+        result,
+        reportText: JSON.stringify(report, null, 2),
+        clipboardSuggested: true,
+      });
+    }
+
+    if (method === "GET" && path === "/api/live-test/slice-4-3") {
+      if (!this.#slice43LiveTestService) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Slice 4.3 one-click live-test service is unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#slice43LiveTestService.state());
+    }
+
+    if (method === "POST" && path === "/api/live-test/slice-4-3/start") {
+      if (!this.#slice43LiveTestService) {
+        return this.#json(response, {
+          error: "Slice 4.3 one-click live-test service is unavailable.",
+        }, 503);
+      }
+      const result = await this.#slice43LiveTestService.run();
+      const diagnostic = this.#exportPayload();
+      const report = {
+        schemaVersion: 1,
+        kind: "ALRemastered Slice 4.3 one-click live test",
         result,
         scriptRuntime: this.#scriptRuntime?.state(),
         diagnostic,
