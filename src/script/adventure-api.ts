@@ -9,7 +9,8 @@ import type {
   AdventureLandLootChestState,
 } from "../character/transport.ts";
 import type { AdventureLandVisibleEntity } from "../character/world-state.ts";
-import type { AdventureLandGameEvent } from "../character/game-events.ts";
+import { createAdventureLandGameEvent, type AdventureLandGameEvent } from "../character/game-events.ts";
+import { LocalCharacterMessagingError, type LocalCharacterMessagingService } from "../character/messaging.ts";
 import type { AdventureLandGameData } from "../game/data-source.ts";
 import { SmartMoveError, type SmartMoveService } from "../navigation/smart-move.ts";
 
@@ -20,7 +21,8 @@ export type ScriptAdventureApiMethod =
   | "attack"
   | "loot"
   | "consume"
-  | "respawn";
+  | "respawn"
+  | "send_cm";
 
 export interface ScriptAdventureApiDynamicState {
   readonly character: Readonly<Record<string, unknown>>;
@@ -58,6 +60,7 @@ export interface AdventureLandScriptApiBridgeOptions {
     "runLoot" | "runConsumable" | "dashboardOptions"
   >;
   readonly respawn?: Pick<AdventureLandRespawnService, "run">;
+  readonly messaging?: Pick<LocalCharacterMessagingService, "send" | "onMessage">;
   readonly gameData: () => AdventureLandGameData | undefined;
 }
 
@@ -75,6 +78,7 @@ export class AdventureLandScriptApiBridge implements ScriptAdventureApiBridge {
     "runLoot" | "runConsumable" | "dashboardOptions"
   >;
   readonly #respawn?: Pick<AdventureLandRespawnService, "run">;
+  readonly #messaging?: Pick<LocalCharacterMessagingService, "send" | "onMessage">;
   readonly #gameData: () => AdventureLandGameData | undefined;
 
   constructor(options: AdventureLandScriptApiBridgeOptions) {
@@ -92,6 +96,7 @@ export class AdventureLandScriptApiBridge implements ScriptAdventureApiBridge {
     };
     this.#lootConsumable = options.lootConsumable;
     this.#respawn = options.respawn;
+    this.#messaging = options.messaging;
     this.#gameData = options.gameData;
   }
 
@@ -103,7 +108,27 @@ export class AdventureLandScriptApiBridge implements ScriptAdventureApiBridge {
   }
 
   onEvent(listener: (event: AdventureLandGameEvent) => void): () => void {
-    return this.#character.onGameEvent?.(listener) ?? (() => undefined);
+    const unsubscribers: Array<() => void> = [];
+    if (this.#character.onGameEvent) {
+      unsubscribers.push(this.#character.onGameEvent(listener));
+    }
+    if (this.#messaging) {
+      unsubscribers.push(this.#messaging.onMessage((message) => {
+        const receiverName = this.#character.state().characterName;
+        if (!receiverName || message.receiverName !== receiverName) return;
+        listener(createAdventureLandGameEvent(
+          "cm",
+          {
+            name: message.senderName,
+            message: message.message,
+          },
+          message.deliveredAt,
+        ));
+      }));
+    }
+    return () => {
+      for (const unsubscribe of unsubscribers.splice(0)) unsubscribe();
+    };
   }
 
   state(): ScriptAdventureApiDynamicState {
@@ -230,6 +255,34 @@ export class AdventureLandScriptApiBridge implements ScriptAdventureApiBridge {
           );
         }
         return unwrapGateway(await this.#respawn.run("script"));
+      case "send_cm": {
+        if (!this.#messaging) {
+          throw new ScriptAdventureApiCallError(
+            "SCRIPT_SEND_CM_UNAVAILABLE",
+            "Adventure Land send_cm() compatibility is unavailable.",
+          );
+        }
+        const senderName = this.#character.state().characterName;
+        if (!senderName) {
+          throw new ScriptAdventureApiCallError(
+            "CM_SENDER_NOT_ACTIVE",
+            "send_cm() requires a connected local Character.",
+          );
+        }
+        const recipients = typeof input.to === "string"
+          ? input.to
+          : Array.isArray(input.to)
+            ? input.to.filter((value): value is string => typeof value === "string")
+            : [];
+        try {
+          return await this.#messaging.send(senderName, recipients, input.message);
+        } catch (error) {
+          if (error instanceof LocalCharacterMessagingError) {
+            throw new ScriptAdventureApiCallError(error.code, error.message);
+          }
+          throw error;
+        }
+      }
     }
   }
 

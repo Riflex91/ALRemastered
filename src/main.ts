@@ -11,6 +11,7 @@ import { AdventureLandLootConsumableService } from "./action/loot-consumable.ts"
 import { AdventureLandRespawnService } from "./action/respawn.ts";
 import { AdventureLandCharacterService } from "./character/service.ts";
 import { MultiCharacterSessionManager } from "./character/session-manager.ts";
+import { LocalCharacterMessagingService } from "./character/messaging.ts";
 import { AdventureLandCharacterTransport } from "./character/transport.ts";
 import { CoreRuntime } from "./core/app.ts";
 import { openDashboard } from "./dashboard/open.ts";
@@ -38,6 +39,7 @@ import { Slice62LiveTestService } from "./live-test/slice-6-2.ts";
 import { Slice63LiveTestService } from "./live-test/slice-6-3.ts";
 import { Slice64LiveTestService } from "./live-test/slice-6-4.ts";
 import { Slice71LiveTestService } from "./live-test/slice-7-1.ts";
+import { Slice72LiveTestService } from "./live-test/slice-7-2.ts";
 import { getUserPaths } from "./platform/paths.ts";
 import { AdventureLandScriptApiBridge } from "./script/adventure-api.ts";
 import { ScriptRuntimeService } from "./script/runtime.ts";
@@ -150,6 +152,7 @@ let accountService: AdventureLandAccountService | undefined;
 let selectionService: AdventureLandSelectionService | undefined;
 let characterService: AdventureLandCharacterService | undefined;
 let multiCharacterSessionManager: MultiCharacterSessionManager | undefined;
+let localCharacterMessagingService: LocalCharacterMessagingService | undefined;
 let actionGateway: ActionGateway | undefined;
 let movementService: AdventureLandMovementService | undefined;
 let attackService: AdventureLandAttackService | undefined;
@@ -173,6 +176,7 @@ let slice62LiveTestService: Slice62LiveTestService | undefined;
 let slice63LiveTestService: Slice63LiveTestService | undefined;
 let slice64LiveTestService: Slice64LiveTestService | undefined;
 let slice71LiveTestService: Slice71LiveTestService | undefined;
+let slice72LiveTestService: Slice72LiveTestService | undefined;
 let mapModelService: AdventureLandMapModelService | undefined;
 let movementDebugService: MovementDebugService | undefined;
 let pathPlannerService: SimplePathPlannerService | undefined;
@@ -457,6 +461,18 @@ diagnostics.registerComponent("character-sessions", () => {
     message: state.message,
   };
 });
+localCharacterMessagingService = new LocalCharacterMessagingService({
+  logger,
+  sessions: multiCharacterSessionManager!,
+});
+diagnostics.registerComponent("character-messaging", () => {
+  const state = localCharacterMessagingService!.state();
+  return {
+    name: "character-messaging",
+    status: "healthy",
+    message: state.message,
+  };
+});
 mapModelService = new AdventureLandMapModelService({
   logger,
   gameData: () => gameDataService!.data(),
@@ -582,6 +598,7 @@ const scriptApiBridge = new AdventureLandScriptApiBridge({
   attack: attackService!,
   lootConsumable: lootConsumableService,
   respawn: respawnService,
+  messaging: localCharacterMessagingService,
   gameData: () => gameDataService!.data(),
 });
 const scriptStorage = new ScriptStorageStore(
@@ -689,6 +706,18 @@ slice71LiveTestService = new Slice71LiveTestService({
   sessions: multiCharacterSessionManager!,
   gameData: gameDataService!,
 });
+slice72LiveTestService = new Slice72LiveTestService({
+  logger,
+  userRuntime: scriptRuntime!,
+  createProbeRuntime: () => new ScriptRuntimeService({
+    logger,
+    api: scriptApiBridge,
+  }),
+  primary: characterService!,
+  selection: selectionService!,
+  sessions: multiCharacterSessionManager!,
+  messaging: localCharacterMessagingService!,
+});
 watchdogService.start();
 diagnostics.registerComponent("watchdog", () => {
   const state = watchdogService!.state();
@@ -717,6 +746,7 @@ dashboard = new DashboardServer({
   selectionService,
   characterService,
   multiCharacterSessionManager,
+  localCharacterMessagingService,
   actionGateway,
   movementService,
   attackService,
@@ -738,6 +768,7 @@ dashboard = new DashboardServer({
   slice63LiveTestService,
   slice64LiveTestService,
   slice71LiveTestService,
+  slice72LiveTestService,
   mapModelService,
   movementDebugService,
   pathPlannerService,

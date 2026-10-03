@@ -11,6 +11,7 @@ export const ADVENTURE_LAND_GAME_EVENT_NAMES = Object.freeze([
   "disappear",
   "skill_timeout",
   "game_response",
+  "cm",
 ] as const);
 
 export type AdventureLandGameEventName =
