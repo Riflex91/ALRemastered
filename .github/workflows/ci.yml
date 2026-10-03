@@ -43,7 +43,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ALREMASTERED_BUILD_VERSION=0.1.0-alpha.43 npm run build
+          ALREMASTERED_BUILD_VERSION=0.1.0-alpha.44 npm run build
           npm run installer:linux
           cp artifacts/ALRemastered-Linux-*.run "$RUNNER_TEMP/ALRemastered-A.run"
       - name: Install version A to a custom path
@@ -52,7 +52,7 @@ jobs:
           set -euo pipefail
           test_dir="$RUNNER_TEMP/ALRemastered Custom Path"
           "$RUNNER_TEMP/ALRemastered-A.run" --install-dir "$test_dir" --yes --no-desktop
-          test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.43"
+          test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.44"
           paths_json="$("$test_dir/alremastered" --paths)"
           data_dir="$(node -e 'console.log(JSON.parse(process.argv[1]).dataDir)' "$paths_json")"
           mkdir -p "$data_dir"
@@ -85,15 +85,15 @@ jobs:
           test_dir="$RUNNER_TEMP/ALRemastered Custom Path"
           data_dir="$(cat "$RUNNER_TEMP/alremastered-data-dir.txt")"
           ALREMASTERED_UPDATE_SESSION_HANDOFF="ci-invalid-handoff-probe" "$installer" --yes --no-desktop --restart
-          test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.44"
+          test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.45"
           test "$(cat "$data_dir/upgrade-sentinel.txt")" = "keep-me"
           previous_version="$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).version" "$test_dir/.previous/app/package.json")"
-          test "$previous_version" = "0.1.0-alpha.43"
-          grep 'event=install_success version=0.1.0-alpha.44' "$data_dir/logs/installer.log"
-          grep 'event=auto_restart version=0.1.0-alpha.44' "$data_dir/logs/installer.log"
+          test "$previous_version" = "0.1.0-alpha.44"
+          grep 'event=install_success version=0.1.0-alpha.45' "$data_dir/logs/installer.log"
+          grep 'event=auto_restart version=0.1.0-alpha.45' "$data_dir/logs/installer.log"
           dashboard_ready=0
           for attempt in $(seq 1 120); do
-            if curl -fsS http://127.0.0.1:3210/api/status 2>/dev/null | grep -q '"version":"0.1.0-alpha.44"'; then
+            if curl -fsS http://127.0.0.1:3210/api/status 2>/dev/null | grep -q '"version":"0.1.0-alpha.45"'; then
               dashboard_ready=1
               break
             fi
@@ -138,6 +138,7 @@ jobs:
           curl -fsS http://127.0.0.1:3210/ | grep 'Slice 4.4 one-click storage test'
           curl -fsS http://127.0.0.1:3210/ | grep 'Simple Farmer Template'
           curl -fsS http://127.0.0.1:3210/ | grep 'Slice 4.5 one-click live farm test'
+          curl -fsS http://127.0.0.1:3210/ | grep 'Slice 5.3 one-click death/respawn recovery test'
           curl -fsS http://127.0.0.1:3210/ | grep 'namespaced persistent get()/set()/del() script storage'
           curl -fsS http://127.0.0.1:3210/ | grep 'get_nearest_monster()'
           curl -fsS http://127.0.0.1:3210/ | grep '>Start test</button>'
@@ -151,6 +152,7 @@ jobs:
           curl -fsS http://127.0.0.1:3210/api/live-test/slice-4-5 | grep '"status":"idle"'
           curl -fsS http://127.0.0.1:3210/api/live-test/slice-5-1 | grep '"status":"idle"'
           curl -fsS http://127.0.0.1:3210/api/live-test/slice-5-2 | grep '"status":"idle"'
+          curl -fsS http://127.0.0.1:3210/api/live-test/slice-5-3 | grep '"status":"idle"'
           curl -fsS http://127.0.0.1:3210/api/action-gateway | grep '"status":"ready"'
           curl -fsS -X POST http://127.0.0.1:3210/api/action-gateway/probe | grep '"outcome":"success"'
           curl -fsS http://127.0.0.1:3210/api/status | grep '"status":"running"'
@@ -158,7 +160,7 @@ jobs:
           curl -fsS http://127.0.0.1:3210/api/game-data | grep '"status":'
           curl -fsS http://127.0.0.1:3210/api/diagnostics/snapshot | grep '"sanitized":true'
           curl -fsS http://127.0.0.1:3210/api/diagnostics/package | grep 'ALRemasteredDiagnosticPackage'
-          curl -fsS http://127.0.0.1:3210/api/update | grep '"currentVersion":"0.1.0-alpha.44"'
+          curl -fsS http://127.0.0.1:3210/api/update | grep '"currentVersion":"0.1.0-alpha.45"'
           curl -fsS http://127.0.0.1:3210/api/logs/export | grep '"sanitized":true'
           test -f "$data_dir/logs/client.log"
           grep '"level":"INFO"' "$data_dir/logs/client.log"
@@ -198,7 +200,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
-          $env:ALREMASTERED_BUILD_VERSION = "0.1.0-alpha.43"
+          $env:ALREMASTERED_BUILD_VERSION = "0.1.0-alpha.44"
           npm run build
           npm run installer:windows
           Copy-Item (Get-ChildItem "artifacts\ALRemastered-Windows-*-Setup.exe" | Select-Object -First 1).FullName "$env:RUNNER_TEMP\ALRemastered-A.exe"
@@ -210,7 +212,7 @@ jobs:
           $installProcess = Start-Process -FilePath "$env:RUNNER_TEMP\ALRemastered-A.exe" -ArgumentList @("/S", "/D=$testDir") -Wait -PassThru
           if ($installProcess.ExitCode -ne 0) { throw "Version A installer returned exit code $($installProcess.ExitCode)" }
           $version = & "$testDir\ALRemastered.exe" --version
-          if ($version.Trim() -ne "0.1.0-alpha.43") { throw "Expected version A, got $version" }
+          if ($version.Trim() -ne "0.1.0-alpha.44") { throw "Expected version A, got $version" }
           $paths = (& "$testDir\ALRemastered.exe" --paths) | ConvertFrom-Json
           New-Item -ItemType Directory -Path $paths.dataDir -Force | Out-Null
           Set-Content -Path (Join-Path $paths.dataDir "upgrade-sentinel.txt") -Value "keep-me" -NoNewline
@@ -250,7 +252,7 @@ jobs:
           for ($attempt = 0; $attempt -lt 40; $attempt++) {
             try {
               $oldDashboardStatus = Invoke-RestMethod "http://127.0.0.1:3210/api/status"
-              if ($oldDashboardStatus.version -eq "0.1.0-alpha.43") {
+              if ($oldDashboardStatus.version -eq "0.1.0-alpha.44") {
                 $oldDashboardReady = $true
                 break
               }
@@ -268,7 +270,7 @@ jobs:
           Start-Sleep -Milliseconds 750
 
           $versionWhileWaiting = & "$testDir\ALRemastered.exe" --version
-          if ($versionWhileWaiting.Trim() -ne "0.1.0-alpha.43") {
+          if ($versionWhileWaiting.Trim() -ne "0.1.0-alpha.44") {
             throw "Automatic updater modified the installation before the previous client exited."
           }
 
@@ -278,7 +280,7 @@ jobs:
           for ($attempt = 0; $attempt -lt 120; $attempt++) {
             try {
               $dashboardStatus = Invoke-RestMethod "http://127.0.0.1:3210/api/status"
-              if ($dashboardStatus.version -eq "0.1.0-alpha.44") {
+              if ($dashboardStatus.version -eq "0.1.0-alpha.45") {
                 $dashboardReady = $true
                 break
               }
@@ -300,10 +302,10 @@ jobs:
           if ($remainingInstaller) { throw "Update installer process remained open after installation." }
 
           $version = & "$testDir\ALRemastered.exe" --version
-          if ($version.Trim() -ne "0.1.0-alpha.44") { throw "Expected version B, got $version" }
+          if ($version.Trim() -ne "0.1.0-alpha.45") { throw "Expected version B, got $version" }
           if ((Get-Content (Join-Path $dataDir "upgrade-sentinel.txt") -Raw) -ne "keep-me") { throw "User data was not preserved." }
           $previous = Get-Content "$testDir\.previous\app\package.json" -Raw | ConvertFrom-Json
-          if ($previous.version -ne "0.1.0-alpha.43") { throw "Previous version was not retained for rollback." }
+          if ($previous.version -ne "0.1.0-alpha.44") { throw "Previous version was not retained for rollback." }
 
           if (Test-Path "$testDir\ALRemastered.cmd") { throw "Legacy batch launcher must not be installed." }
 
@@ -351,6 +353,7 @@ jobs:
           if ($dashboardPage.Content -notmatch "Slice 4.4 one-click storage test") { throw "Slice 4.4 one-click storage-test panel was not available." }
           if ($dashboardPage.Content -notmatch "Simple Farmer Template") { throw "Simple Farmer Template controls were not available." }
           if ($dashboardPage.Content -notmatch "Slice 4.5 one-click live farm test") { throw "Slice 4.5 one-click live-test panel was not available." }
+          if ($dashboardPage.Content -notmatch "Slice 5.3 one-click death/respawn recovery test") { throw "Slice 5.3 death/respawn recovery panel was not available." }
           if ($dashboardPage.Content -notmatch "namespaced persistent get\(\)/set\(\)/del\(\) script storage") { throw "Slice 4.4 storage API documentation was not available." }
           if ($dashboardPage.Content -notmatch "get_nearest_monster\(\)") { throw "Slice 4.2 compatible helper documentation was not available." }
           if ($dashboardPage.Content -notmatch ">Start test</button>") { throw "One-click Start test button was not available." }
@@ -375,6 +378,8 @@ jobs:
           if ($slice51LiveTest.status -ne "idle") { throw "Slice 5.1 heartbeat live-test API was not idle on clean CI startup." }
           $slice52LiveTest = Invoke-RestMethod "http://127.0.0.1:3210/api/live-test/slice-5-2"
           if ($slice52LiveTest.status -ne "idle") { throw "Slice 5.2 reconnect live-test API was not idle on clean CI startup." }
+          $slice53LiveTest = Invoke-RestMethod "http://127.0.0.1:3210/api/live-test/slice-5-3"
+          if ($slice53LiveTest.status -ne "idle") { throw "Slice 5.3 death/respawn recovery API was not idle on clean CI startup." }
 
           $actionGateway = Invoke-RestMethod "http://127.0.0.1:3210/api/action-gateway"
           if ($actionGateway.status -ne "ready") { throw "Action Gateway API was not ready." }
@@ -384,7 +389,7 @@ jobs:
 
           $dashboardStatus = Invoke-RestMethod "http://127.0.0.1:3210/api/status"
           if ($dashboardStatus.status -ne "running") { throw "Dashboard status endpoint did not report a running core." }
-          if ($dashboardStatus.version -ne "0.1.0-alpha.44") { throw "Automatically restarted client reported the wrong version." }
+          if ($dashboardStatus.version -ne "0.1.0-alpha.45") { throw "Automatically restarted client reported the wrong version." }
 
           $dashboardGameVersion = Invoke-RestMethod "http://127.0.0.1:3210/api/game-version"
           if ($dashboardGameVersion.status -notin @("idle", "checking", "current", "changed", "error")) { throw "Game version API returned an invalid state." }
@@ -392,7 +397,7 @@ jobs:
           if ($dashboardGameData.status -notin @("idle", "loading", "loaded", "error")) { throw "Game data API returned an invalid state." }
 
           $dashboardUpdate = Invoke-RestMethod "http://127.0.0.1:3210/api/update"
-          if ($dashboardUpdate.currentVersion -ne "0.1.0-alpha.44") { throw "Update API returned the wrong client version." }
+          if ($dashboardUpdate.currentVersion -ne "0.1.0-alpha.45") { throw "Update API returned the wrong client version." }
           $diagnosticsSnapshot = Invoke-RestMethod "http://127.0.0.1:3210/api/diagnostics/snapshot"
           if (-not $diagnosticsSnapshot.sanitized) { throw "Diagnostics snapshot was not marked as sanitized." }
           if ($diagnosticsSnapshot.components.Count -lt 5) { throw "Diagnostics component health was incomplete." }
