@@ -2338,3 +2338,87 @@ Result: the real Windows alpha.50 run proves the first `smart_move()`-compatible
 
 Slice 6.4 – Movement Trail und geplante Route im Dashboard may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
 
+
+
+---
+
+## Append-only verification record — Slice 6.4 Movement Trail und geplante Route im Dashboard — 2026-10-04
+
+**Canonical status update: Slice 6.4 = VERIFIED.**
+
+Release/live environment:
+
+- verified release: `v0.1.0-alpha.52`
+- tested implementation/fix main / release target: `00269af70beab88e09213ff1800ffdeb6f645cfc`
+- Windows client: `0.1.0-alpha.52`
+- platform: `win32`
+- one-click test ID: `live64-8811129f-260e-4b20-a51d-e770b029380a`
+- outcome: `passed`
+- test window: `2026-10-03T22:57:24.310Z → 2026-10-03T22:57:26.158Z`
+- live Character: `My_Ranger2` on EU II / `SR_EUII`
+- map: `main`
+- diagnostic export: 76 log lines, `Secrets sanitized: yes`
+
+Planned-route evidence:
+
+- original server-observed position: `main -1163.5698084909386,-87.06988736141028`;
+- the existing Simple Path Planner produced one `reachable` same-map route;
+- route leg count: `1`;
+- map hops: `0`;
+- total walk distance: `32`;
+- planned target: `main -1131.5698084909386,-87.06988736141028`;
+- movement-debug telemetry retained the exact route;
+- `plannedRouteCount` advanced from `0 → 1`.
+
+Actual movement-trail evidence:
+
+- the outbound movement ran through the central Action Gateway with dashboard origin:
+  - request `act-eadf552b-29f4-474d-ab0a-34ab30ff530e`
+  - server-confirmed position `-1131.5698084909386,-87.06988736141028`;
+- the exact-coordinate return also ran through the central Action Gateway with dashboard origin:
+  - request `act-25adac2d-4056-4e93-abb1-c201c5981f05`
+  - server-confirmed position `-1163.5698084909386,-87.06988736141028`;
+- movement count delta: `2`;
+- trail point count: `0 → 3`;
+- retained trail contained the original start point plus both server-confirmed movement observations;
+- final Character position exactly matched the original position.
+
+Runtime/safety evidence:
+
+- user Script runtime remained `unloaded → unloaded`;
+- `userScriptInterrupted:false`;
+- `actionGatewayRequired:true`;
+- intended bounded gameplay mutation was limited to the two movement requests;
+- `gameplayMutation:true`;
+- `rawSocketAccess:false`;
+- final Action Gateway state was ready with no active request and the return movement recorded `outcome:"success"`, `path:"direct"`, and `serverConfirmed:true`.
+
+Historical alpha.51 failure remains append-only evidence:
+
+- `v0.1.0-alpha.51` targeted implementation main `0a380d6e2170365971a58490a571f79804061989`;
+- real test `live64-c0c65f09-452f-45de-b787-83103488b4fa` failed during `movement-trail` with `MOVE_TARGET_INVALID`;
+- the outbound movement had been treated as confirmed at an intermediate server-observed position while the canonical Character coordinates intentionally still represented the original position during active interpolation;
+- the immediate exact-coordinate return therefore validated against stale coordinates and was rejected as a no-op target;
+- PR #101 corrected the central confirmation semantics so `sendDirectMovement()` resolves only after the server-observed position reaches the requested target within the bounded tolerance;
+- the alpha.52 run above proves the correction on the real Windows client.
+
+Repository/release gate evidence:
+
+- implementation PR #100 merged with method `merge` at exact main `0a380d6e2170365971a58490a571f79804061989`;
+- final implementation PR CI run `37158757766` completed with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- exact post-implementation-main CI run `37158929260` completed successfully;
+- alpha.51 release publish run `37159067914` completed successfully;
+- corrective PR #101 merged with method `merge` at exact main `00269af70beab88e09213ff1800ffdeb6f645cfc`;
+- corrective PR CI run `37159608659` completed with all four required jobs successful;
+- exact post-fix-main CI run `37159753137` completed with all four required jobs successful;
+- release publish run `37159899297` completed successfully;
+- GitHub release `v0.1.0-alpha.52` targets exact commit `00269af70beab88e09213ff1800ffdeb6f645cfc`;
+- release branch `release/v0.1.0-alpha.52`, tag `v0.1.0-alpha.52`, and tested `main` were verified commit-identical;
+- published assets:
+  - Windows x64 installer SHA-256 `6f587129575aa43033227136f7b8cf1b8fbcbd5d2647d4c05d3ece14e4e8e68a`
+  - Linux x64 installer SHA-256 `0ca0ac37e52addb1b5a19bc7d98fddbe3e9159c07f9080a1d16554366e7925e0`
+  - updater manifest SHA-256 `24f1f37231718876fe51e0719d6bf660f9ed0d1cca010ca6c6b2e4f95d268fd0`.
+
+Result: the real Windows alpha.52 run proves that the dashboard retains both the actual server-confirmed Movement Trail and the route produced by the existing planner, while all gameplay mutation remains bounded behind the central Action Gateway and the user Script runtime remains untouched. **Slice 6.4 is VERIFIED.**
+
+Phase 7 / Slice 7.1 – Multi-Character Session Manager may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.

@@ -1061,3 +1061,60 @@ Repository/release evidence:
 
 Do not repeat Slice 6.3 merely because implementation planning text remains elsewhere. Slice 6.4 – Movement Trail und geplante Route im Dashboard may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
 
+
+
+---
+
+### Alpha.52 real one-click result: PASSED — Slice 6.4 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.52`
+- release target / tested fix main: `00269af70beab88e09213ff1800ffdeb6f645cfc`
+- client: `0.1.0-alpha.52` / Windows
+- platform: `win32`
+- test ID: `live64-8811129f-260e-4b20-a51d-e770b029380a`
+- character: `My_Ranger2`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-03T22:57:24.310Z → 2026-10-03T22:57:26.158Z`
+- diagnostic export: 76 log lines, `Secrets sanitized: yes`
+
+The one-click harness completed the full Slice 6.4 movement-debug validation:
+
+- preflight selected a collision-safe bounded 32-unit round trip on `main` from `-1163.5698084909386,-87.06988736141028`;
+- the existing planner produced one `reachable` same-map walk leg with `mapHops:0` and `totalWalkDistance:32`;
+- movement-debug telemetry retained that exact planned route and advanced `plannedRouteCount 0 → 1`;
+- outbound Action Gateway request `act-eadf552b-29f4-474d-ab0a-34ab30ff530e` completed with dashboard origin and server-confirmed target `-1131.5698084909386,-87.06988736141028`;
+- return Action Gateway request `act-25adac2d-4056-4e93-abb1-c201c5981f05` completed with dashboard origin and server-confirmed original position `-1163.5698084909386,-87.06988736141028`;
+- movement count changed by exactly `2`;
+- trail point count changed `0 → 3`, retaining the start plus both confirmed movement observations;
+- final Character position exactly matched the original position;
+- user Script runtime remained `unloaded → unloaded`;
+- `userScriptInterrupted:false`;
+- `actionGatewayRequired:true`;
+- `gameplayMutation:true` only for the intended bounded round trip;
+- `rawSocketAccess:false`.
+
+Historical alpha.51 failure remains valid append-only evidence:
+
+- alpha.51 real test `live64-c0c65f09-452f-45de-b787-83103488b4fa` failed with `MOVE_TARGET_INVALID` after the outbound move was considered confirmed at an intermediate position;
+- corrective PR #101 changed central movement confirmation to require server-observed arrival at the requested target;
+- alpha.52 proves the corrected semantics on the real Windows client.
+
+Repository/release evidence:
+
+- implementation PR #100 merged at exact main `0a380d6e2170365971a58490a571f79804061989`;
+- final implementation PR CI `37158757766` and exact post-implementation-main CI `37158929260` completed successfully;
+- alpha.51 publish run `37159067914` completed successfully;
+- corrective PR #101 merged at exact main `00269af70beab88e09213ff1800ffdeb6f645cfc`;
+- corrective PR CI `37159608659` and exact post-fix-main CI `37159753137` completed with all four required jobs successful;
+- alpha.52 publish run `37159899297` completed successfully;
+- `v0.1.0-alpha.52`, its release branch, tag, and tested main were verified commit-identical;
+- published Windows installer SHA-256: `6f587129575aa43033227136f7b8cf1b8fbcbd5d2647d4c05d3ece14e4e8e68a`;
+- published Linux installer SHA-256: `0ca0ac37e52addb1b5a19bc7d98fddbe3e9159c07f9080a1d16554366e7925e0`;
+- published updater manifest SHA-256: `24f1f37231718876fe51e0719d6bf660f9ed0d1cca010ca6c6b2e4f95d268fd0`.
+
+**Canonical queue status: Slice 6.4 = VERIFIED.**
+
+Do not repeat Slice 6.4 merely because the historical alpha.51 failed report remains as evidence. Phase 7 / Slice 7.1 – Multi-Character Session Manager may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
