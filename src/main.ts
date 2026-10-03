@@ -5,6 +5,7 @@ import { AdventureLandSelectionService } from "./account/selection-service.ts";
 import { AdventureLandSelectionSource } from "./account/selection-source.ts";
 import { ActionGateway } from "./action/gateway.ts";
 import { AdventureLandMovementService } from "./action/movement.ts";
+import { AdventureLandAttackService } from "./action/attack.ts";
 import { AdventureLandCharacterService } from "./character/service.ts";
 import { AdventureLandCharacterTransport } from "./character/transport.ts";
 import { CoreRuntime } from "./core/app.ts";
@@ -98,6 +99,7 @@ let selectionService: AdventureLandSelectionService | undefined;
 let characterService: AdventureLandCharacterService | undefined;
 let actionGateway: ActionGateway | undefined;
 let movementService: AdventureLandMovementService | undefined;
+let attackService: AdventureLandAttackService | undefined;
 let updateService: UpdateService | undefined;
 let gameVersionService: AdventureLandVersionService | undefined;
 let gameDataService: AdventureLandGameDataService | undefined;
@@ -277,6 +279,11 @@ movementService = new AdventureLandMovementService({
   character: characterService!,
   gameData: () => gameDataService!.data(),
 });
+attackService = new AdventureLandAttackService({
+  gateway: actionGateway!,
+  logger,
+  character: characterService!,
+});
 
 dashboard = new DashboardServer({
   logger,
@@ -286,6 +293,7 @@ dashboard = new DashboardServer({
   characterService,
   actionGateway,
   movementService,
+  attackService,
   updateService,
   diagnostics,
   gameVersionService,

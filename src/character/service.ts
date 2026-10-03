@@ -7,6 +7,8 @@ import {
   type AdventureLandCharacterLiveState,
   type AdventureLandDirectMovementInput,
   type AdventureLandDirectMovementReceipt,
+  type AdventureLandAttackInput,
+  type AdventureLandAttackReceipt,
   type AdventureLandCharacterTransport,
   type AdventureLandConnectedCharacter,
 } from "./transport.ts";
@@ -258,6 +260,23 @@ export class AdventureLandCharacterService {
     });
 
     return this.#connecting;
+  }
+
+  sendAttack(input: AdventureLandAttackInput): Promise<AdventureLandAttackReceipt> {
+    const connection = this.#connection;
+    if (!connection || this.#state.status !== "connected") {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Connect a headless character before attacking.",
+        "attack_not_connected",
+      ));
+    }
+    return connection.sendAttack(input);
+  }
+
+  attackCooldownRemainingMs(): number {
+    const connection = this.#connection;
+    if (!connection || this.#state.status !== "connected") return 0;
+    return connection.attackCooldownRemainingMs();
   }
 
   sendDirectMovement(

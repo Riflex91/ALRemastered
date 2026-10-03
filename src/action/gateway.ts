@@ -68,11 +68,17 @@ export interface ActionGatewayOptions {
 
 export class ActionGatewayExecutionError extends Error {
   readonly code: string;
+  readonly retryAfterMs?: number;
 
-  constructor(message: string, code = "ACTION_FAILED") {
+  constructor(
+    message: string,
+    code = "ACTION_FAILED",
+    retryAfterMs?: number,
+  ) {
     super(message);
     this.name = "ActionGatewayExecutionError";
     this.code = code;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -250,6 +256,9 @@ export class ActionGateway {
         startedAt,
         startedMs,
         error: failure,
+        retryAfterMs: error instanceof ActionGatewayExecutionError
+          ? error.retryAfterMs
+          : undefined,
       });
       this.#logger.error(
         "Action gateway request failed.",

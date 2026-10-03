@@ -361,6 +361,24 @@
           </small>
         </div>
       </div>
+
+      <div class="selection-content">
+        <div>
+          <h3>Attack test controls</h3>
+          <div class="server-picker">
+            <label>
+              <span class="label">Visible monster</span>
+              <select id="attack-target" aria-label="Attack test monster target">
+                <option value="">No visible monsters</option>
+              </select>
+            </label>
+            <button id="run-attack-test" type="button" disabled>Attack selected monster once</button>
+          </div>
+          <small class="selection-note">
+            Slice 3.3 performs exactly one normal attack against the explicitly selected live monster. The target must still be visible and in range, cooldown must be clear, and the Adventure Land server must confirm the result. No automatic targeting or repeated attack loop is used.
+          </small>
+        </div>
+      </div>
     </section>
 
     <section class="game-data-panel">
