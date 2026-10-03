@@ -1645,3 +1645,53 @@ Whole-run result:
 Result: the real Windows alpha.32 run proves script load/start/pause/stop, timer cleanup, isolated crash containment, post-crash recovery, and separately marked script logging. **Slice 4.1 is VERIFIED.**
 
 Slice 4.2 may begin only after this append-only verification record is merged and the resulting `main` CI is fully green.
+
+---
+
+## Append-only verification record — Slice 4.2 Adventure Land Core API — 2026-10-03
+
+**Canonical status update: Slice 4.2 = VERIFIED.**
+
+Release/live environment:
+
+- release: `v0.1.0-alpha.37`
+- release target / tested implementation main: `503d320403c78f05f6d86f314de74f8172140609`
+- Windows client: `0.1.0-alpha.37`
+- platform: `win32`
+- Character: `My_Ranger1` / `CH_denPIHA05KxLLQqVOad9h9vr9KPrL`
+- Server: EU II / `SR_EUII`
+- one-click test ID: `live42-cfa353b4-ed33-48b3-b979-6dfd0fce0c0c`
+- test result: `passed`
+- test window: `2026-10-03T15:26:54.970Z → 2026-10-03T15:26:59.214Z`
+- diagnostic export: 148 log lines, `Secrets sanitized: yes`
+
+Core API evidence:
+
+- the isolated script exercised `character`, `G`, `Entities`, `get_nearest_monster()`, `is_in_range()`, and `can_attack()`;
+- bounded target: crab `5218826`, HP `400`, attack `24`, preflight distance `119.4`;
+- no preflight wait was needed in the passing run (`targetWaitMs:0`);
+- the isolated farmer issued exactly one successful bounded attack in the final report;
+- attack request: `act-e3e04fac-81be-4611-b1af-01d7e14d12e5`;
+- loot request: `act-43609d07-0882-43d6-9fac-1cab838adb8a`;
+- direct `move()` request: `act-83c55bfa-2665-4741-90a0-7420dfc76de5`;
+- direct-path `xmove()` request: `act-d45b8815-fadc-477d-8829-83a7a7b4b1ff`;
+- the report confirms the farmer actions ran with script origin through the central Action Gateway;
+- movement evidence reported `moveConfirmed:true` and `xmoveConfirmed:true`.
+
+Runtime/result evidence:
+
+- all required live-test steps passed:
+  - `preflight`
+  - `globals-and-helpers`
+  - `script-farmer-actions`
+  - `script-movement`
+- final script runtime state: `stopped`;
+- final active timers: `0`;
+- the worker resources were released cleanly.
+
+Historical alpha.33 through alpha.36 BLOCKED/FAILED reports remain valid append-only evidence of the target-selection, gateway-rate-limit, and movement-state races that were fixed before the passing alpha.37 run. They are not rewritten or replaced by this record.
+
+Result: the real Windows alpha.37 run proves the first Adventure Land-compatible script globals/helpers plus bounded `attack()`, `loot()`, `move()`, and direct-path `xmove()` through the central Action Gateway. **Slice 4.2 is VERIFIED.**
+
+Slice 4.3 may begin only after this append-only verification record is merged and the resulting `main` CI is fully green.
+

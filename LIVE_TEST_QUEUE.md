@@ -590,3 +590,44 @@ The one expected ERROR record is the intentional crash-isolation probe and is po
 **Canonical queue status: Slice 4.1 = VERIFIED.**
 
 Do not repeat Slice 4.1 merely because earlier planning text remains as historical evidence. Slice 4.2 may start only after this verification documentation is merged and post-merge `main` CI is fully green.
+
+---
+
+### Alpha.37 real one-click result: PASSED — Slice 4.2 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.37`
+- release target / tested implementation main: `503d320403c78f05f6d86f314de74f8172140609`
+- client: `0.1.0-alpha.37` / Windows
+- platform: `win32`
+- test ID: `live42-cfa353b4-ed33-48b3-b979-6dfd0fce0c0c`
+- character: `My_Ranger1` / `CH_denPIHA05KxLLQqVOad9h9vr9KPrL`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-03T15:26:54.970Z → 2026-10-03T15:26:59.214Z`
+- diagnostic export: 148 log lines, `Secrets sanitized: yes`
+
+The one-click harness completed the full Slice 4.2 chain:
+
+- preflight selected low-risk crab `5218826`, HP `400`, attack `24`, distance `119.4`, with `targetWaitMs:0`;
+- `character`, `G`, `Entities`, `get_nearest_monster()`, `is_in_range()`, and `can_attack()` all passed inside the isolated script;
+- exactly one successful attack was recorded in the final structured result:
+  - `act-e3e04fac-81be-4611-b1af-01d7e14d12e5`;
+- loot completed:
+  - `act-43609d07-0882-43d6-9fac-1cab838adb8a`;
+- direct `move()` completed:
+  - `act-83c55bfa-2665-4741-90a0-7420dfc76de5`;
+- direct-path `xmove()` completed:
+  - `act-d45b8815-fadc-477d-8829-83a7a7b4b1ff`;
+- the structured report confirms these farmer mutations used script origin through the central Action Gateway;
+- movement evidence reports `moveConfirmed:true` and `xmoveConfirmed:true`;
+- all four terminal steps passed: `preflight`, `globals-and-helpers`, `script-farmer-actions`, and `script-movement`;
+- final runtime state: `stopped`, `activeTimers:0`, with worker resources released cleanly.
+
+Historical alpha.33 through alpha.36 reports remain append-only evidence of earlier BLOCKED/FAILED live conditions and the fixes they drove. They must not be rewritten as passes.
+
+**Canonical queue status: Slice 4.2 = VERIFIED.**
+
+Do not repeat Slice 4.2 merely because earlier failure reports remain as historical evidence. Slice 4.3 may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
+
