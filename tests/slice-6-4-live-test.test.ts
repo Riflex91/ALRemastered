@@ -207,6 +207,10 @@ test("Slice 6.4 blocks without interrupting a running user script", async () => 
         movementCalls += 1;
         throw new Error("movement must not run");
       },
+      runScript: async () => {
+        movementCalls += 1;
+        throw new Error("movement must not run");
+      },
     },
     movementDebug: {
       state: () => ({
