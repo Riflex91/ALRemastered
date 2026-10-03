@@ -30,6 +30,7 @@ test("respawn service rejects living characters and confirms server-accepted dea
   assert.equal(alive.error?.code, "RESPAWN_CHARACTER_ALIVE");
   assert.equal(sends, 0);
 
+  await new Promise((resolve) => setTimeout(resolve, 1_025));
   dead = true;
   const result = await service.run("script");
   assert.equal(result.outcome, "success");
