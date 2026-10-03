@@ -15,6 +15,7 @@ import type { AdventureLandLootConsumableService } from "../action/loot-consumab
 import type { AdventureLandSelectionService } from "../account/selection-service.ts";
 import type { AdventureLandCharacterService } from "../character/service.ts";
 import type { MultiCharacterSessionManager } from "../character/session-manager.ts";
+import type { LocalCharacterMessagingService } from "../character/messaging.ts";
 import type { CoreRuntime, HealthSnapshot } from "../core/app.ts";
 import type { DiagnosticsService } from "../diagnostics/service.ts";
 import type { AdventureLandGameDataService } from "../game/data-service.ts";
@@ -35,6 +36,7 @@ import type { Slice62LiveTestService } from "../live-test/slice-6-2.ts";
 import type { Slice63LiveTestService } from "../live-test/slice-6-3.ts";
 import type { Slice64LiveTestService } from "../live-test/slice-6-4.ts";
 import type { Slice71LiveTestService } from "../live-test/slice-7-1.ts";
+import type { Slice72LiveTestService } from "../live-test/slice-7-2.ts";
 import type { AdventureLandMapModelService } from "../navigation/map-model.ts";
 import type { MovementDebugService } from "../navigation/movement-debug.ts";
 import type { SimplePathPlannerService } from "../navigation/path-planner.ts";
@@ -53,6 +55,7 @@ export interface DashboardServerOptions {
   readonly selectionService?: AdventureLandSelectionService;
   readonly characterService?: AdventureLandCharacterService;
   readonly multiCharacterSessionManager?: MultiCharacterSessionManager;
+  readonly localCharacterMessagingService?: LocalCharacterMessagingService;
   readonly actionGateway?: ActionGateway;
   readonly movementService?: AdventureLandMovementService;
   readonly attackService?: AdventureLandAttackService;
@@ -74,6 +77,7 @@ export interface DashboardServerOptions {
   readonly slice63LiveTestService?: Slice63LiveTestService;
   readonly slice64LiveTestService?: Slice64LiveTestService;
   readonly slice71LiveTestService?: Slice71LiveTestService;
+  readonly slice72LiveTestService?: Slice72LiveTestService;
   readonly mapModelService?: AdventureLandMapModelService;
   readonly movementDebugService?: MovementDebugService;
   readonly pathPlannerService?: SimplePathPlannerService;
@@ -95,6 +99,7 @@ export class DashboardServer {
   readonly #selectionService?: AdventureLandSelectionService;
   readonly #characterService?: AdventureLandCharacterService;
   readonly #multiCharacterSessionManager?: MultiCharacterSessionManager;
+  readonly #localCharacterMessagingService?: LocalCharacterMessagingService;
   readonly #actionGateway?: ActionGateway;
   readonly #movementService?: AdventureLandMovementService;
   readonly #attackService?: AdventureLandAttackService;
@@ -116,6 +121,7 @@ export class DashboardServer {
   readonly #slice63LiveTestService?: Slice63LiveTestService;
   readonly #slice64LiveTestService?: Slice64LiveTestService;
   readonly #slice71LiveTestService?: Slice71LiveTestService;
+  readonly #slice72LiveTestService?: Slice72LiveTestService;
   readonly #mapModelService?: AdventureLandMapModelService;
   readonly #movementDebugService?: MovementDebugService;
   readonly #pathPlannerService?: SimplePathPlannerService;
@@ -140,6 +146,7 @@ export class DashboardServer {
     this.#selectionService = options.selectionService;
     this.#characterService = options.characterService;
     this.#multiCharacterSessionManager = options.multiCharacterSessionManager;
+    this.#localCharacterMessagingService = options.localCharacterMessagingService;
     this.#actionGateway = options.actionGateway;
     this.#movementService = options.movementService;
     this.#attackService = options.attackService;
@@ -161,6 +168,7 @@ export class DashboardServer {
     this.#slice63LiveTestService = options.slice63LiveTestService;
     this.#slice64LiveTestService = options.slice64LiveTestService;
     this.#slice71LiveTestService = options.slice71LiveTestService;
+    this.#slice72LiveTestService = options.slice72LiveTestService;
     this.#mapModelService = options.mapModelService;
     this.#movementDebugService = options.movementDebugService;
     this.#pathPlannerService = options.pathPlannerService;
@@ -373,6 +381,16 @@ export class DashboardServer {
         response,
         () => this.#multiCharacterSessionManager!.stop(characterId, "dashboard"),
       );
+    }
+
+    if (method === "GET" && path === "/api/character-messaging") {
+      if (!this.#localCharacterMessagingService) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Local Character messaging is unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#localCharacterMessagingService.state());
     }
 
     if (method === "GET" && path === "/api/action-gateway") {
@@ -1168,6 +1186,41 @@ export class DashboardServer {
         selection: this.#selectionService?.state(),
         scriptRuntime: this.#scriptRuntime?.state(),
         gameData: this.#gameDataService?.state(),
+        diagnostic,
+      };
+      return this.#json(response, {
+        result,
+        reportText: JSON.stringify(report, null, 2),
+        clipboardSuggested: true,
+      });
+    }
+
+    if (method === "GET" && path === "/api/live-test/slice-7-2") {
+      if (!this.#slice72LiveTestService) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Slice 7.2 local Character messaging test service is unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#slice72LiveTestService.state());
+    }
+    if (method === "POST" && path === "/api/live-test/slice-7-2/start") {
+      if (!this.#slice72LiveTestService) {
+        return this.#json(response, {
+          error: "Slice 7.2 local Character messaging test service is unavailable.",
+        }, 503);
+      }
+      const result = await this.#slice72LiveTestService.run();
+      const diagnostic = this.#exportPayload();
+      const report = {
+        schemaVersion: 1,
+        kind: "ALRemastered Slice 7.2 one-click local Character messaging test",
+        result,
+        characterMessaging: this.#localCharacterMessagingService?.state(),
+        characterSessions: this.#multiCharacterSessionManager?.state(),
+        primaryCharacter: this.#characterService?.state(),
+        selection: this.#selectionService?.state(),
+        userScriptRuntime: this.#scriptRuntime?.state(),
         diagnostic,
       };
       return this.#json(response, {
