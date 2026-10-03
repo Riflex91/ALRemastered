@@ -89,7 +89,11 @@ test("dashboard exposes Slice 6.3 smart_move compatibility status and one-click 
     const payload = await live.json();
     assert.equal(payload.result.outcome, "passed");
     assert.equal(payload.result.slice, "6.3");
-    assert.equal(payload.smartMove.lastError.code, "SMART_MOVE_TARGET_UNSUPPORTED");
+    const report = JSON.parse(payload.reportText);
+    assert.equal(
+      report.smartMove.lastError.code,
+      "SMART_MOVE_TARGET_UNSUPPORTED",
+    );
     assert.match(
       payload.reportText,
       /ALRemastered Slice 6\.3 one-click smart_move compatibility test/,
