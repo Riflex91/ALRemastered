@@ -98,6 +98,24 @@ test("Adventure Land script bridge exposes compatible aliases and routes every m
         ) as any;
       },
     },
+    smartMove: {
+      run: async (target: unknown) => {
+        calls.push({ method: "smart_move", input: target });
+        return {
+          status: "already_there",
+          target: { map: "main", x: 100, y: 100 },
+          route: {
+            status: "reachable",
+            message: "The target is already reached.",
+            from: { map: "main", x: 100, y: 100 },
+            to: { map: "main", x: 100, y: 100 },
+            waypoints: [],
+            legs: [],
+            diagnostics: { mapHops: 0 },
+          },
+        } as any;
+      },
+    },
     attack: {
       run: async (input: any, origin: any) => {
         calls.push({ method: `attack:${origin}`, input });
@@ -138,12 +156,17 @@ test("Adventure Land script bridge exposes compatible aliases and routes every m
   const move = await bridge.call("move", { x: 116, y: 100 }) as any;
   assert.equal(move.requestId, "act-move");
   await bridge.call("xmove", { x: 100, y: 116 });
+  const smart = await bridge.call("smart_move", {
+    target: { x: 100, y: 100 },
+  }) as any;
+  assert.equal(smart.status, "already_there");
   await bridge.call("attack", { targetId: "m1" });
   const loot = await bridge.call("loot", {}) as any;
   assert.equal(loot.requestId, "act-loot");
   assert.deepEqual(calls, [
     { method: "movement", input: { mode: "move", x: 116, y: 100 } },
     { method: "movement", input: { mode: "xmove", x: 100, y: 116 } },
+    { method: "smart_move", input: { x: 100, y: 100 } },
     { method: "attack:script", input: { targetId: "m1" } },
     { method: "loot:script", input: { chestId: "near" } },
   ]);
@@ -218,6 +241,8 @@ test("isolated worker exposes character, G, Entities, helpers and async action R
         "  if (!can_attack(target)) throw new Error('can_attack helper failed');",
         "  await move(116, 100);",
         "  await xmove(100, 100);",
+        "  const smart = await smart_move({x:100,y:100});",
+        "  if (!smart || !smart.requestId) throw new Error('smart_move missing');",
         "  await attack(target);",
         "  await loot();",
         "  console.info('slice42-api-done');",
@@ -237,6 +262,7 @@ test("isolated worker exposes character, G, Entities, helpers and async action R
     assert.deepEqual(calls.map((entry) => entry.method), [
       "move",
       "xmove",
+      "smart_move",
       "attack",
       "loot",
     ]);
