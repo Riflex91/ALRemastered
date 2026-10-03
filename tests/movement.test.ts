@@ -271,3 +271,37 @@ test("movement test requires connected state, loaded geometry, and obeys rate gu
   assert.equal(second.error?.code, "ACTION_RATE_LIMITED");
   assert.equal(sent.length, 1);
 });
+
+
+test("script Move/XMove accept validated coordinates and keep script origin", async () => {
+  const logger = new Logger({ component: "script-movement-test" });
+  const sent: Array<{ x: number; y: number }> = [];
+  let now = 80_000;
+  const service = new AdventureLandMovementService({
+    gateway: new ActionGateway({
+      logger,
+      nowMs: () => now,
+      idFactory: () => `act-script-move-${now}`,
+    }),
+    character: connectedCharacter(sent) as any,
+    gameData: () => gameData(),
+  });
+
+  const moved = await service.runScript({ mode: "move", x: 116, y: 100 });
+  assert.equal(moved.outcome, "success");
+  assert.equal(moved.origin, "script");
+  assert.equal(moved.action, "character.move");
+  assert.equal(moved.result?.direction, undefined);
+  assert.equal(moved.result?.targetX, 116);
+  assert.equal(moved.result?.targetY, 100);
+
+  now += 1_000;
+  const xmoved = await service.runScript({ mode: "xmove", x: 100, y: 116 });
+  assert.equal(xmoved.outcome, "success");
+  assert.equal(xmoved.origin, "script");
+  assert.equal(xmoved.action, "character.xmove");
+  assert.deepEqual(sent, [
+    { x: 116, y: 100 },
+    { x: 100, y: 116 },
+  ]);
+});

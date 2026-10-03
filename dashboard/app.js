@@ -15,6 +15,8 @@ const state = {
   scriptRuntime: null,
   slice41LiveTest: null,
   slice41LastReport: null,
+  slice42LiveTest: null,
+  slice42LastReport: null,
   update: null,
   gameVersion: null,
   gameData: null,
@@ -114,6 +116,10 @@ const elements = {
   slice41LiveTestStatus: document.querySelector("#slice-4-1-live-test-status"),
   slice41LiveTestNote: document.querySelector("#slice-4-1-live-test-note"),
   copySlice41LiveTestResult: document.querySelector("#copy-slice-4-1-live-test-result"),
+  startSlice42LiveTest: document.querySelector("#start-slice-4-2-live-test"),
+  slice42LiveTestStatus: document.querySelector("#slice-4-2-live-test-status"),
+  slice42LiveTestNote: document.querySelector("#slice-4-2-live-test-note"),
+  copySlice42LiveTestResult: document.querySelector("#copy-slice-4-2-live-test-result"),
   gameVersion: document.querySelector("#game-version"),
   gameVersionStatus: document.querySelector("#game-version-status"),
   gameLastDeploy: document.querySelector("#game-last-deploy"),
@@ -1044,6 +1050,33 @@ function renderSlice41LiveTest() {
   }
 }
 
+function renderSlice42LiveTest() {
+  const test = state.slice42LiveTest;
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    blocked: "BLOCKED",
+    failed: "FAILED",
+    unavailable: "Unavailable",
+  };
+  const status = test?.status ?? "idle";
+  elements.slice42LiveTestStatus.textContent = labels[status] ?? status;
+  elements.startSlice42LiveTest.disabled = status === "running";
+  elements.copySlice42LiveTestResult.hidden = !state.slice42LastReport;
+
+  if (status === "running") {
+    elements.slice42LiveTestNote.textContent =
+      "The bounded isolated script farmer is selecting and validating one low-risk target automatically. Do not perform manual gameplay actions while it is running.";
+  } else if (test?.message) {
+    elements.slice42LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  } else {
+    elements.slice42LiveTestNote.textContent =
+      "The test selects one bounded low-risk visible monster automatically, exercises the first Adventure Land-compatible script globals and helpers, then runs script-origin attack, loot, move, and direct-path xmove actions through the central Action Gateway. No manual target or developer controls are required.";
+  }
+}
+
 function renderGameVersion() {
   const gameVersion = state.gameVersion;
   if (!gameVersion) return;
@@ -1427,6 +1460,29 @@ async function refreshSlice41LiveTest() {
       message: "Slice 4.1 one-click live-test status could not be loaded.",
     };
     renderSlice41LiveTest();
+  }
+}
+
+async function refreshSlice42LiveTest() {
+  try {
+    const response = await fetch("/api/live-test/slice-4-2", {
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      state.slice42LiveTest = {
+        status: "unavailable",
+        message: "Slice 4.2 one-click live test is unavailable.",
+      };
+    } else {
+      state.slice42LiveTest = await response.json();
+    }
+    renderSlice42LiveTest();
+  } catch {
+    state.slice42LiveTest = {
+      status: "unavailable",
+      message: "Slice 4.2 one-click live-test status could not be loaded.",
+    };
+    renderSlice42LiveTest();
   }
 }
 
@@ -1858,6 +1914,44 @@ async function startSlice41LiveTest(clipboardWrite) {
   const copied = await clipboardWrite.finish(payload.reportText);
   renderSlice41LiveTest();
   await refreshScriptRuntime();
+  await refreshDiagnostics();
+
+  return { payload, copied };
+}
+
+async function startSlice42LiveTest(clipboardWrite) {
+  state.slice42LiveTest = {
+    status: "running",
+    message: "Slice 4.2 one-click live test is running.",
+  };
+  renderSlice42LiveTest();
+
+  const response = await fetch("/api/live-test/slice-4-2/start", {
+    method: "POST",
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      payload.error ??
+      payload.message ??
+      `Slice 4.2 live test failed with HTTP ${response.status}`,
+    );
+  }
+  if (!payload.reportText || typeof payload.reportText !== "string") {
+    throw new Error("Slice 4.2 live test returned no copyable report.");
+  }
+
+  state.slice42LastReport = payload.reportText;
+  state.slice42LiveTest = {
+    status: payload.result?.outcome ?? "failed",
+    message: payload.result?.message ?? "Slice 4.2 live test finished.",
+    lastResult: payload.result,
+  };
+  const copied = await clipboardWrite.finish(payload.reportText);
+  renderSlice42LiveTest();
+  await refreshScriptRuntime();
+  await refreshCharacterConnection();
+  await refreshActionGateway();
   await refreshDiagnostics();
 
   return { payload, copied };
@@ -2439,6 +2533,50 @@ elements.copySlice41LiveTestResult.addEventListener("click", async () => {
   }
 });
 
+elements.startSlice42LiveTest.addEventListener("click", async () => {
+  if (state.slice42LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice42LastReport = null;
+  elements.copySlice42LiveTestResult.hidden = true;
+  setFeedback(
+    "Slice 4.2 live test started. A bounded isolated script farmer now runs automatically.",
+  );
+
+  try {
+    const { payload, copied } = await startSlice42LiveTest(clipboardWrite);
+    const outcome = payload.result?.outcome ?? "failed";
+    const outcomeLabel = String(outcome).toUpperCase();
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 4.2 test ${outcomeLabel}. ${copyMessage}`,
+      outcome === "passed" && copied ? "success" : outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    await refreshSlice42LiveTest();
+    setFeedback(
+      `Slice 4.2 one-click test could not finish: ${error.message}`,
+      "error",
+    );
+  } finally {
+    renderSlice42LiveTest();
+  }
+});
+
+elements.copySlice42LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice42LastReport) return;
+  try {
+    await writeClipboard(state.slice42LastReport);
+    setFeedback(
+      "Complete Slice 4.2 test result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Test-result copy failed: ${error.message}`, "error");
+  }
+});
+
 elements.reloadGameData.addEventListener("click", async () => {
   elements.reloadGameData.disabled = true;
   setFeedback("Reloading Adventure Land game data…");
@@ -2550,6 +2688,7 @@ await refreshLootConsumableOptions();
 await refreshSlice35LiveTest();
 await refreshScriptRuntime();
 await refreshSlice41LiveTest();
+await refreshSlice42LiveTest();
 await refreshGameVersion();
 await refreshGameData();
 await refreshUpdate();
@@ -2566,6 +2705,7 @@ setInterval(refreshLootConsumableOptions, 1500);
 setInterval(refreshSlice35LiveTest, 1500);
 setInterval(refreshScriptRuntime, 1500);
 setInterval(refreshSlice41LiveTest, 1500);
+setInterval(refreshSlice42LiveTest, 1500);
 setInterval(refreshGameVersion, 2000);
 setInterval(refreshGameData, 2000);
 setInterval(refreshUpdate, 1500);

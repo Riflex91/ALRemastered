@@ -16,9 +16,15 @@ export interface DashboardMovementRequest {
   readonly direction: MovementDirection;
 }
 
+export interface ScriptMovementRequest {
+  readonly mode: MovementMode;
+  readonly x: number;
+  readonly y: number;
+}
+
 export interface MovementActionResult {
   readonly mode: MovementMode;
-  readonly direction: MovementDirection;
+  readonly direction?: MovementDirection;
   readonly map: string;
   readonly fromX: number;
   readonly fromY: number;
@@ -70,20 +76,45 @@ export class AdventureLandMovementService {
     request: DashboardMovementRequest,
     origin: ActionOrigin,
   ): Promise<ActionGatewayResult<MovementActionResult>> {
+    return this.#runRequest({
+      mode: request.mode,
+      direction: request.direction,
+    }, origin);
+  }
+
+  runScript(
+    request: ScriptMovementRequest,
+  ): Promise<ActionGatewayResult<MovementActionResult>> {
+    return this.#runRequest({
+      mode: request.mode,
+      targetX: request.x,
+      targetY: request.y,
+    }, "script");
+  }
+
+  #runRequest(
+    request: {
+      readonly mode: MovementMode;
+      readonly direction?: MovementDirection;
+      readonly targetX?: number;
+      readonly targetY?: number;
+    },
+    origin: ActionOrigin,
+  ): Promise<ActionGatewayResult<MovementActionResult>> {
     const action = request.mode === "xmove"
       ? "character.xmove"
       : "character.move";
     const characterId = this.#character.state().characterId;
+    const input = request.direction
+      ? { mode: request.mode, direction: request.direction }
+      : { mode: request.mode, x: request.targetX, y: request.targetY };
 
     return this.#gateway.run({
       action,
       origin,
       characterId,
-      input: {
-        mode: request.mode,
-        direction: request.direction,
-      },
-      timeoutMs: 1_500,
+      input,
+      timeoutMs: origin === "script" ? 3_000 : 1_500,
       minIntervalMs: MOVEMENT_RATE_INTERVAL_MS,
       rateLimitKey: [
         origin,
@@ -101,7 +132,7 @@ export class AdventureLandMovementService {
         const state = this.#character.state();
         if (state.status !== "connected" || !state.character) {
           throw new ActionGatewayExecutionError(
-            "Connect a headless character before testing movement.",
+            "Connect a headless character before movement.",
             "CHARACTER_NOT_CONNECTED",
           );
         }
@@ -124,17 +155,30 @@ export class AdventureLandMovementService {
 
         if (state.character.dead) {
           throw new ActionGatewayExecutionError(
-            "A dead character cannot run the movement test.",
+            "A dead character cannot move.",
             "MOVE_CHARACTER_DEAD",
           );
         }
 
-        const target = movementTarget(
-          fromX,
-          fromY,
-          request.direction,
-          this.#stepDistance,
-        );
+        const target = request.direction
+          ? movementTarget(fromX, fromY, request.direction, this.#stepDistance)
+          : {
+              x: request.targetX,
+              y: request.targetY,
+            };
+        if (
+          typeof target.x !== "number" ||
+          !Number.isFinite(target.x) ||
+          typeof target.y !== "number" ||
+          !Number.isFinite(target.y) ||
+          (target.x === fromX && target.y === fromY)
+        ) {
+          throw new ActionGatewayExecutionError(
+            "Movement requires a finite destination different from the current position.",
+            "MOVE_TARGET_INVALID",
+          );
+        }
+
         const geometry = movementGeometry(this.#gameData(), map);
         if (!geometry) {
           throw new ActionGatewayExecutionError(
@@ -153,7 +197,7 @@ export class AdventureLandMovementService {
           const xmove = request.mode === "xmove";
           throw new ActionGatewayExecutionError(
             xmove
-              ? "XMove would require pathfinding from this position. Choose another direction for this Slice 3.2 direct-movement test."
+              ? "XMove would require pathfinding from this position. Slice 4.2 exposes the direct path only."
               : "The requested direct movement is blocked by Adventure Land map geometry.",
             xmove ? "XMOVE_PATH_REQUIRED" : "MOVE_BLOCKED",
           );
@@ -331,7 +375,7 @@ function pointPathClear(
   return true;
 }
 
-function movementGeometry(
+export function movementGeometry(
   data: AdventureLandGameData | undefined,
   map: string,
 ): AdventureLandMovementGeometry | undefined {

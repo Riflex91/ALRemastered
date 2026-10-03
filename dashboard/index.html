@@ -491,6 +491,20 @@
         </div>
       </div>
 
+      <div class="selection-content">
+        <div>
+          <h3>Slice 4.2 one-click live test</h3>
+          <div class="server-picker">
+            <button id="start-slice-4-2-live-test" type="button">Start test</button>
+            <strong id="slice-4-2-live-test-status" aria-live="polite">Ready</strong>
+            <button id="copy-slice-4-2-live-test-result" type="button" hidden>Copy last test result</button>
+          </div>
+          <small class="selection-note" id="slice-4-2-live-test-note">
+            The test selects one bounded low-risk visible monster automatically, exercises the first Adventure Land-compatible script globals and helpers, then runs script-origin attack, loot, move, and direct-path xmove actions through the central Action Gateway. No manual target or developer controls are required.
+          </small>
+        </div>
+      </div>
+
       <details id="script-runtime-developer-controls">
         <summary>Script runtime developer controls</summary>
         <div class="selection-content">
@@ -514,7 +528,7 @@ setInterval(() =&gt; console.info("timer tick"), 1000);</textarea>
               <button id="script-runtime-stop" type="button">Stop script</button>
             </div>
             <small class="selection-note">
-              Slice 4.1 exposes only the isolated JavaScript lifecycle and logging surface. Adventure Land character APIs are intentionally added later in Slice 4.2.
+              Slice 4.2 exposes character, G, Entities, get_nearest_monster(), is_in_range(), can_attack(), and validated move(), xmove(), attack(), and loot() through the isolated worker and central Action Gateway. Script event listeners are added later in Slice 4.3.
             </small>
           </div>
         </div>
