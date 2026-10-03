@@ -450,6 +450,77 @@
       </details>
     </section>
 
+    <section class="action-gateway-panel" id="script-runtime-panel">
+      <div class="diagnostics-heading">
+        <div>
+          <p class="eyebrow">Phase 4 script execution</p>
+          <h2>Script runtime</h2>
+        </div>
+      </div>
+
+      <div class="status-grid action-gateway-summary" aria-label="Script runtime status">
+        <article class="card">
+          <span class="label">Runtime status</span>
+          <strong id="script-runtime-status">Waiting</strong>
+        </article>
+        <article class="card">
+          <span class="label">Loaded script</span>
+          <strong id="script-runtime-name">—</strong>
+        </article>
+        <article class="card">
+          <span class="label">Active timers</span>
+          <strong id="script-runtime-timers">0</strong>
+        </article>
+        <article class="card">
+          <span class="label">Script log records</span>
+          <strong id="script-runtime-log-records">0</strong>
+        </article>
+      </div>
+
+      <div class="selection-content">
+        <div>
+          <h3>Slice 4.1 one-click live test</h3>
+          <div class="server-picker">
+            <button id="start-slice-4-1-live-test" type="button">Start test</button>
+            <strong id="slice-4-1-live-test-status" aria-live="polite">Ready</strong>
+            <button id="copy-slice-4-1-live-test-result" type="button" hidden>Copy last test result</button>
+          </div>
+          <small class="selection-note" id="slice-4-1-live-test-note">
+            The test automatically verifies script loading, isolated start, timer cleanup on pause and stop, crash isolation, recovery after a script crash, and separately marked script logs. No Adventure Land gameplay preparation is required.
+          </small>
+        </div>
+      </div>
+
+      <details id="script-runtime-developer-controls">
+        <summary>Script runtime developer controls</summary>
+        <div class="selection-content">
+          <div>
+            <h3>Load and control a local script</h3>
+            <div class="script-runtime-editor">
+              <label>
+                <span class="label">Script name</span>
+                <input id="script-runtime-script-name" type="text" maxlength="80" value="local-test-script">
+              </label>
+              <label>
+                <span class="label">JavaScript source</span>
+                <textarea id="script-runtime-source" rows="8" spellcheck="false">console.info("Hello from the isolated script runtime.");
+setInterval(() =&gt; console.info("timer tick"), 1000);</textarea>
+              </label>
+            </div>
+            <div class="toolbar">
+              <button id="script-runtime-load" type="button">Load script</button>
+              <button id="script-runtime-start" type="button">Start script</button>
+              <button id="script-runtime-pause" type="button">Pause script</button>
+              <button id="script-runtime-stop" type="button">Stop script</button>
+            </div>
+            <small class="selection-note">
+              Slice 4.1 exposes only the isolated JavaScript lifecycle and logging surface. Adventure Land character APIs are intentionally added later in Slice 4.2.
+            </small>
+          </div>
+        </div>
+      </details>
+    </section>
+
     <section class="game-data-panel">
       <div class="diagnostics-heading">
         <div>
