@@ -8,6 +8,8 @@ This queue is append-only evidence planning for merged slices that still require
 2. Slice 3.3 – Attack – `v0.1.0-alpha.23`
 3. Slice 3.4 – Skills – `v0.1.0-alpha.24`
 
+> Current execution gate (2026-10-03): Slice 3.2 failed its first real Move attempt on alpha.22. Retest Slice 3.2 on correction release `v0.1.0-alpha.25` and require PASS before beginning Slice 3.3.
+
 ---
 
 ## Slice 3.2 – Move / XMove
@@ -22,7 +24,23 @@ This queue is append-only evidence planning for merged slices that still require
 - Expected mutation path: Dashboard → central Action Gateway → geometry validation → official `move` socket event
 - XMove scope in this slice: direct path only; if pathfinding would be needed, the request must fail with `XMOVE_PATH_REQUIRED` and send no movement packet
 
-### Dashboard steps
+### Live attempt 1 – FAILED / correction retest required
+
+- Windows client: `0.1.0-alpha.22`
+- Account/server/character: connected successfully on EU II with `My_Ranger1`
+- Start position: `main` at `(-1272.1555957426249, -32.26522650442442)`
+- Move request: `act-52ffce2f-9b0f-47fd-b11d-e984384e34b4`
+- Gateway result: `character.move`, `origin:"dashboard"`, `outcome:"success"`, duration 3 ms
+- Real result: no position change was observed after the request; this is an explicit FAIL condition
+- Diagnostic export: `Secrets sanitized: yes`
+- XMove: not attempted after the Move failure
+- The archived alpha.22 installer was installed manually, so the historical alpha.21 → alpha.22 automatic update step remains CI-only evidence, not a completed real-user update-path check.
+
+Correction PR #52 targets `0.1.0-alpha.25`. The correction carries `new_map.m` into movement state and requires live server position progress before a Move/XMove request can return success. A silently ignored packet must return `MOVE_NOT_CONFIRMED`.
+
+**Correction retest rule:** use installed `0.1.0-alpha.25`; repeat the bounded Move success test first. Only if Move changes the real live position and reports server confirmation should XMove be tested. Slice 3.3 must not begin until the corrected Slice 3.2 test passes.
+
+### Original alpha.22 dashboard steps retained for historical test intent
 
 1. Start from installed `0.1.0-alpha.21`, choose **Install update**, and confirm the client restarts into `0.1.0-alpha.22`.
 2. Connect the account, select the intended server, and start exactly one headless character.
@@ -74,6 +92,8 @@ Treat the live test as failed and stop further movement testing if any of these 
 ### After this test
 
 Preserve the full log and the two request IDs. Then proceed to the next release in this queue if one has been published; do not wait for Slice 3.2 to be marked VERIFIED before testing later prepared releases.
+
+> 2026-10-03 execution override: testing is now performed strictly in ROADMAP order. Because the first Slice 3.2 Move attempt failed, do **not** proceed to Slice 3.3 until the alpha.25 correction retest satisfies the Slice 3.2 behavioral PASS criteria. The original alpha.22 update-path requirement remains historical/CI evidence and is not retroactively claimed as a live pass.
 
 
 ---
