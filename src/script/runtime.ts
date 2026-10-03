@@ -96,6 +96,7 @@ export class ScriptRuntimeService {
   #apiEventUnsubscribe?: () => void;
   readonly #activeEventNames = new Set<string>();
   #expectedExit = false;
+  #suppressHeartbeatForTest = false;
   #state: ScriptRuntimeState = {
     status: "unloaded",
     activeTimers: 0,
@@ -118,6 +119,17 @@ export class ScriptRuntimeService {
 
   state(): ScriptRuntimeState {
     return structuredClone(this.#state);
+  }
+
+  setHeartbeatSuppressedForTest(suppressed: boolean): ScriptRuntimeState {
+    this.#suppressHeartbeatForTest = suppressed;
+    this.#logger.warn("Script heartbeat observation test hook changed.", {
+      suppressed,
+      testOnly: true,
+      scriptName: this.#state.scriptName,
+      runId: this.#state.runId,
+    }, { component: this.#component(this.#state.scriptName) });
+    return this.state();
   }
 
   async load(request: ScriptLoadRequest): Promise<ScriptRuntimeState> {
@@ -298,6 +310,7 @@ export class ScriptRuntimeService {
       return;
     }
     if (message.type === "heartbeat") {
+      if (this.#suppressHeartbeatForTest) return;
       const sequence = Math.max(0, Math.floor(Number(message.heartbeatSequence) || 0));
       if (sequence > this.#state.heartbeatSequence) {
         this.#state = {
