@@ -136,7 +136,7 @@ export class AdventureLandCharacterService {
     }, controller.signal).then((connection) => {
       this.#connection = connection;
       this.#connectAbort = undefined;
-      connection.onGameEvent((event) => {
+      connection.onGameEvent?.((event) => {
         if (this.#connection !== connection) return;
         for (const listener of this.#gameEventListeners) listener(structuredClone(event));
       });

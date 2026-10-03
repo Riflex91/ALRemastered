@@ -1324,7 +1324,7 @@ test("dashboard exposes isolated Script Runtime controls and Slice 4.1 one-click
   assert.match(html, /Slice 4\.1 one-click live test/);
   assert.match(html, /No Adventure Land gameplay preparation is required/);
   assert.match(html, /Slice 4\.2 exposes character, G, Entities/);
-  assert.match(html, /Script event listeners are added later in Slice 4\.3/);
+  assert.match(html, /Slice 4\.3 adds controlled on\(\)\/off\(\) game event listeners/);
   assert.match(script, /\/api\/script-runtime\/load/);
   assert.match(script, /\/api\/script-runtime\/start/);
   assert.match(script, /\/api\/script-runtime\/pause/);
