@@ -499,8 +499,10 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
       if (own.name) patch.name = own.name;
       if (own.type && own.type !== "player") patch.ctype = own.type;
       if (own.map !== undefined) patch.map = own.map;
-      if (own.x !== undefined) patch.x = own.x;
-      if (own.y !== undefined) patch.y = own.y;
+      if (own.moving !== true) {
+        if (own.x !== undefined) patch.x = own.x;
+        if (own.y !== undefined) patch.y = own.y;
+      }
       if (own.hp !== undefined) patch.hp = own.hp;
       if (own.maxHp !== undefined) patch.max_hp = own.maxHp;
       if (own.level !== undefined) patch.level = own.level;
