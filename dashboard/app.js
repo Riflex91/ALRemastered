@@ -41,6 +41,9 @@ const state = {
   slice63LastReport: null,
   slice64LiveTest: null,
   slice64LastReport: null,
+  characterSessions: null,
+  slice71LiveTest: null,
+  slice71LastReport: null,
   movementDebug: null,
   update: null,
   gameVersion: null,
@@ -198,6 +201,16 @@ const elements = {
   slice64LiveTestStatus: document.querySelector("#slice-6-4-live-test-status"),
   slice64LiveTestNote: document.querySelector("#slice-6-4-live-test-note"),
   copySlice64LiveTestResult: document.querySelector("#copy-slice-6-4-live-test-result"),
+  characterSessionsStatus: document.querySelector("#character-sessions-status"),
+  characterSessionsActive: document.querySelector("#character-sessions-active"),
+  characterSessionsLimit: document.querySelector("#character-sessions-limit"),
+  characterSessionsGameData: document.querySelector("#character-sessions-game-data"),
+  characterSessionsList: document.querySelector("#character-sessions-list"),
+  characterSessionsNote: document.querySelector("#character-sessions-note"),
+  startSlice71LiveTest: document.querySelector("#start-slice-7-1-live-test"),
+  slice71LiveTestStatus: document.querySelector("#slice-7-1-live-test-status"),
+  slice71LiveTestNote: document.querySelector("#slice-7-1-live-test-note"),
+  copySlice71LiveTestResult: document.querySelector("#copy-slice-7-1-live-test-result"),
   movementDebugStatus: document.querySelector("#movement-debug-status"),
   movementDebugTrailCount: document.querySelector("#movement-debug-trail-count"),
   movementDebugMovementCount: document.querySelector("#movement-debug-movement-count"),
@@ -1486,6 +1499,64 @@ function renderSlice64LiveTest() {
   }
 }
 
+function renderCharacterSessions() {
+  const manager = state.characterSessions;
+  if (!manager) {
+    elements.characterSessionsStatus.textContent = "Waiting";
+    elements.characterSessionsActive.textContent = "0";
+    elements.characterSessionsList.value = "No active Character sessions.";
+    return;
+  }
+
+  elements.characterSessionsStatus.textContent =
+    manager.status === "degraded" ? "Degraded" : "Ready";
+  elements.characterSessionsActive.textContent =
+    String(manager.activeSessionCount ?? 0);
+  elements.characterSessionsLimit.textContent =
+    String(manager.sessionLimit ?? 4);
+  const sharedVersion = manager.sharedStaticData?.gameDataVersion;
+  elements.characterSessionsGameData.textContent =
+    sharedVersion === undefined ? "Shared" : `Shared v${sharedVersion}`;
+
+  const sessions = Array.isArray(manager.sessions) ? manager.sessions : [];
+  elements.characterSessionsList.value = sessions.length > 0
+    ? sessions.map((session) => {
+      const role = session.role === "primary" ? "PRIMARY" : "MANAGED";
+      const name = session.characterName ?? session.characterId;
+      const server = session.serverKey ?? "unknown server";
+      return `[${role}] ${name} (${session.characterId}) — ${server} — ${session.status}`;
+    }).join("\n")
+    : "No active Character sessions.";
+  elements.characterSessionsNote.textContent = manager.message ??
+    "Additional Characters use isolated sessions and shared static game data.";
+}
+
+function renderSlice71LiveTest() {
+  const test = state.slice71LiveTest;
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    blocked: "BLOCKED",
+    failed: "FAILED",
+    unavailable: "Unavailable",
+  };
+  const status = test?.status ?? "idle";
+  elements.slice71LiveTestStatus.textContent = labels[status] ?? status;
+  elements.startSlice71LiveTest.disabled = status === "running";
+  elements.copySlice71LiveTestResult.hidden = !state.slice71LastReport;
+  if (status === "running") {
+    elements.slice71LiveTestNote.textContent =
+      "Connecting one additional offline Character, verifying two isolated sessions plus duplicate/limit protection, then stopping only the added test session. No gameplay action is executed.";
+  } else if (test?.message) {
+    elements.slice71LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  } else {
+    elements.slice71LiveTestNote.textContent =
+      "Requires one connected primary Character, one additional offline Character, loaded game data, and no running or paused user script. The probe performs no gameplay mutation and does not use a raw-socket bypass.";
+  }
+}
+
 function renderMovementDebug() {
   const debug = state.movementDebug;
   if (!debug) {
@@ -2141,6 +2212,47 @@ async function refreshSlice64LiveTest() {
       message: "Slice 6.4 movement-debug status could not be loaded.",
     };
     renderSlice64LiveTest();
+  }
+}
+
+async function refreshCharacterSessions() {
+  try {
+    const response = await fetch("/api/character-sessions", { cache: "no-store" });
+    state.characterSessions = response.ok
+      ? await response.json()
+      : {
+        status: "unavailable",
+        activeSessionCount: 0,
+        sessionLimit: 4,
+        sessions: [],
+        message: "Multi-character session manager is unavailable.",
+      };
+    renderCharacterSessions();
+  } catch {
+    state.characterSessions = {
+      status: "unavailable",
+      activeSessionCount: 0,
+      sessionLimit: 4,
+      sessions: [],
+      message: "Multi-character session status could not be loaded.",
+    };
+    renderCharacterSessions();
+  }
+}
+
+async function refreshSlice71LiveTest() {
+  try {
+    const response = await fetch("/api/live-test/slice-7-1", { cache: "no-store" });
+    state.slice71LiveTest = response.ok
+      ? await response.json()
+      : { status: "unavailable", message: "Slice 7.1 multi-character session test is unavailable." };
+    renderSlice71LiveTest();
+  } catch {
+    state.slice71LiveTest = {
+      status: "unavailable",
+      message: "Slice 7.1 multi-character session-test status could not be loaded.",
+    };
+    renderSlice71LiveTest();
   }
 }
 
@@ -3006,6 +3118,38 @@ async function startSlice64LiveTest(clipboardWrite) {
   await refreshCharacterConnection();
   await refreshMovementDebug();
   await refreshActionGateway();
+  await refreshDiagnostics();
+  return { payload, copied };
+}
+
+async function startSlice71LiveTest(clipboardWrite) {
+  state.slice71LiveTest = {
+    status: "running",
+    message: "Slice 7.1 multi-character session test is running.",
+  };
+  renderSlice71LiveTest();
+  const response = await fetch("/api/live-test/slice-7-1/start", { method: "POST" });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      payload.error ??
+        payload.message ??
+        `Slice 7.1 multi-character session test failed with HTTP ${response.status}`,
+    );
+  }
+  if (!payload.reportText || typeof payload.reportText !== "string") {
+    throw new Error("Slice 7.1 multi-character session test returned no copyable report.");
+  }
+  state.slice71LastReport = payload.reportText;
+  state.slice71LiveTest = {
+    status: payload.result?.outcome ?? "failed",
+    message: payload.result?.message ?? "Slice 7.1 multi-character session test finished.",
+    lastResult: payload.result,
+  };
+  const copied = await clipboardWrite.finish(payload.reportText);
+  renderSlice71LiveTest();
+  await refreshCharacterConnection();
+  await refreshCharacterSessions();
   await refreshDiagnostics();
   return { payload, copied };
 }
@@ -4085,6 +4229,46 @@ elements.copySlice64LiveTestResult.addEventListener("click", async () => {
   }
 });
 
+elements.startSlice71LiveTest.addEventListener("click", async () => {
+  if (state.slice71LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice71LastReport = null;
+  elements.copySlice71LiveTestResult.hidden = true;
+  setFeedback(
+    "Slice 7.1 multi-character session test started. One additional Character will be connected and removed without interrupting the primary Character or user script.",
+  );
+  try {
+    const { payload, copied } = await startSlice71LiveTest(clipboardWrite);
+    const outcome = payload.result?.outcome ?? "failed";
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 7.1 test ${String(outcome).toUpperCase()}. ${copyMessage}`,
+      outcome === "passed" && copied ? "success" : outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    await refreshSlice71LiveTest();
+    setFeedback(`Slice 7.1 multi-character session test could not finish: ${error.message}`, "error");
+  } finally {
+    renderSlice71LiveTest();
+    await refreshCharacterSessions();
+  }
+});
+
+elements.copySlice71LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice71LastReport) return;
+  try {
+    await writeClipboard(state.slice71LastReport);
+    setFeedback(
+      "Complete Slice 7.1 multi-character session result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Multi-character session result copy failed: ${error.message}`, "error");
+  }
+});
+
 elements.reloadGameData.addEventListener("click", async () => {
   elements.reloadGameData.disabled = true;
   setFeedback("Reloading Adventure Land game data…");
@@ -4209,6 +4393,8 @@ await refreshSlice61LiveTest();
 await refreshSlice62LiveTest();
 await refreshSlice63LiveTest();
 await refreshSlice64LiveTest();
+await refreshCharacterSessions();
+await refreshSlice71LiveTest();
 await refreshMovementDebug();
 await refreshGameVersion();
 await refreshGameData();
@@ -4239,6 +4425,8 @@ setInterval(refreshSlice61LiveTest, 1500);
 setInterval(refreshSlice62LiveTest, 1500);
 setInterval(refreshSlice63LiveTest, 1500);
 setInterval(refreshSlice64LiveTest, 1500);
+setInterval(refreshCharacterSessions, 1500);
+setInterval(refreshSlice71LiveTest, 1500);
 setInterval(refreshMovementDebug, 1500);
 setInterval(refreshGameVersion, 2000);
 setInterval(refreshGameData, 2000);

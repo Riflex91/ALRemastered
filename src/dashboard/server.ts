@@ -14,6 +14,7 @@ import type { AdventureLandSkillService } from "../action/skill.ts";
 import type { AdventureLandLootConsumableService } from "../action/loot-consumable.ts";
 import type { AdventureLandSelectionService } from "../account/selection-service.ts";
 import type { AdventureLandCharacterService } from "../character/service.ts";
+import type { MultiCharacterSessionManager } from "../character/session-manager.ts";
 import type { CoreRuntime, HealthSnapshot } from "../core/app.ts";
 import type { DiagnosticsService } from "../diagnostics/service.ts";
 import type { AdventureLandGameDataService } from "../game/data-service.ts";
@@ -33,6 +34,7 @@ import type { Slice61LiveTestService } from "../live-test/slice-6-1.ts";
 import type { Slice62LiveTestService } from "../live-test/slice-6-2.ts";
 import type { Slice63LiveTestService } from "../live-test/slice-6-3.ts";
 import type { Slice64LiveTestService } from "../live-test/slice-6-4.ts";
+import type { Slice71LiveTestService } from "../live-test/slice-7-1.ts";
 import type { AdventureLandMapModelService } from "../navigation/map-model.ts";
 import type { MovementDebugService } from "../navigation/movement-debug.ts";
 import type { SimplePathPlannerService } from "../navigation/path-planner.ts";
@@ -50,6 +52,7 @@ export interface DashboardServerOptions {
   readonly accountService?: AdventureLandAccountService;
   readonly selectionService?: AdventureLandSelectionService;
   readonly characterService?: AdventureLandCharacterService;
+  readonly multiCharacterSessionManager?: MultiCharacterSessionManager;
   readonly actionGateway?: ActionGateway;
   readonly movementService?: AdventureLandMovementService;
   readonly attackService?: AdventureLandAttackService;
@@ -70,6 +73,7 @@ export interface DashboardServerOptions {
   readonly slice62LiveTestService?: Slice62LiveTestService;
   readonly slice63LiveTestService?: Slice63LiveTestService;
   readonly slice64LiveTestService?: Slice64LiveTestService;
+  readonly slice71LiveTestService?: Slice71LiveTestService;
   readonly mapModelService?: AdventureLandMapModelService;
   readonly movementDebugService?: MovementDebugService;
   readonly pathPlannerService?: SimplePathPlannerService;
@@ -90,6 +94,7 @@ export class DashboardServer {
   readonly #accountService?: AdventureLandAccountService;
   readonly #selectionService?: AdventureLandSelectionService;
   readonly #characterService?: AdventureLandCharacterService;
+  readonly #multiCharacterSessionManager?: MultiCharacterSessionManager;
   readonly #actionGateway?: ActionGateway;
   readonly #movementService?: AdventureLandMovementService;
   readonly #attackService?: AdventureLandAttackService;
@@ -110,6 +115,7 @@ export class DashboardServer {
   readonly #slice62LiveTestService?: Slice62LiveTestService;
   readonly #slice63LiveTestService?: Slice63LiveTestService;
   readonly #slice64LiveTestService?: Slice64LiveTestService;
+  readonly #slice71LiveTestService?: Slice71LiveTestService;
   readonly #mapModelService?: AdventureLandMapModelService;
   readonly #movementDebugService?: MovementDebugService;
   readonly #pathPlannerService?: SimplePathPlannerService;
@@ -133,6 +139,7 @@ export class DashboardServer {
     this.#accountService = options.accountService;
     this.#selectionService = options.selectionService;
     this.#characterService = options.characterService;
+    this.#multiCharacterSessionManager = options.multiCharacterSessionManager;
     this.#actionGateway = options.actionGateway;
     this.#movementService = options.movementService;
     this.#attackService = options.attackService;
@@ -153,6 +160,7 @@ export class DashboardServer {
     this.#slice62LiveTestService = options.slice62LiveTestService;
     this.#slice63LiveTestService = options.slice63LiveTestService;
     this.#slice64LiveTestService = options.slice64LiveTestService;
+    this.#slice71LiveTestService = options.slice71LiveTestService;
     this.#mapModelService = options.mapModelService;
     this.#movementDebugService = options.movementDebugService;
     this.#pathPlannerService = options.pathPlannerService;
@@ -250,6 +258,7 @@ export class DashboardServer {
     }
     if (method === "POST" && path === "/api/account/disconnect") {
       if (!this.#accountService) return this.#json(response, { error: "Account service is unavailable." }, 503);
+      if (this.#multiCharacterSessionManager) await this.#multiCharacterSessionManager.stopAll("account_disconnect");
       if (this.#characterService) await this.#characterService.stop("account_disconnect");
       const accountState = this.#accountService.disconnect();
       this.#selectionService?.clear();
@@ -306,6 +315,63 @@ export class DashboardServer {
       return this.#runCharacterAction(
         response,
         () => this.#characterService!.stop("dashboard"),
+      );
+    }
+
+    if (method === "GET" && path === "/api/character-sessions") {
+      if (!this.#multiCharacterSessionManager) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Multi-character session manager is unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#multiCharacterSessionManager.state());
+    }
+    if (method === "POST" && path === "/api/character-sessions/start") {
+      if (!this.#multiCharacterSessionManager) {
+        return this.#json(response, {
+          error: "Multi-character session manager is unavailable.",
+        }, 503);
+      }
+      let body: Record<string, unknown>;
+      try {
+        body = await this.#readJsonObject(request);
+      } catch (error) {
+        return this.#json(response, {
+          error: error instanceof Error ? error.message : "Invalid request body.",
+        }, 400);
+      }
+      const characterId = typeof body.characterId === "string" ? body.characterId : "";
+      const serverKey = typeof body.serverKey === "string" ? body.serverKey : undefined;
+      if (!characterId.trim()) {
+        return this.#json(response, { error: "Character selection is required." }, 400);
+      }
+      return this.#runCharacterSessionAction(
+        response,
+        () => this.#multiCharacterSessionManager!.start(characterId, serverKey),
+      );
+    }
+    if (method === "POST" && path === "/api/character-sessions/stop") {
+      if (!this.#multiCharacterSessionManager) {
+        return this.#json(response, {
+          error: "Multi-character session manager is unavailable.",
+        }, 503);
+      }
+      let body: Record<string, unknown>;
+      try {
+        body = await this.#readJsonObject(request);
+      } catch (error) {
+        return this.#json(response, {
+          error: error instanceof Error ? error.message : "Invalid request body.",
+        }, 400);
+      }
+      const characterId = typeof body.characterId === "string" ? body.characterId : "";
+      if (!characterId.trim()) {
+        return this.#json(response, { error: "Character selection is required." }, 400);
+      }
+      return this.#runCharacterSessionAction(
+        response,
+        () => this.#multiCharacterSessionManager!.stop(characterId, "dashboard"),
       );
     }
 
@@ -1076,6 +1142,41 @@ export class DashboardServer {
       });
     }
 
+    if (method === "GET" && path === "/api/live-test/slice-7-1") {
+      if (!this.#slice71LiveTestService) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Slice 7.1 multi-character session test service is unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#slice71LiveTestService.state());
+    }
+    if (method === "POST" && path === "/api/live-test/slice-7-1/start") {
+      if (!this.#slice71LiveTestService) {
+        return this.#json(response, {
+          error: "Slice 7.1 multi-character session test service is unavailable.",
+        }, 503);
+      }
+      const result = await this.#slice71LiveTestService.run();
+      const diagnostic = this.#exportPayload();
+      const report = {
+        schemaVersion: 1,
+        kind: "ALRemastered Slice 7.1 one-click multi-character session-manager test",
+        result,
+        characterSessions: this.#multiCharacterSessionManager?.state(),
+        primaryCharacter: this.#characterService?.state(),
+        selection: this.#selectionService?.state(),
+        scriptRuntime: this.#scriptRuntime?.state(),
+        gameData: this.#gameDataService?.state(),
+        diagnostic,
+      };
+      return this.#json(response, {
+        result,
+        reportText: JSON.stringify(report, null, 2),
+        clipboardSuggested: true,
+      });
+    }
+
     if (method === "GET" && path === "/api/navigation/movement-debug") {
       if (!this.#movementDebugService) {
         return this.#json(response, {
@@ -1322,6 +1423,26 @@ export class DashboardServer {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.#json(response, { error: message }, 400);
+    }
+  }
+
+  async #runCharacterSessionAction(
+    response: ServerResponse,
+    action: () => unknown | Promise<unknown>,
+  ): Promise<void> {
+    try {
+      this.#json(response, await action());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const code = error && typeof error === "object" && "code" in error
+        ? String((error as { code?: unknown }).code ?? "")
+        : undefined;
+      const statusCode = code === "SESSION_LIMIT_REACHED" ||
+          code === "SESSION_CHARACTER_ALREADY_ACTIVE" ||
+          code === "SESSION_CHARACTER_ALREADY_ONLINE"
+        ? 409
+        : 400;
+      this.#json(response, { error: message, errorCode: code }, statusCode);
     }
   }
 
