@@ -67,6 +67,8 @@ export interface AdventureLandDirectMovementReceipt {
   readonly fromY: number;
   readonly targetX: number;
   readonly targetY: number;
+  readonly confirmedX?: number;
+  readonly confirmedY?: number;
 }
 
 export interface AdventureLandAttackInput {
@@ -108,7 +110,7 @@ export interface AdventureLandCharacterConnection {
   readonly character: AdventureLandConnectedCharacter;
   readonly pingMs?: number;
   snapshot(): AdventureLandCharacterLiveState;
-  onState(listener: (state: AdventureLandCharacterLiveState) => void): void;
+  onState(listener: (state: AdventureLandCharacterLiveState) => void): () => void;
   onUnexpectedClose(listener: (reason?: string) => void): void;
   sendMove(input: AdventureLandDirectMovementInput): AdventureLandDirectMovementReceipt;
   sendAttack(input: AdventureLandAttackInput): Promise<AdventureLandAttackReceipt>;
@@ -448,8 +450,9 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
     });
   }
 
-  onState(listener: (state: AdventureLandCharacterLiveState) => void): void {
+  onState(listener: (state: AdventureLandCharacterLiveState) => void): () => void {
     this.#stateListeners.add(listener);
+    return () => this.#stateListeners.delete(listener);
   }
 
   onUnexpectedClose(listener: (reason?: string) => void): void {
@@ -467,6 +470,7 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
       x: data.x,
       y: data.y,
       direction: data.direction,
+      m: data.m,
     };
     this.#character = mergeConnectedCharacter(this.#character, patch);
     this.#world = clearVisibleEntities(this.#world);

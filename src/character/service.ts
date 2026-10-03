@@ -300,15 +300,97 @@ export class AdventureLandCharacterService {
 
   sendDirectMovement(
     input: AdventureLandDirectMovementInput,
-  ): AdventureLandDirectMovementReceipt {
+  ): Promise<AdventureLandDirectMovementReceipt> {
     const connection = this.#connection;
     if (!connection || this.#state.status !== "connected") {
-      throw new AdventureLandCharacterTransportError(
+      return Promise.reject(new AdventureLandCharacterTransportError(
         "Connect a headless character before sending movement.",
         "movement_not_connected",
-      );
+      ));
     }
-    return connection.sendMove(input);
+
+    const characterName = connection.character.name;
+    const fromX = connection.character.x;
+    const fromY = connection.character.y;
+    if (
+      typeof fromX !== "number" ||
+      !Number.isFinite(fromX) ||
+      typeof fromY !== "number" ||
+      !Number.isFinite(fromY)
+    ) {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Adventure Land movement state is incomplete.",
+        "movement_state_unavailable",
+      ));
+    }
+
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      let receipt: AdventureLandDirectMovementReceipt | undefined;
+      let unsubscribe = () => {};
+      let timer: ReturnType<typeof setTimeout> | undefined;
+
+      const cleanup = () => {
+        if (timer) clearTimeout(timer);
+        unsubscribe();
+        input.signal?.removeEventListener("abort", onAbort);
+      };
+      const fail = (error: AdventureLandCharacterTransportError) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(error);
+      };
+      const finish = (x: number, y: number) => {
+        if (settled || !receipt) return;
+        settled = true;
+        cleanup();
+        resolve(Object.freeze({
+          ...receipt,
+          confirmedX: x,
+          confirmedY: y,
+        }));
+      };
+      const onAbort = () => fail(new AdventureLandCharacterTransportError(
+        "Adventure Land movement was cancelled before server confirmation.",
+        "movement_aborted",
+      ));
+
+      unsubscribe = connection.onState((state) => {
+        const point = confirmedMovementPoint(
+          state,
+          characterName,
+          fromX,
+          fromY,
+          input.x,
+          input.y,
+        );
+        if (point) finish(point.x, point.y);
+      });
+      input.signal?.addEventListener("abort", onAbort, { once: true });
+      if (input.signal?.aborted) {
+        onAbort();
+        return;
+      }
+
+      timer = setTimeout(() => {
+        fail(new AdventureLandCharacterTransportError(
+          "Adventure Land did not confirm the requested movement.",
+          "movement_not_confirmed",
+        ));
+      }, 1_100);
+
+      try {
+        receipt = connection.sendMove(input);
+      } catch (error) {
+        fail(error instanceof AdventureLandCharacterTransportError
+          ? error
+          : new AdventureLandCharacterTransportError(
+            error instanceof Error ? error.message : String(error),
+            "movement_transport_failed",
+          ));
+      }
+    });
   }
 
   async stop(reason = "user"): Promise<AdventureLandCharacterConnectionState> {
@@ -463,6 +545,60 @@ function itemSummary(item: Readonly<Record<string, unknown>> | null): unknown {
     typeof item.level === "number" ? item.level : 0,
     typeof item.q === "number" ? item.q : 1,
   ];
+}
+
+function confirmedMovementPoint(
+  state: AdventureLandCharacterLiveState,
+  characterName: string,
+  fromX: number,
+  fromY: number,
+  targetX: number,
+  targetY: number,
+): { readonly x: number; readonly y: number } | undefined {
+  const candidates: Array<{ readonly x?: number; readonly y?: number }> = [
+    state.character,
+    ...state.entities.filter((entity) =>
+      entity.kind === "player" &&
+      (entity.id === characterName || entity.name === characterName)
+    ),
+  ];
+
+  for (const candidate of candidates) {
+    if (
+      typeof candidate.x !== "number" ||
+      !Number.isFinite(candidate.x) ||
+      typeof candidate.y !== "number" ||
+      !Number.isFinite(candidate.y)
+    ) continue;
+    if (movementProgressedToward(
+      fromX,
+      fromY,
+      targetX,
+      targetY,
+      candidate.x,
+      candidate.y,
+    )) {
+      return { x: candidate.x, y: candidate.y };
+    }
+  }
+  return undefined;
+}
+
+function movementProgressedToward(
+  fromX: number,
+  fromY: number,
+  targetX: number,
+  targetY: number,
+  currentX: number,
+  currentY: number,
+): boolean {
+  const epsilon = 0.25;
+  const moved = Math.hypot(currentX - fromX, currentY - fromY);
+  if (moved <= epsilon) return false;
+
+  const initialDistance = Math.hypot(targetX - fromX, targetY - fromY);
+  const currentDistance = Math.hypot(targetX - currentX, targetY - currentY);
+  return currentDistance + epsilon < initialDistance;
 }
 
 function disconnectedState(): AdventureLandCharacterConnectionState {
