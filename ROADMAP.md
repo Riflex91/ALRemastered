@@ -1383,3 +1383,33 @@ Successful live attempt:
 
 Result: the bounded dashboard Attack path passed the required real-user live test. The request remained correlated through Adventure Land server acceptance rather than treating socket send as success, and the prior out-of-range attempt demonstrated the range guard. **Slice 3.3 is VERIFIED.**
 
+
+---
+
+## Append-only verification record — Slice 3.4 Skills — 2026-10-03
+
+**Canonical status update: Slice 3.4 = VERIFIED.**
+
+Live environment:
+
+- Windows client: `0.1.0-alpha.28`
+- Character: `My_Ranger1` / `CH_denPIHA05KxLLQqVOad9h9vr9KPrL`
+- Server: EU II
+- Diagnostic export: `Secrets sanitized: yes`
+- alpha.28 is the installed current sequential-test build and contains Slice 3.4; the original alpha.23 → alpha.24 release-path requirement above remains historical evidence and is not retroactively rewritten.
+
+Successful bounded live attempt:
+
+- Safe dashboard skill selected by the user: `Track` / `track`.
+- Displayed requirement before execution: `80 MP`, `1600 ms` cooldown.
+- Exactly one manual click on **Use selected skill once** produced request `act-b17ad8fc-b150-403d-b0f8-48e3161b1708`.
+- Action/origin: `character.skill` / `dashboard`.
+- Canonical character ID: `CH_denPIHA05KxLLQqVOad9h9vr9KPrL`.
+- Live MP changed `868 → 788`, exactly matching the recorded `mpCost:80`.
+- Adventure Land server response confirmed `skillName:"track"`, `mpCost:80`, `cooldownMs:1541`, and `serverAccepted:true`.
+- Gateway completion: `outcome:"success"`, duration `88 ms`.
+- The complete diagnostic log contains only the three correlated `character.skill` records for this single request (gateway start, server confirmation, gateway completion); no second skill request or hidden repeat action is present through log end `2026-10-03T09:34:51.660Z`.
+- No crash, disconnect, or unsanitized secret was observed in the captured window.
+
+Result: the bounded dashboard Skills path passed the required real-user live test with the exact selected safe skill and Adventure Land server acceptance. **Slice 3.4 is VERIFIED.**
+
