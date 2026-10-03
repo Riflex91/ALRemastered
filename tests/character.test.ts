@@ -539,6 +539,10 @@ test("character service allows exactly one connection and disconnects controllab
   assert.equal(connected.character?.hp, 4000);
   assert.throws(() => service.start("CH_1"), /already active/);
   const movePromise = service.sendDirectMovement({ x: 44, y: 34 });
+  let moveSettled = false;
+  void movePromise.finally(() => {
+    moveSettled = true;
+  });
   for (const listener of [...liveListeners]) {
     listener({
       character: {
@@ -575,13 +579,52 @@ test("character service allows exactly one connection and disconnects controllab
       updatedAt: "2026-10-02T20:05:00.100Z",
     });
   }
+  await new Promise((resolve) => setImmediate(resolve));
   assert.equal(stateRefreshCalls, 1);
+  assert.equal(moveSettled, false);
+
+  for (const listener of [...liveListeners]) {
+    listener({
+      character: {
+        ...connection.character,
+        x: 12,
+        y: 34,
+      },
+      entities: [{
+        id: "RangerOne",
+        kind: "player",
+        name: "RangerOne",
+        type: "ranger",
+        x: 44,
+        y: 34,
+        moving: false,
+        goingX: 44,
+        goingY: 34,
+        moveNum: 1,
+      }],
+      party: {
+        inParty: true,
+        leader: "RangerOne",
+        members: ["RangerOne", "MageOne"],
+        details: {},
+      },
+      lootChests: [{
+        id: "chest-service",
+        map: "main",
+        x: 14,
+        y: 35,
+        items: 1,
+      }],
+      pingMs: undefined,
+      updatedAt: "2026-10-02T20:05:00.400Z",
+    });
+  }
   assert.deepEqual(await movePromise, {
     fromX: 12,
     fromY: 34,
     targetX: 44,
     targetY: 34,
-    confirmedX: 20,
+    confirmedX: 44,
     confirmedY: 34,
   });
   assert.deepEqual(await service.sendAttack({ targetId: "goo-1" }), {
