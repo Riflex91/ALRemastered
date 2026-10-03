@@ -28,6 +28,8 @@ export interface ScriptRuntimeState {
   readonly activeTimers: number;
   readonly activeEventListeners: number;
   readonly logRecords: number;
+  readonly heartbeatSequence: number;
+  readonly lastHeartbeatAt?: string;
   readonly message: string;
   readonly error?: {
     readonly name: string;
@@ -62,6 +64,7 @@ interface WorkerMessage {
   readonly input?: Readonly<Record<string, unknown>>;
   readonly activeEventListeners?: number;
   readonly eventNames?: readonly string[];
+  readonly heartbeatSequence?: number;
   readonly storageOperation?: string;
   readonly key?: string;
   readonly value?: unknown;
@@ -98,6 +101,7 @@ export class ScriptRuntimeService {
     activeTimers: 0,
     activeEventListeners: 0,
     logRecords: 0,
+    heartbeatSequence: 0,
     message: "No script loaded.",
   };
 
@@ -135,6 +139,8 @@ export class ScriptRuntimeService {
       activeTimers: 0,
       activeEventListeners: 0,
       logRecords: 0,
+      heartbeatSequence: 0,
+      lastHeartbeatAt: undefined,
       message: "Script loaded and ready to start.",
     };
     this.#logger.info("Script loaded.", {
@@ -182,6 +188,8 @@ export class ScriptRuntimeService {
       error: undefined,
       activeTimers: 0,
       activeEventListeners: 0,
+      heartbeatSequence: 0,
+      lastHeartbeatAt: undefined,
       message: "Script worker is starting.",
     };
 
@@ -250,6 +258,7 @@ export class ScriptRuntimeService {
         activeTimers: 0,
         activeEventListeners: 0,
         logRecords: 0,
+        heartbeatSequence: 0,
         message: "No script loaded.",
       };
       return this.state();
@@ -286,6 +295,17 @@ export class ScriptRuntimeService {
     }
     if (message.type === "storage_call") {
       void this.#handleStorageCall(worker, message);
+      return;
+    }
+    if (message.type === "heartbeat") {
+      const sequence = Math.max(0, Math.floor(Number(message.heartbeatSequence) || 0));
+      if (sequence > this.#state.heartbeatSequence) {
+        this.#state = {
+          ...this.#state,
+          heartbeatSequence: sequence,
+          lastHeartbeatAt: this.#clock().toISOString(),
+        };
+      }
       return;
     }
     if (message.type === "event_listener_state") {

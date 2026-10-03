@@ -25,6 +25,8 @@ const state = {
   simpleFarmer: null,
   slice45LiveTest: null,
   slice45LastReport: null,
+  slice51LiveTest: null,
+  slice51LastReport: null,
   update: null,
   gameVersion: null,
   gameData: null,
@@ -149,6 +151,10 @@ const elements = {
   slice45LiveTestStatus: document.querySelector("#slice-4-5-live-test-status"),
   slice45LiveTestNote: document.querySelector("#slice-4-5-live-test-note"),
   copySlice45LiveTestResult: document.querySelector("#copy-slice-4-5-live-test-result"),
+  startSlice51LiveTest: document.querySelector("#start-slice-5-1-live-test"),
+  slice51LiveTestStatus: document.querySelector("#slice-5-1-live-test-status"),
+  slice51LiveTestNote: document.querySelector("#slice-5-1-live-test-note"),
+  copySlice51LiveTestResult: document.querySelector("#copy-slice-5-1-live-test-result"),
   gameVersion: document.querySelector("#game-version"),
   gameVersionStatus: document.querySelector("#game-version-status"),
   gameLastDeploy: document.querySelector("#game-last-deploy"),
@@ -1222,6 +1228,32 @@ function renderSlice45LiveTest() {
   }
 }
 
+function renderSlice51LiveTest() {
+  const test = state.slice51LiveTest;
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    blocked: "BLOCKED",
+    failed: "FAILED",
+    unavailable: "Unavailable",
+  };
+  const status = test?.status ?? "idle";
+  elements.slice51LiveTestStatus.textContent = labels[status] ?? status;
+  elements.startSlice51LiveTest.disabled = status === "running";
+  elements.copySlice51LiveTestResult.hidden = !state.slice51LastReport;
+  if (status === "running") {
+    elements.slice51LiveTestNote.textContent =
+      "Observing passive Core, Character, and Script heartbeat sequences. No reconnect, restart, or gameplay mutation is performed.";
+  } else if (test?.message) {
+    elements.slice51LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  } else {
+    elements.slice51LiveTestNote.textContent =
+      "Verifies passive Core, Character, and isolated Script heartbeats using a read-only character state refresh.";
+  }
+}
+
 function renderGameVersion() {
   const gameVersion = state.gameVersion;
   if (!gameVersion) return;
@@ -1706,6 +1738,22 @@ async function refreshSlice45LiveTest() {
       message: "Slice 4.5 one-click live-test status could not be loaded.",
     };
     renderSlice45LiveTest();
+  }
+}
+
+async function refreshSlice51LiveTest() {
+  try {
+    const response = await fetch("/api/live-test/slice-5-1", { cache: "no-store" });
+    state.slice51LiveTest = response.ok
+      ? await response.json()
+      : { status: "unavailable", message: "Slice 5.1 heartbeat test is unavailable." };
+    renderSlice51LiveTest();
+  } catch {
+    state.slice51LiveTest = {
+      status: "unavailable",
+      message: "Slice 5.1 heartbeat-test status could not be loaded.",
+    };
+    renderSlice51LiveTest();
   }
 }
 
@@ -2294,6 +2342,35 @@ async function startSlice45LiveTest(clipboardWrite) {
   await refreshScriptRuntime();
   await refreshCharacterConnection();
   await refreshActionGateway();
+  await refreshDiagnostics();
+  return { payload, copied };
+}
+
+async function startSlice51LiveTest(clipboardWrite) {
+  state.slice51LiveTest = {
+    status: "running",
+    message: "Slice 5.1 heartbeat test is running.",
+  };
+  renderSlice51LiveTest();
+  const response = await fetch("/api/live-test/slice-5-1/start", { method: "POST" });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error ?? payload.message ?? `Slice 5.1 heartbeat test failed with HTTP ${response.status}`);
+  }
+  if (!payload.reportText || typeof payload.reportText !== "string") {
+    throw new Error("Slice 5.1 heartbeat test returned no copyable report.");
+  }
+  state.slice51LastReport = payload.reportText;
+  state.slice51LiveTest = {
+    status: payload.result?.outcome ?? "failed",
+    message: payload.result?.message ?? "Slice 5.1 heartbeat test finished.",
+    lastResult: payload.result,
+  };
+  const copied = await clipboardWrite.finish(payload.reportText);
+  renderSlice51LiveTest();
+  await refreshStatus();
+  await refreshCharacterConnection();
+  await refreshScriptRuntime();
   await refreshDiagnostics();
   return { payload, copied };
 }
@@ -3071,6 +3148,40 @@ elements.copySlice45LiveTestResult.addEventListener("click", async () => {
   }
 });
 
+elements.startSlice51LiveTest.addEventListener("click", async () => {
+  if (state.slice51LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice51LastReport = null;
+  elements.copySlice51LiveTestResult.hidden = true;
+  setFeedback("Slice 5.1 heartbeat test started. Core, Character, and Script liveness will be observed passively.");
+  try {
+    const { payload, copied } = await startSlice51LiveTest(clipboardWrite);
+    const outcome = payload.result?.outcome ?? "failed";
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 5.1 test ${String(outcome).toUpperCase()}. ${copyMessage}`,
+      outcome === "passed" && copied ? "success" : outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    await refreshSlice51LiveTest();
+    setFeedback(`Slice 5.1 heartbeat test could not finish: ${error.message}`, "error");
+  } finally {
+    renderSlice51LiveTest();
+  }
+});
+
+elements.copySlice51LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice51LastReport) return;
+  try {
+    await writeClipboard(state.slice51LastReport);
+    setFeedback("Complete Slice 5.1 heartbeat result and sanitized diagnostic log copied.", "success");
+  } catch (error) {
+    setFeedback(`Heartbeat-result copy failed: ${error.message}`, "error");
+  }
+});
+
 elements.reloadGameData.addEventListener("click", async () => {
   elements.reloadGameData.disabled = true;
   setFeedback("Reloading Adventure Land game data…");
@@ -3187,6 +3298,7 @@ await refreshSlice43LiveTest();
 await refreshSlice44LiveTest();
 await refreshSimpleFarmer();
 await refreshSlice45LiveTest();
+await refreshSlice51LiveTest();
 await refreshGameVersion();
 await refreshGameData();
 await refreshUpdate();
@@ -3208,6 +3320,7 @@ setInterval(refreshSlice43LiveTest, 1500);
 setInterval(refreshSlice44LiveTest, 1500);
 setInterval(refreshSimpleFarmer, 1500);
 setInterval(refreshSlice45LiveTest, 1500);
+setInterval(refreshSlice51LiveTest, 1500);
 setInterval(refreshGameVersion, 2000);
 setInterval(refreshGameData, 2000);
 setInterval(refreshUpdate, 1500);

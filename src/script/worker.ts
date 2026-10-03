@@ -75,6 +75,8 @@ let nextApiCallId = 1;
 let nextStorageCallId = 1;
 let terminal = false;
 let paused = false;
+let heartbeatSequence = 0;
+let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
 
 function normalizeError(error: unknown): { name: string; message: string; stack?: string } {
   if (error instanceof Error) {
@@ -131,9 +133,21 @@ function clearAllEventListeners(): void {
   postEventListenerState();
 }
 
+function stopHeartbeat(): void {
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  heartbeatTimer = undefined;
+}
+
+function postHeartbeat(): void {
+  if (terminal) return;
+  heartbeatSequence += 1;
+  parentPort!.postMessage({ type: "heartbeat", heartbeatSequence });
+}
+
 function reportCrash(error: unknown): void {
   if (terminal) return;
   terminal = true;
+  stopHeartbeat();
   clearAllTimers();
   clearAllEventListeners();
   parentPort!.postMessage({
@@ -543,6 +557,7 @@ parentPort.on("message", (raw: unknown) => {
   if (type === "stop") {
     terminal = true;
     paused = false;
+    stopHeartbeat();
     clearAllTimers();
     clearAllEventListeners();
     parentPort!.postMessage({ type: "stopped" });
@@ -551,6 +566,10 @@ parentPort.on("message", (raw: unknown) => {
 });
 
 process.on("unhandledRejection", (reason) => reportCrash(reason));
+
+postHeartbeat();
+heartbeatTimer = setInterval(postHeartbeat, 250);
+heartbeatTimer.unref();
 
 const sandbox: Record<string, unknown> = {
   console: Object.freeze({

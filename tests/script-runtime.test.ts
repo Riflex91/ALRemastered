@@ -128,3 +128,26 @@ test("Slice 4.1 one-click test verifies lifecycle, timer cleanup, crash isolatio
     await runtime.dispose();
   }
 });
+
+
+test("script worker heartbeat advances independently of sandbox timers", async () => {
+  const logger = new Logger({ component: "script-heartbeat-test" });
+  const runtime = new ScriptRuntimeService({ logger });
+  try {
+    await runtime.load({ name: "heartbeat-test", source: 'console.info("heartbeat");' });
+    const started = await runtime.start();
+    assert.equal(started.status, "running");
+    const firstSequence = started.heartbeatSequence;
+    await new Promise((resolve) => setTimeout(resolve, 650));
+    const current = runtime.state();
+    assert.ok(current.heartbeatSequence >= firstSequence + 2);
+    assert.ok(current.lastHeartbeatAt);
+    assert.equal(current.activeTimers, 0);
+    const stopped = await runtime.stop();
+    const finalSequence = stopped.heartbeatSequence;
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    assert.equal(runtime.state().heartbeatSequence, finalSequence);
+  } finally {
+    await runtime.dispose();
+  }
+});

@@ -25,6 +25,7 @@ import type { Slice42LiveTestService } from "../live-test/slice-4-2.ts";
 import type { Slice43LiveTestService } from "../live-test/slice-4-3.ts";
 import type { Slice44LiveTestService } from "../live-test/slice-4-4.ts";
 import type { Slice45LiveTestService } from "../live-test/slice-4-5.ts";
+import type { Slice51LiveTestService } from "../live-test/slice-5-1.ts";
 import type { ScriptRuntimeService } from "../script/runtime.ts";
 import type { SimpleFarmerConfig, SimpleFarmerTemplateService } from "../script/simple-farmer.ts";
 import type { UpdateService } from "../update/service.ts";
@@ -49,6 +50,7 @@ export interface DashboardServerOptions {
   readonly slice43LiveTestService?: Slice43LiveTestService;
   readonly slice44LiveTestService?: Slice44LiveTestService;
   readonly slice45LiveTestService?: Slice45LiveTestService;
+  readonly slice51LiveTestService?: Slice51LiveTestService;
   readonly simpleFarmerService?: SimpleFarmerTemplateService;
   readonly updateService?: UpdateService;
   readonly diagnostics?: DiagnosticsService;
@@ -76,6 +78,7 @@ export class DashboardServer {
   readonly #slice43LiveTestService?: Slice43LiveTestService;
   readonly #slice44LiveTestService?: Slice44LiveTestService;
   readonly #slice45LiveTestService?: Slice45LiveTestService;
+  readonly #slice51LiveTestService?: Slice51LiveTestService;
   readonly #simpleFarmerService?: SimpleFarmerTemplateService;
   readonly #updateService?: UpdateService;
   readonly #diagnostics?: DiagnosticsService;
@@ -106,6 +109,7 @@ export class DashboardServer {
     this.#slice43LiveTestService = options.slice43LiveTestService;
     this.#slice44LiveTestService = options.slice44LiveTestService;
     this.#slice45LiveTestService = options.slice45LiveTestService;
+    this.#slice51LiveTestService = options.slice51LiveTestService;
     this.#simpleFarmerService = options.simpleFarmerService;
     this.#updateService = options.updateService;
     this.#diagnostics = options.diagnostics;
@@ -755,6 +759,37 @@ export class DashboardServer {
         kind: "ALRemastered Slice 4.5 one-click live test",
         result,
         simpleFarmer: this.#simpleFarmerService?.state(),
+        scriptRuntime: this.#scriptRuntime?.state(),
+        diagnostic,
+      };
+      return this.#json(response, {
+        result,
+        reportText: JSON.stringify(report, null, 2),
+        clipboardSuggested: true,
+      });
+    }
+
+    if (method === "GET" && path === "/api/live-test/slice-5-1") {
+      if (!this.#slice51LiveTestService) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Slice 5.1 heartbeat test service is unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#slice51LiveTestService.state());
+    }
+    if (method === "POST" && path === "/api/live-test/slice-5-1/start") {
+      if (!this.#slice51LiveTestService) {
+        return this.#json(response, { error: "Slice 5.1 heartbeat test service is unavailable." }, 503);
+      }
+      const result = await this.#slice51LiveTestService.run();
+      const diagnostic = this.#exportPayload();
+      const report = {
+        schemaVersion: 1,
+        kind: "ALRemastered Slice 5.1 one-click heartbeat test",
+        result,
+        core: this.#runtime.health(),
+        character: this.#characterService?.state(),
         scriptRuntime: this.#scriptRuntime?.state(),
         diagnostic,
       };

@@ -23,3 +23,18 @@ test("core runtime starts and stops deterministically", () => {
   runtime.stop();
   assert.equal(runtime.status, "stopped");
 });
+
+
+test("core heartbeat advances only while the runtime is running", async () => {
+  const runtime = new CoreRuntime({ heartbeatIntervalMs: 25 });
+  runtime.start();
+  const first = runtime.health();
+  await new Promise((resolve) => setTimeout(resolve, 70));
+  const second = runtime.health();
+  assert.ok(second.heartbeatSequence > first.heartbeatSequence);
+  assert.ok(second.lastHeartbeatAt);
+  runtime.stop();
+  const stopped = runtime.health();
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  assert.equal(runtime.health().heartbeatSequence, stopped.heartbeatSequence);
+});
