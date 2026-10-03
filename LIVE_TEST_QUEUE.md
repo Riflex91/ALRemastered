@@ -854,3 +854,50 @@ Repository/release evidence:
 
 Do not repeat Slice 5.3 merely because implementation/planning text remains elsewhere. Slice 5.4 may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
 
+---
+
+### Alpha.46 real one-click result: PASSED — Slice 5.4 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.46`
+- release target / tested implementation main: `6fe751cf94bd8e69f4726b85c7a35563658f8940`
+- client: `0.1.0-alpha.46` / Windows
+- platform: `win32`
+- test ID: `live54-49181429-0f48-4118-b04d-fbdb8be54555`
+- character: `My_Ranger1` / `CH_denPIHA05KxLLQqVOad9h9vr9KPrL`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-03T20:16:50.727Z → 2026-10-03T20:16:55.471Z`
+- diagnostic export: 144 log lines, `Secrets sanitized: yes`
+
+The one-click harness completed the full Slice 5.4 watchdog chain:
+
+- the isolated Script probe established healthy heartbeat sequence `3` before fault injection;
+- the host suppressed only observation of Script heartbeats through the bounded test-only hook;
+- diagnostic record 96 detected a stale Script heartbeat at `1792 ms` against the `1500 ms` stale threshold;
+- the first controlled Script restart completed in record 102 and changed the run ID;
+- the second controlled Script restart completed in record 116;
+- restart usage reached exactly `2/2`;
+- diagnostic record 121 exhausted the restart budget with `noRestartLoop:true`;
+- the result entered explicit `blocked:true`;
+- over the explicit `1200 ms` guard window, restart count remained `2 → 2`;
+- restart-start log count remained `2 → 2`;
+- heartbeat observation was then restored;
+- the Script budget was reset to `0`, with `blocked:false`;
+- Core and Character remained healthy and required zero restarts;
+- final Character remained connected/alive with heartbeat `172` and `pingMs:18`;
+- final Script runtime was `stopped`, `activeTimers:0`, `activeEventListeners:0`;
+- diagnostic completion evidence recorded `scriptRestarts:2`, `budgetLimit:2`, `restartLoopPrevented:true`, `gameplayMutation:false`, and `rawSocketAccess:false`.
+
+Repository/release evidence:
+
+- implementation PR #91 is merged at exact main `6fe751cf94bd8e69f4726b85c7a35563658f8940`;
+- exact post-merge main CI run `37150612046` completed with all four required jobs successful;
+- release publish run `37150759804` completed successfully;
+- `v0.1.0-alpha.46` targets the tested implementation commit and contains Windows installer, Linux installer, and updater manifest.
+
+**Canonical queue status: Slice 5.4 = VERIFIED.**
+
+Do not repeat Slice 5.4 merely because implementation/planning text remains elsewhere. Phase 6 / Slice 6.1 may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
+
