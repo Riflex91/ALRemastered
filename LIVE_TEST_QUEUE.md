@@ -901,3 +901,59 @@ Repository/release evidence:
 
 Do not repeat Slice 5.4 merely because implementation/planning text remains elsewhere. Phase 6 / Slice 6.1 may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
 
+---
+
+### Alpha.48 real one-click result: PASSED — Slice 6.1 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.48`
+- release target / tested implementation main: `f3f8ca882d70aa47f3a59b24abe67e48e84c2b66`
+- client: `0.1.0-alpha.48` / Windows
+- platform: `win32`
+- test ID: `live61-7f653b0b-fc41-4da7-845b-e57600a7d178`
+- outcome: `passed`
+- test window: `2026-10-03T21:02:09.425Z → 2026-10-03T21:02:09.579Z`
+- Character connection: not required; remained disconnected
+- diagnostic export: 20 log lines, `Secrets sanitized: yes`
+
+The one-click harness completed the full Slice 6.1 map/geometry validation:
+
+- live game-data version `17397` was manually refreshed during the test;
+- `54` maps were normalized;
+- `49` geometry maps were present;
+- all `54` modeled maps had usable finite bounds;
+- total normalized collision geometry contained `13342` lines;
+- representative map `main` contained `760` x-lines and `763` y-lines;
+- `98` door/transition records were normalized;
+- raw invalid transition count was `2`;
+- blocking invalid transition count was `0`;
+- both invalid references belonged only to ignored prototype map data and were retained as non-blocking diagnostic evidence;
+- representative `main:door:0` resolved successfully to map `woffice`, spawn `0`, coordinates `-24,83`, direction `3`;
+- the representative transition was valid with no problems;
+- no Character was required;
+- Character status remained `disconnected → disconnected`;
+- `gameplayMutation:false`;
+- `rawSocketAccess:false`;
+- `pathfinding:false`.
+
+Historical alpha.47 result remains append-only evidence:
+
+- alpha.47 was blocked at preflight by an unnecessary Character requirement;
+- it also surfaced the two ignored prototype-map dangling door references;
+- PR #94 corrected both issues;
+- alpha.48 proves the corrected semantics against fresh live data.
+
+Repository/release evidence:
+
+- implementation PR #93 merged at `75e99f0f35e271e747de8efab3afd826aae38421`;
+- exact post-implementation-main CI `37152440103` completed with all four required jobs successful;
+- corrective PR #94 merged at exact main `f3f8ca882d70aa47f3a59b24abe67e48e84c2b66`;
+- exact post-hotfix-main CI `37153288628` completed with all four required jobs successful;
+- release publish run `37153415634` completed successfully;
+- `v0.1.0-alpha.48` targets the tested commit and contains Windows installer, Linux installer, and updater manifest.
+
+**Canonical queue status: Slice 6.1 = VERIFIED.**
+
+Do not repeat Slice 6.1 merely because the historical alpha.47 blocked result or original planning text remains elsewhere. Slice 6.2 – einfacher Path Planner may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
+
