@@ -177,7 +177,7 @@ export function createSimpleFarmerSource(config: SimpleFarmerConfig): string {
     `    const target = get_nearest_monster({ type: ${monster} });`,
     "    if (!target || !can_attack(target)) return;",
     "    try { await attack(target); } catch (error) {",
-    "      if (!['ATTACK_COOLDOWN','ATTACK_TARGET_DEAD','ATTACK_TARGET_NOT_VISIBLE'].includes(error?.code)) throw error;",
+    "      if (!['ATTACK_COOLDOWN','ATTACK_TARGET_DEAD','ATTACK_TARGET_NOT_VISIBLE','ATTACK_OUT_OF_RANGE','ATTACK_TARGET_WRONG_MAP'].includes(error?.code)) throw error;",
     "    }",
     "    await farmerDelay(25);",
     "  } finally {",
