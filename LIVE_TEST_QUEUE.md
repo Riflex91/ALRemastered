@@ -668,3 +668,34 @@ Historical alpha.38 `BLOCKED` evidence remains valid and must not be rewritten: 
 
 Do not repeat Slice 4.3 merely because the alpha.38 blocked report remains as historical evidence. Slice 4.4 may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
 
+---
+
+### Alpha.40 real one-click result: PASSED — Slice 4.4 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.40`
+- release target / tested implementation main: `a2e32a94e3da32413bfe994b18146be8b40a657a`
+- client: `0.1.0-alpha.40` / Windows
+- platform: `win32`
+- test ID: `live44-28913d1c-0fe7-43a2-9f7d-bf71bfe94f09`
+- outcome: `passed`
+- test window: `2026-10-03T17:18:23.284Z → 2026-10-03T17:18:24.120Z`
+- diagnostic export: 38 log lines, `Secrets sanitized: yes`
+
+The one-click harness completed the full Slice 4.4 storage chain:
+
+- `set()` persisted JSON state and `get()` returned it immediately;
+- a fresh isolated worker restored the same script namespace from local disk;
+- a secondary script using the same storage key started with an empty namespace and could not read or overwrite the primary script's state;
+- the two script names mapped to separate hashed namespaces;
+- `del()` removed persisted state;
+- both bounded test namespaces finished empty;
+- storage mutation logs explicitly used `valueLogged:false`;
+- final runtime: `stopped`, `activeTimers:0`, `activeEventListeners:0`;
+- all five terminal steps passed.
+
+**Canonical queue status: Slice 4.4 = VERIFIED.**
+
+Do not repeat Slice 4.4 merely because planning text remains above. Slice 4.5 may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
+

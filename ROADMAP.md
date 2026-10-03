@@ -1754,3 +1754,52 @@ Result: the real Windows alpha.39 run proves controlled `on()/off()` event deliv
 
 Slice 4.4 may begin only after this append-only verification record is merged and the resulting `main` CI is fully green.
 
+---
+
+## Append-only verification record — Slice 4.4 Storage und Script State — 2026-10-03
+
+**Canonical status update: Slice 4.4 = VERIFIED.**
+
+Release/live environment:
+
+- release: `v0.1.0-alpha.40`
+- release target / tested implementation main: `a2e32a94e3da32413bfe994b18146be8b40a657a`
+- Windows client: `0.1.0-alpha.40`
+- platform: `win32`
+- one-click test ID: `live44-28913d1c-0fe7-43a2-9f7d-bf71bfe94f09`
+- outcome: `passed`
+- test window: `2026-10-03T17:18:23.284Z → 2026-10-03T17:18:24.120Z`
+- diagnostic export: 38 log lines, `Secrets sanitized: yes`
+
+Storage and restart evidence:
+
+- `set()` persisted JSON state and `get()` returned the same snapshot immediately;
+- a fresh isolated worker for the same script restored its namespace from local disk;
+- two different script names used separate hashed namespaces and could not read or overwrite each other's state;
+- `del()` removed the persisted state;
+- both bounded test namespaces finished empty.
+
+Isolation and logging evidence:
+
+- the primary script restarted with `storedValues:1`, proving the persisted state was reloaded for the same script;
+- the secondary script started with `storedValues:0`, proving it did not inherit the primary namespace;
+- storage mutation logs reported `valueLogged:false`;
+- the test performed no gameplay mutation.
+
+Lifecycle evidence:
+
+- all five required steps passed:
+  - `write-and-immediate-read`
+  - `persist-across-worker-restart`
+  - `safe-namespace-isolation`
+  - `delete-and-test-cleanup`
+  - `final-runtime-cleanup`
+- final runtime state was `stopped`;
+- final `activeTimers:0`;
+- final `activeEventListeners:0`;
+- final primary and secondary test namespace entry counts were zero.
+
+Result: the real Windows alpha.40 run proves local per-script state, safe namespace separation, persistence across isolated worker restart, explicit delete/cleanup, lifecycle cleanup, and sanitized storage logging. **Slice 4.4 is VERIFIED.**
+
+Slice 4.5 may begin only after this append-only verification record is merged and the resulting exact `main` CI is fully green.
+
