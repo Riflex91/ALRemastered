@@ -23,6 +23,7 @@ import type {
   AdventureLandPartyState,
   AdventureLandVisibleEntity,
 } from "./world-state.ts";
+import type { AdventureLandGameEvent } from "./game-events.ts";
 
 export type AdventureLandCharacterConnectionStatus =
   | "disconnected"
@@ -67,6 +68,7 @@ export class AdventureLandCharacterService {
   #connection?: AdventureLandCharacterConnection;
   #connecting?: Promise<AdventureLandCharacterConnectionState>;
   #connectAbort?: AbortController;
+  readonly #gameEventListeners = new Set<(event: AdventureLandGameEvent) => void>();
 
   constructor(options: AdventureLandCharacterServiceOptions) {
     this.#logger = options.logger;
@@ -134,6 +136,10 @@ export class AdventureLandCharacterService {
     }, controller.signal).then((connection) => {
       this.#connection = connection;
       this.#connectAbort = undefined;
+      connection.onGameEvent((event) => {
+        if (this.#connection !== connection) return;
+        for (const listener of this.#gameEventListeners) listener(structuredClone(event));
+      });
       connection.onState((liveState) => {
         if (this.#connection !== connection) return;
         const previous = this.#state.character;
@@ -331,6 +337,22 @@ export class AdventureLandCharacterService {
     const connection = this.#connection;
     if (!connection || this.#state.status !== "connected") return 0;
     return connection.attackCooldownRemainingMs();
+  }
+
+  onGameEvent(listener: (event: AdventureLandGameEvent) => void): () => void {
+    this.#gameEventListeners.add(listener);
+    return () => this.#gameEventListeners.delete(listener);
+  }
+
+  requestStateRefresh(): void {
+    const connection = this.#connection;
+    if (!connection || this.#state.status !== "connected") {
+      throw new AdventureLandCharacterTransportError(
+        "Connect a headless character before requesting a fresh live-state event.",
+        "state_refresh_not_connected",
+      );
+    }
+    connection.requestStateRefresh();
   }
 
   sendDirectMovement(

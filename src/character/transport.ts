@@ -4,6 +4,11 @@ import type {
   AdventureLandServerSummary,
 } from "../account/selection-source.ts";
 import {
+  createAdventureLandGameEvent,
+  type AdventureLandGameEvent,
+  type AdventureLandGameEventName,
+} from "./game-events.ts";
+import {
   applyEntityPacket,
   applyPartyPacket,
   clearVisibleEntities,
@@ -151,6 +156,7 @@ export interface AdventureLandCharacterConnection {
   readonly pingMs?: number;
   snapshot(): AdventureLandCharacterLiveState;
   onState(listener: (state: AdventureLandCharacterLiveState) => void): () => void;
+  onGameEvent(listener: (event: AdventureLandGameEvent) => void): () => void;
   onUnexpectedClose(listener: (reason?: string) => void): void;
   requestStateRefresh(): void;
   sendMove(input: AdventureLandDirectMovementInput): AdventureLandDirectMovementReceipt;
@@ -313,7 +319,7 @@ export class AdventureLandCharacterTransport {
                 continue;
               }
               if ((name === "disappear" || name === "death") && isRecord(data)) {
-                liveConnection.applyDisappear(data);
+                liveConnection.applyDisappear(data, name);
                 continue;
               }
               if (name === "party_update" && isRecord(data)) {
@@ -420,6 +426,7 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
   readonly #disconnectReason: () => string | undefined;
   readonly #listeners = new Set<(reason?: string) => void>();
   readonly #stateListeners = new Set<(state: AdventureLandCharacterLiveState) => void>();
+  readonly #gameEventListeners = new Set<(event: AdventureLandGameEvent) => void>();
   readonly #pingSent = new Map<string, number>();
   readonly #pingTimer: ReturnType<typeof setInterval>;
   #character: AdventureLandConnectedCharacter;
@@ -481,6 +488,7 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
       this.#closed = true;
       clearInterval(this.#pingTimer);
       this.#pingSent.clear();
+      this.#gameEventListeners.clear();
       this.#rejectPendingAttack(
         new AdventureLandCharacterTransportError(
           "Adventure Land character transport closed during attack.",
@@ -544,6 +552,11 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
     return () => this.#stateListeners.delete(listener);
   }
 
+  onGameEvent(listener: (event: AdventureLandGameEvent) => void): () => void {
+    this.#gameEventListeners.add(listener);
+    return () => this.#gameEventListeners.delete(listener);
+  }
+
   onUnexpectedClose(listener: (reason?: string) => void): void {
     this.#listeners.add(listener);
   }
@@ -561,6 +574,7 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
   applyPlayer(data: Record<string, unknown>): void {
     this.#character = mergeConnectedCharacter(this.#character, data);
     this.#touch();
+    this.#emitGameEvent("player", data);
   }
 
   applyNewMap(data: Record<string, unknown>): void {
@@ -575,6 +589,7 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
     this.#world = clearVisibleEntities(this.#world);
     this.#lootChests.clear();
     this.#touch();
+    this.#emitGameEvent("new_map", data);
   }
 
   applyEntities(data: Record<string, unknown>): void {
@@ -601,18 +616,25 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
       }
     }
     this.#touch();
+    this.#emitGameEvent("entities", data);
   }
 
-  applyDisappear(data: Record<string, unknown>): void {
+  applyDisappear(
+    data: Record<string, unknown>,
+    eventName: "disappear" | "death" = "disappear",
+  ): void {
     const next = removeVisibleEntity(this.#world, data.id);
-    if (next === this.#world) return;
-    this.#world = next;
-    this.#touch();
+    if (next !== this.#world) {
+      this.#world = next;
+      this.#touch();
+    }
+    this.#emitGameEvent(eventName, data);
   }
 
   applyPartyUpdate(data: Record<string, unknown>): void {
     this.#world = applyPartyPacket(this.#world, data);
     this.#touch();
+    this.#emitGameEvent("party_update", data);
   }
 
   applyPingAck(data: Record<string, unknown>): void {
@@ -631,6 +653,7 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
     const until = Date.now() + Math.max(0, ms);
     if (data.name === "attack") this.#attackCooldownUntilMs = until;
     this.#skillCooldownUntilMs.set(data.name, until);
+    this.#emitGameEvent("skill_timeout", data);
   }
 
   applyDrop(data: Record<string, unknown>): void {
@@ -644,6 +667,7 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
       chest: typeof data.chest === "string" ? data.chest : undefined,
     }));
     this.#touch();
+    this.#emitGameEvent("drop", data);
   }
 
   applyChestOpened(data: Record<string, unknown>): void {
@@ -671,9 +695,11 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
       }));
     }
     this.#touch();
+    this.#emitGameEvent("chest_opened", data);
   }
 
   applyGameResponse(data: Record<string, unknown>): void {
+    this.#emitGameEvent("game_response", data);
     if (data.place === "attack" && this.#pendingAttack) {
       const pending = this.#pendingAttack;
       this.#pendingAttack = undefined;
@@ -1195,6 +1221,12 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
       if (typeof oldest === "string") this.#pingSent.delete(oldest);
     }
     this.#socket.send("42" + JSON.stringify(["ping_trig", { id }]));
+  }
+
+  #emitGameEvent(name: AdventureLandGameEventName, payload: Record<string, unknown>): void {
+    if (!this.#gameEventListeners.size) return;
+    const event = createAdventureLandGameEvent(name, payload);
+    for (const listener of this.#gameEventListeners) listener(structuredClone(event));
   }
 
   #touch(): void {
