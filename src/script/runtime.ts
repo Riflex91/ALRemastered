@@ -5,7 +5,7 @@ import type {
   ScriptAdventureApiBridge,
   ScriptAdventureApiMethod,
 } from "./adventure-api.ts";
-import type { AdventureLandGameEvent } from "../character/game-events.ts";
+import type { AdventureLandGameEvent } from "../character/game-events.ts";\nimport type { ScriptStorageStore } from "./storage.ts";
 
 export type ScriptRuntimeStatus =
   | "unloaded"
@@ -411,6 +411,59 @@ export class ScriptRuntimeService {
           requestId: typeof details.requestId === "string"
             ? details.requestId
             : undefined,
+        },
+      });
+    }
+  }
+
+  async #handleStorageCall(worker: Worker, message: WorkerMessage): Promise<void> {
+    if (worker !== this.#worker || typeof message.callId !== "number") return;
+    const scriptName = this.#state.scriptName;
+    const operation = message.storageOperation;
+    if (!this.#storage || !scriptName || (operation !== "set" && operation !== "delete")) {
+      worker.postMessage({
+        type: "storage_result",
+        callId: message.callId,
+        ok: false,
+        error: {
+          name: "ScriptStorageError",
+          code: "SCRIPT_STORAGE_UNAVAILABLE",
+          message: "Script storage is unavailable.",
+        },
+      });
+      return;
+    }
+
+    try {
+      const snapshot = operation === "set"
+        ? this.#storage.set(scriptName, message.key ?? "", message.value)
+        : this.#storage.delete(scriptName, message.key ?? "");
+      if (worker !== this.#worker) return;
+      worker.postMessage({
+        type: "storage_result",
+        callId: message.callId,
+        ok: true,
+        result: { entryCount: snapshot.entries.length },
+      });
+      this.#logger.debug("Script storage updated.", {
+        scriptName,
+        runId: this.#state.runId,
+        operation,
+        key: message.key,
+        entryCount: snapshot.entries.length,
+        valueLogged: false,
+      }, { component: this.#component(scriptName) });
+    } catch (error) {
+      if (worker !== this.#worker) return;
+      const details = error as { readonly name?: unknown; readonly message?: unknown; readonly code?: unknown };
+      worker.postMessage({
+        type: "storage_result",
+        callId: message.callId,
+        ok: false,
+        error: {
+          name: typeof details.name === "string" ? details.name : "ScriptStorageError",
+          message: typeof details.message === "string" ? details.message : "Script storage operation failed.",
+          code: typeof details.code === "string" ? details.code : "SCRIPT_STORAGE_FAILED",
         },
       });
     }
