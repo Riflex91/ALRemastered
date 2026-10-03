@@ -5,6 +5,7 @@ import type {
   ScriptAdventureApiBridge,
   ScriptAdventureApiMethod,
 } from "./adventure-api.ts";
+import type { AdventureLandGameEvent } from "../character/game-events.ts";
 
 export type ScriptRuntimeStatus =
   | "unloaded"
@@ -24,6 +25,7 @@ export interface ScriptRuntimeState {
   readonly crashedAt?: string;
   readonly runId?: string;
   readonly activeTimers: number;
+  readonly activeEventListeners: number;
   readonly logRecords: number;
   readonly message: string;
   readonly error?: {
@@ -56,6 +58,8 @@ interface WorkerMessage {
   readonly callId?: number;
   readonly method?: string;
   readonly input?: Readonly<Record<string, unknown>>;
+  readonly activeEventListeners?: number;
+  readonly eventNames?: readonly string[];
   readonly error?: {
     readonly name?: string;
     readonly message?: string;
@@ -80,10 +84,13 @@ export class ScriptRuntimeService {
   #source?: string;
   #worker?: Worker;
   #apiStateTimer?: NodeJS.Timeout;
+  #apiEventUnsubscribe?: () => void;
+  readonly #activeEventNames = new Set<string>();
   #expectedExit = false;
   #state: ScriptRuntimeState = {
     status: "unloaded",
     activeTimers: 0,
+    activeEventListeners: 0,
     logRecords: 0,
     message: "No script loaded.",
   };
@@ -119,6 +126,7 @@ export class ScriptRuntimeService {
       scriptName: name,
       loadedAt: this.#clock().toISOString(),
       activeTimers: 0,
+      activeEventListeners: 0,
       logRecords: 0,
       message: "Script loaded and ready to start.",
     };
@@ -164,6 +172,7 @@ export class ScriptRuntimeService {
       crashedAt: undefined,
       error: undefined,
       activeTimers: 0,
+      activeEventListeners: 0,
       message: "Script worker is starting.",
     };
 
@@ -173,6 +182,7 @@ export class ScriptRuntimeService {
       if (worker !== this.#worker) return;
       this.#worker = undefined;
       this.#stopApiStatePump();
+      this.#stopApiEventBridge();
       if (!this.#expectedExit && this.#state.status !== "crashed") {
         this.#markCrashed(undefined, new Error(`Script worker exited unexpectedly with code ${code}.`));
       }
@@ -184,6 +194,7 @@ export class ScriptRuntimeService {
       adventureApi: Boolean(this.#api),
     }, { component: this.#component(scriptName) });
     this.#startApiStatePump(worker);
+    this.#startApiEventBridge(worker);
 
     const terminal = await this.#waitForStatus(
       ["running", "crashed"],
@@ -213,6 +224,7 @@ export class ScriptRuntimeService {
         status: "paused",
         pausedAt: this.#clock().toISOString(),
         activeTimers: 0,
+        activeEventListeners: 0,
         message: "Script paused by terminating an unresponsive isolated worker.",
       };
     }
@@ -225,6 +237,7 @@ export class ScriptRuntimeService {
       this.#state = {
         status: "unloaded",
         activeTimers: 0,
+        activeEventListeners: 0,
         logRecords: 0,
         message: "No script loaded.",
       };
@@ -235,7 +248,8 @@ export class ScriptRuntimeService {
       status: "stopped",
       stoppedAt: this.#clock().toISOString(),
       activeTimers: 0,
-      message: "Script stopped. Timers and worker resources were released.",
+      activeEventListeners: 0,
+      message: "Script stopped. Timers, event listeners, and worker resources were released.",
     };
     this.#logger.info("Script stopped.", {
       scriptName: this.#state.scriptName,
@@ -257,6 +271,18 @@ export class ScriptRuntimeService {
     if (worker !== this.#worker) return;
     if (message.type === "api_call") {
       void this.#handleApiCall(worker, message);
+      return;
+    }
+    if (message.type === "event_listener_state") {
+      const names = Array.isArray(message.eventNames)
+        ? message.eventNames.filter((name): name is string => typeof name === "string")
+        : [];
+      this.#activeEventNames.clear();
+      for (const name of names) this.#activeEventNames.add(name);
+      this.#state = {
+        ...this.#state,
+        activeEventListeners: Math.max(0, Number(message.activeEventListeners) || 0),
+      };
       return;
     }
     if (message.type === "timer_count") {
@@ -305,8 +331,10 @@ export class ScriptRuntimeService {
         status: "paused",
         pausedAt: this.#clock().toISOString(),
         activeTimers: 0,
-        message: "Script paused. All registered timers were cleared.",
+        activeEventListeners: 0,
+        message: "Script paused. All registered timers and event listeners were cleared.",
       };
+      this.#stopApiEventBridge();
       this.#logger.info("Script paused.", {
         scriptName: this.#state.scriptName,
         runId: this.#state.runId,
@@ -412,15 +440,45 @@ export class ScriptRuntimeService {
     this.#apiStateTimer = undefined;
   }
 
+  #startApiEventBridge(worker: Worker): void {
+    this.#stopApiEventBridge();
+    if (!this.#api?.onEvent) return;
+    this.#apiEventUnsubscribe = this.#api.onEvent((event: AdventureLandGameEvent) => {
+      if (
+        worker !== this.#worker ||
+        this.#state.status !== "running" ||
+        !this.#activeEventNames.has(event.name)
+      ) return;
+      try {
+        worker.postMessage({ type: "api_event", event });
+        this.#logger.debug("Script game event dispatched.", {
+          scriptName: this.#state.scriptName,
+          runId: this.#state.runId,
+          eventName: event.name,
+        }, { component: this.#component(this.#state.scriptName) });
+      } catch {
+        // Worker lifecycle handling reports termination separately.
+      }
+    });
+  }
+
+  #stopApiEventBridge(): void {
+    this.#apiEventUnsubscribe?.();
+    this.#apiEventUnsubscribe = undefined;
+    this.#activeEventNames.clear();
+  }
+
   #markCrashed(worker: Worker | undefined, error: Error): void {
     if (worker && worker !== this.#worker) return;
     this.#stopApiStatePump();
+    this.#stopApiEventBridge();
     const scriptName = this.#state.scriptName;
     this.#state = {
       ...this.#state,
       status: "crashed",
       crashedAt: this.#clock().toISOString(),
       activeTimers: 0,
+      activeEventListeners: 0,
       message: "Script crashed inside its isolated worker. The ALRemastered core remains running.",
       error: {
         name: error.name,
@@ -442,6 +500,7 @@ export class ScriptRuntimeService {
 
   async #terminateWorker(): Promise<void> {
     this.#stopApiStatePump();
+    this.#stopApiEventBridge();
     const worker = this.#worker;
     if (!worker) return;
     this.#expectedExit = true;

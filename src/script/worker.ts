@@ -1,5 +1,10 @@
 import { parentPort, workerData } from "node:worker_threads";
 import { createContext, Script } from "node:vm";
+import {
+  isAdventureLandGameEventName,
+  type AdventureLandGameEvent,
+  type AdventureLandGameEventName,
+} from "../character/game-events.ts";
 
 if (!parentPort) throw new Error("Script worker requires a parent port.");
 
@@ -35,6 +40,7 @@ interface ApiResultMessage {
     readonly requestId?: string;
   };
   readonly state?: ApiState;
+  readonly event?: AdventureLandGameEvent;
 }
 
 type ScriptLogLevel = "debug" | "info" | "warn" | "error";
@@ -44,6 +50,10 @@ const timers = new Map<number, ReturnType<typeof setTimeout> | ReturnType<typeof
 const pendingApiCalls = new Map<
   number,
   { resolve: (value: unknown) => void; reject: (error: Error) => void }
+>();
+const eventListeners = new Map<
+  AdventureLandGameEventName,
+  Set<(payload: Readonly<Record<string, unknown>>) => void>
 >();
 const character: Record<string, unknown> = {};
 const Entities: Record<string, Record<string, unknown>> = {};
@@ -94,10 +104,26 @@ function clearAllTimers(): void {
   postTimerCount();
 }
 
+function postEventListenerState(): void {
+  const eventNames = [...eventListeners.entries()]
+    .filter(([, listeners]) => listeners.size > 0)
+    .map(([name]) => name)
+    .sort();
+  const activeEventListeners = [...eventListeners.values()]
+    .reduce((count, listeners) => count + listeners.size, 0);
+  parentPort!.postMessage({ type: "event_listener_state", activeEventListeners, eventNames });
+}
+
+function clearAllEventListeners(): void {
+  eventListeners.clear();
+  postEventListenerState();
+}
+
 function reportCrash(error: unknown): void {
   if (terminal) return;
   terminal = true;
   clearAllTimers();
+  clearAllEventListeners();
   parentPort!.postMessage({
     type: "crash",
     error: normalizeError(error),
@@ -254,6 +280,47 @@ function resolveTargetId(target: unknown): string | undefined {
   return undefined;
 }
 
+function scriptOn(eventName: unknown, handler: unknown): void {
+  if (!isAdventureLandGameEventName(eventName)) {
+    throw new TypeError("on() requires a supported Adventure Land event name.");
+  }
+  if (typeof handler !== "function") throw new TypeError("on() handler must be a function.");
+  const listeners = eventListeners.get(eventName) ?? new Set();
+  listeners.add(handler as (payload: Readonly<Record<string, unknown>>) => void);
+  eventListeners.set(eventName, listeners);
+  postEventListenerState();
+}
+
+function scriptOff(eventName: unknown, handler?: unknown): void {
+  if (!isAdventureLandGameEventName(eventName)) {
+    throw new TypeError("off() requires a supported Adventure Land event name.");
+  }
+  if (handler !== undefined && typeof handler !== "function") {
+    throw new TypeError("off() handler must be a function when provided.");
+  }
+  const listeners = eventListeners.get(eventName);
+  if (!listeners) return;
+  if (handler === undefined) listeners.clear();
+  else listeners.delete(handler as (payload: Readonly<Record<string, unknown>>) => void);
+  if (!listeners.size) eventListeners.delete(eventName);
+  postEventListenerState();
+}
+
+function dispatchGameEvent(event: AdventureLandGameEvent | undefined): void {
+  if (terminal || paused || !event || !isAdventureLandGameEventName(event.name)) return;
+  const listeners = eventListeners.get(event.name);
+  if (!listeners?.size) return;
+  for (const handler of [...listeners]) {
+    if (terminal || paused) return;
+    try {
+      handler(event.payload);
+    } catch (error) {
+      reportCrash(error);
+      return;
+    }
+  }
+}
+
 function apiCall(method: string, payload: Readonly<Record<string, unknown>>): Promise<unknown> {
   if (terminal) return Promise.reject(scriptApiError("SCRIPT_STOPPED", "Script runtime is stopped."));
   if (paused) return Promise.reject(scriptApiError("SCRIPT_PAUSED", "Script runtime is paused."));
@@ -346,6 +413,10 @@ parentPort.on("message", (raw: unknown) => {
     applyApiState(message.state);
     return;
   }
+  if (type === "api_event") {
+    dispatchGameEvent(message.event);
+    return;
+  }
   if (type === "api_result" && typeof message.callId === "number") {
     const pending = pendingApiCalls.get(message.callId);
     if (!pending) return;
@@ -357,6 +428,7 @@ parentPort.on("message", (raw: unknown) => {
   if (type === "pause") {
     paused = true;
     clearAllTimers();
+    clearAllEventListeners();
     parentPort!.postMessage({ type: "paused" });
     return;
   }
@@ -364,6 +436,7 @@ parentPort.on("message", (raw: unknown) => {
     terminal = true;
     paused = false;
     clearAllTimers();
+    clearAllEventListeners();
     parentPort!.postMessage({ type: "stopped" });
     parentPort!.close();
   }
@@ -393,6 +466,8 @@ const sandbox: Record<string, unknown> = {
   xmove: scriptXMove,
   attack: scriptAttack,
   loot: scriptLoot,
+  on: scriptOn,
+  off: scriptOff,
 };
 sandbox.globalThis = sandbox;
 sandbox.self = sandbox;
