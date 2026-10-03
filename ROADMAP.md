@@ -1695,3 +1695,62 @@ Result: the real Windows alpha.37 run proves the first Adventure Land-compatible
 
 Slice 4.3 may begin only after this append-only verification record is merged and the resulting `main` CI is fully green.
 
+---
+
+## Append-only verification record — Slice 4.3 Event API — 2026-10-03
+
+**Canonical status update: Slice 4.3 = VERIFIED.**
+
+Release/live environment:
+
+- release: `v0.1.0-alpha.39`
+- release target / tested implementation main: `e4c2ef7a2b894325f169baa6bcf1c1dee5913c5f`
+- Windows client: `0.1.0-alpha.39`
+- platform: `win32`
+- Character: `My_Ranger2`
+- Server: EU II / `SR_EUII`
+- one-click test ID: `live43-de9d8881-ebbc-4226-bfcb-f21cf811ac2c`
+- test result: `passed`
+- test window: `2026-10-03T16:44:22.546Z → 2026-10-03T16:44:24.632Z`
+- diagnostic export: 51 log lines, `Secrets sanitized: yes`
+- observed real game event: `entities`
+
+Event delivery and listener evidence:
+
+- a fresh server `entities` event reached the isolated script worker as a safe snapshot;
+- the worker event payload exposed no transport object and retained sanitizer protection;
+- `off()` removed the registered listener and active event listeners fell to zero;
+- subsequent read-only refreshes produced no callback after `off()` or script stop.
+
+Lifecycle evidence:
+
+- pause removed all registered event listeners and the paused worker remained silent;
+- restart created a fresh isolated run with a fresh listener;
+- the restarted worker received fresh `entities` events;
+- final runtime state reached `stopped` with `activeEventListeners:0` and `activeTimers:0`.
+
+Crash-isolation evidence:
+
+- the intentional handler crash probe threw `Slice 4.3 handler crash probe`;
+- the script runtime reached the expected isolated crash state;
+- listener cleanup still completed;
+- the connected headless character/core remained active;
+- the later final stop released the worker resources.
+
+Whole-run result:
+
+- all five required live-test steps passed:
+  - `subscribe-real-event-and-off`
+  - `off-and-stop-suppress-callbacks`
+  - `pause-and-restart-cleanup`
+  - `handler-crash-isolation`
+  - `final-runtime-cleanup`
+- the final diagnostic record was `Slice 4.3 one-click live test passed.`;
+- the test used read-only live-state refreshes and performed no gameplay mutation.
+
+Historical alpha.38 evidence remains append-only: its Slice 4.3 run was `BLOCKED` because the harness assumed the read-only `send_updates` refresh would reliably yield a `player` event. The real server supplied refresh-backed `entities` events instead. Alpha.39 corrected only that live-test assumption; the Event API itself remained unchanged.
+
+Result: the real Windows alpha.39 run proves controlled `on()/off()` event delivery, safe event snapshots, listener lifecycle cleanup across off/pause/stop/restart, event logging, and isolated handler-crash containment. **Slice 4.3 is VERIFIED.**
+
+Slice 4.4 may begin only after this append-only verification record is merged and the resulting `main` CI is fully green.
+
