@@ -43,7 +43,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ALREMASTERED_BUILD_VERSION=0.1.0-alpha.29 npm run build
+          ALREMASTERED_BUILD_VERSION=0.1.0-alpha.30 npm run build
           npm run installer:linux
           cp artifacts/ALRemastered-Linux-*.run "$RUNNER_TEMP/ALRemastered-A.run"
       - name: Install version A to a custom path
@@ -52,7 +52,7 @@ jobs:
           set -euo pipefail
           test_dir="$RUNNER_TEMP/ALRemastered Custom Path"
           "$RUNNER_TEMP/ALRemastered-A.run" --install-dir "$test_dir" --yes --no-desktop
-          test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.29"
+          test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.30"
           paths_json="$("$test_dir/alremastered" --paths)"
           data_dir="$(node -e 'console.log(JSON.parse(process.argv[1]).dataDir)' "$paths_json")"
           mkdir -p "$data_dir"
@@ -76,7 +76,7 @@ jobs:
             sleep 0.25
           done
           test -f "$marker"
-          test "$(cat "$marker")" = "started-after-parent-exit"
+          test "$(cat "$marker")" = "environment-survived-parent-exit"
       - name: Upgrade without choosing the path again and verify
         shell: bash
         run: |
@@ -84,16 +84,16 @@ jobs:
           installer="$(find artifacts -maxdepth 1 -name 'ALRemastered-Linux-*.run' -print -quit)"
           test_dir="$RUNNER_TEMP/ALRemastered Custom Path"
           data_dir="$(cat "$RUNNER_TEMP/alremastered-data-dir.txt")"
-          "$installer" --yes --no-desktop --restart
-          test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.30"
+          ALREMASTERED_UPDATE_SESSION_HANDOFF="ci-invalid-handoff-probe" "$installer" --yes --no-desktop --restart
+          test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.31"
           test "$(cat "$data_dir/upgrade-sentinel.txt")" = "keep-me"
           previous_version="$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).version" "$test_dir/.previous/app/package.json")"
-          test "$previous_version" = "0.1.0-alpha.29"
-          grep 'event=install_success version=0.1.0-alpha.30' "$data_dir/logs/installer.log"
-          grep 'event=auto_restart version=0.1.0-alpha.30' "$data_dir/logs/installer.log"
+          test "$previous_version" = "0.1.0-alpha.30"
+          grep 'event=install_success version=0.1.0-alpha.31' "$data_dir/logs/installer.log"
+          grep 'event=auto_restart version=0.1.0-alpha.31' "$data_dir/logs/installer.log"
           dashboard_ready=0
           for attempt in $(seq 1 120); do
-            if curl -fsS http://127.0.0.1:3210/api/status 2>/dev/null | grep -q '"version":"0.1.0-alpha.30"'; then
+            if curl -fsS http://127.0.0.1:3210/api/status 2>/dev/null | grep -q '"version":"0.1.0-alpha.31"'; then
               dashboard_ready=1
               break
             fi
@@ -139,12 +139,21 @@ jobs:
           curl -fsS http://127.0.0.1:3210/api/game-data | grep '"status":'
           curl -fsS http://127.0.0.1:3210/api/diagnostics/snapshot | grep '"sanitized":true'
           curl -fsS http://127.0.0.1:3210/api/diagnostics/package | grep 'ALRemasteredDiagnosticPackage'
-          curl -fsS http://127.0.0.1:3210/api/update | grep '"currentVersion":"0.1.0-alpha.30"'
+          curl -fsS http://127.0.0.1:3210/api/update | grep '"currentVersion":"0.1.0-alpha.31"'
           curl -fsS http://127.0.0.1:3210/api/logs/export | grep '"sanitized":true'
           test -f "$data_dir/logs/client.log"
           grep '"level":"INFO"' "$data_dir/logs/client.log"
           grep '"message":"ALRemastered starting."' "$data_dir/logs/client.log"
           grep '"message":"ALRemastered restarted automatically after update."' "$data_dir/logs/client.log"
+          grep '"message":"Update restart session handoff status."' "$data_dir/logs/client.log"
+          grep '"present":true' "$data_dir/logs/client.log"
+          grep '"decoded":false' "$data_dir/logs/client.log"
+          grep '"consumed":true' "$data_dir/logs/client.log"
+          grep '"message":"Update session handoff was invalid and was discarded."' "$data_dir/logs/client.log"
+          if grep -q 'ci-invalid-handoff-probe' "$data_dir/logs/client.log"; then
+            echo "Raw handoff probe leaked into client.log." >&2
+            exit 1
+          fi
           pkill -f "$test_dir/app/src/main.js" || true
           sleep 0.5
           "$test_dir/uninstall.sh" --yes
@@ -170,7 +179,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
-          $env:ALREMASTERED_BUILD_VERSION = "0.1.0-alpha.29"
+          $env:ALREMASTERED_BUILD_VERSION = "0.1.0-alpha.30"
           npm run build
           npm run installer:windows
           Copy-Item (Get-ChildItem "artifacts\ALRemastered-Windows-*-Setup.exe" | Select-Object -First 1).FullName "$env:RUNNER_TEMP\ALRemastered-A.exe"
@@ -182,7 +191,7 @@ jobs:
           $installProcess = Start-Process -FilePath "$env:RUNNER_TEMP\ALRemastered-A.exe" -ArgumentList @("/S", "/D=$testDir") -Wait -PassThru
           if ($installProcess.ExitCode -ne 0) { throw "Version A installer returned exit code $($installProcess.ExitCode)" }
           $version = & "$testDir\ALRemastered.exe" --version
-          if ($version.Trim() -ne "0.1.0-alpha.29") { throw "Expected version A, got $version" }
+          if ($version.Trim() -ne "0.1.0-alpha.30") { throw "Expected version A, got $version" }
           $paths = (& "$testDir\ALRemastered.exe" --paths) | ConvertFrom-Json
           New-Item -ItemType Directory -Path $paths.dataDir -Force | Out-Null
           Set-Content -Path (Join-Path $paths.dataDir "upgrade-sentinel.txt") -Value "keep-me" -NoNewline
@@ -205,7 +214,7 @@ jobs:
             Start-Sleep -Milliseconds 250
           }
           if (-not (Test-Path $marker)) { throw "Detached Windows update process did not survive the caller exit." }
-          if ((Get-Content $marker -Raw) -ne "started-after-parent-exit") { throw "Windows update handoff marker was invalid." }
+          if ((Get-Content $marker -Raw) -ne "environment-survived-parent-exit") { throw "Windows update handoff environment marker was invalid." }
       - name: Upgrade without choosing the path again and verify
         shell: powershell
         run: |
@@ -222,7 +231,7 @@ jobs:
           for ($attempt = 0; $attempt -lt 40; $attempt++) {
             try {
               $oldDashboardStatus = Invoke-RestMethod "http://127.0.0.1:3210/api/status"
-              if ($oldDashboardStatus.version -eq "0.1.0-alpha.29") {
+              if ($oldDashboardStatus.version -eq "0.1.0-alpha.30") {
                 $oldDashboardReady = $true
                 break
               }
@@ -231,11 +240,16 @@ jobs:
           }
           if (-not $oldDashboardReady) { throw "Version A dashboard did not start before upgrade." }
 
-          $upgradeProcess = Start-Process -FilePath $installer.FullName -ArgumentList @("/S", "/ALRUPDATE=1", "/ALRWAITPID=$($oldClient.Id)") -PassThru
+          $env:ALREMASTERED_UPDATE_SESSION_HANDOFF = "ci-invalid-handoff-probe"
+          try {
+            $upgradeProcess = Start-Process -FilePath $installer.FullName -ArgumentList @("/S", "/ALRUPDATE=1", "/ALRWAITPID=$($oldClient.Id)") -PassThru
+          } finally {
+            Remove-Item Env:ALREMASTERED_UPDATE_SESSION_HANDOFF -ErrorAction SilentlyContinue
+          }
           Start-Sleep -Milliseconds 750
 
           $versionWhileWaiting = & "$testDir\ALRemastered.exe" --version
-          if ($versionWhileWaiting.Trim() -ne "0.1.0-alpha.29") {
+          if ($versionWhileWaiting.Trim() -ne "0.1.0-alpha.30") {
             throw "Automatic updater modified the installation before the previous client exited."
           }
 
@@ -245,7 +259,7 @@ jobs:
           for ($attempt = 0; $attempt -lt 120; $attempt++) {
             try {
               $dashboardStatus = Invoke-RestMethod "http://127.0.0.1:3210/api/status"
-              if ($dashboardStatus.version -eq "0.1.0-alpha.30") {
+              if ($dashboardStatus.version -eq "0.1.0-alpha.31") {
                 $dashboardReady = $true
                 break
               }
@@ -267,10 +281,10 @@ jobs:
           if ($remainingInstaller) { throw "Update installer process remained open after installation." }
 
           $version = & "$testDir\ALRemastered.exe" --version
-          if ($version.Trim() -ne "0.1.0-alpha.30") { throw "Expected version B, got $version" }
+          if ($version.Trim() -ne "0.1.0-alpha.31") { throw "Expected version B, got $version" }
           if ((Get-Content (Join-Path $dataDir "upgrade-sentinel.txt") -Raw) -ne "keep-me") { throw "User data was not preserved." }
           $previous = Get-Content "$testDir\.previous\app\package.json" -Raw | ConvertFrom-Json
-          if ($previous.version -ne "0.1.0-alpha.29") { throw "Previous version was not retained for rollback." }
+          if ($previous.version -ne "0.1.0-alpha.30") { throw "Previous version was not retained for rollback." }
 
           if (Test-Path "$testDir\ALRemastered.cmd") { throw "Legacy batch launcher must not be installed." }
 
@@ -323,7 +337,7 @@ jobs:
 
           $dashboardStatus = Invoke-RestMethod "http://127.0.0.1:3210/api/status"
           if ($dashboardStatus.status -ne "running") { throw "Dashboard status endpoint did not report a running core." }
-          if ($dashboardStatus.version -ne "0.1.0-alpha.30") { throw "Automatically restarted client reported the wrong version." }
+          if ($dashboardStatus.version -ne "0.1.0-alpha.31") { throw "Automatically restarted client reported the wrong version." }
 
           $dashboardGameVersion = Invoke-RestMethod "http://127.0.0.1:3210/api/game-version"
           if ($dashboardGameVersion.status -notin @("idle", "checking", "current", "changed", "error")) { throw "Game version API returned an invalid state." }
@@ -331,7 +345,7 @@ jobs:
           if ($dashboardGameData.status -notin @("idle", "loading", "loaded", "error")) { throw "Game data API returned an invalid state." }
 
           $dashboardUpdate = Invoke-RestMethod "http://127.0.0.1:3210/api/update"
-          if ($dashboardUpdate.currentVersion -ne "0.1.0-alpha.30") { throw "Update API returned the wrong client version." }
+          if ($dashboardUpdate.currentVersion -ne "0.1.0-alpha.31") { throw "Update API returned the wrong client version." }
           $diagnosticsSnapshot = Invoke-RestMethod "http://127.0.0.1:3210/api/diagnostics/snapshot"
           if (-not $diagnosticsSnapshot.sanitized) { throw "Diagnostics snapshot was not marked as sanitized." }
           if ($diagnosticsSnapshot.components.Count -lt 5) { throw "Diagnostics component health was incomplete." }
@@ -347,6 +361,12 @@ jobs:
           if ($clientLogText -notmatch '"level":"INFO"') { throw "Structured client log contains no INFO record." }
           if ($clientLogText -notmatch '"message":"ALRemastered starting\."') { throw "Client startup was not logged." }
           if ($clientLogText -notmatch '"message":"ALRemastered restarted automatically after update\."') { throw "Automatic post-update restart was not logged." }
+          if ($clientLogText -notmatch '"message":"Update restart session handoff status\."') { throw "Update handoff status was not logged." }
+          if ($clientLogText -notmatch '"present":true') { throw "Installer did not propagate the handoff environment to the restarted client." }
+          if ($clientLogText -notmatch '"decoded":false') { throw "Invalid CI handoff probe was not decoded as invalid." }
+          if ($clientLogText -notmatch '"consumed":true') { throw "Restarted client did not consume the handoff environment." }
+          if ($clientLogText -notmatch '"message":"Update session handoff was invalid and was discarded\."') { throw "Invalid handoff discard was not logged." }
+          if ($clientLogText -match 'ci-invalid-handoff-probe') { throw "Raw handoff probe leaked into client.log." }
 
           & taskkill.exe /PID $autoClient.Id /T /F | Out-Null
           Start-Sleep -Milliseconds 500

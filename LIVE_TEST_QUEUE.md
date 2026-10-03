@@ -488,3 +488,42 @@ The alpha.30 harness must:
 - automatically copy a structured result plus the complete sanitized diagnostic export to the clipboard.
 
 Slice 3.5 remains **MERGED – AWAITING USER TEST** until the alpha.30 one-click report is reviewed. CI/release publication alone never makes it VERIFIED.
+
+
+### Alpha.30 real one-click result: BLOCKED; alpha.31 bridge retest
+
+Real alpha.30 report:
+
+- test ID: `live35-6dded20e-78ce-45a8-a7e7-c4e13e87dd74`
+- outcome: `BLOCKED`
+- error: `LIVE_TEST_CHARACTER_NOT_CONNECTED`
+- step: `preflight`
+- no gameplay mutation occurred
+- client: `0.1.0-alpha.30` / Windows
+- diagnostic export: `Secrets sanitized: yes`
+
+The report proves the updated one-click UI and automatic clipboard result path worked, but the source build for that update was alpha.29 and therefore could not create the new ephemeral session handoff that only exists starting with alpha.30.
+
+**Target retest release: `v0.1.0-alpha.31`.**
+
+The alpha.31 CI gate must prove:
+
+1. detached updater environment survives source-process exit on Windows and Linux;
+2. the real installer passes the handoff environment to the automatically restarted client;
+3. the restarted client logs `present:true`, `consumed:true` for the injected non-secret probe;
+4. an intentionally invalid probe logs `decoded:false` and is discarded;
+5. the raw probe value never appears in structured client logs;
+6. installer upgrade path is alpha.30 → alpha.31;
+7. all existing Action Gateway and one-click live-test tests remain green.
+
+For the real bridge retest, alpha.30 must have an active account/server/headless-character session before **Install update** can transfer it; the lost alpha.29 in-memory session cannot be recreated by software after the fact without re-authentication. This is a one-time bootstrap consequence of introducing the handoff in alpha.30, not the desired steady-state workflow.
+
+After the bridge has an active source session, the user-facing retest returns to exactly:
+
+```text
+Install update
+→ Start test
+→ paste automatically copied report
+```
+
+Slice 3.5 remains **unverified** until the alpha.31 real report is reviewed.

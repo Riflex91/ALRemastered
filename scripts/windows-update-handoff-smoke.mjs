@@ -6,12 +6,15 @@ import { scheduleInstallerAfterCurrentProcess } from "../build/package/src/updat
 const marker = process.argv[2];
 if (!marker) throw new Error("Marker path is required.");
 
+const envName = "ALREMASTERED_UPDATE_HANDOFF_SMOKE";
+const envValue = "environment-survived-parent-exit";
 rmSync(marker, { force: true });
 
 const delayedProbe = [
   "const fs=require('fs');",
   "const marker=process.argv[1];",
-  "setTimeout(()=>{fs.writeFileSync(marker,'started-after-parent-exit','utf8');process.exit(0);},1200);",
+  `const value=process.env[${JSON.stringify(envName)}]||'';`,
+  "setTimeout(()=>{fs.writeFileSync(marker,value,'utf8');process.exit(0);},1200);",
 ].join("");
 
 await scheduleInstallerAfterCurrentProcess(
@@ -20,6 +23,10 @@ await scheduleInstallerAfterCurrentProcess(
   "win32",
   process.pid,
   ["-e", delayedProbe, resolve(marker)],
+  {
+    ...process.env,
+    [envName]: envValue,
+  },
 );
 
-process.stdout.write("Windows update handoff process was confirmed.\n");
+process.stdout.write("Windows update handoff process and environment were confirmed.\n");
