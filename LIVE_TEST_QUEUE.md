@@ -699,3 +699,40 @@ The one-click harness completed the full Slice 4.4 storage chain:
 
 Do not repeat Slice 4.4 merely because planning text remains above. Slice 4.5 may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
 
+---
+
+### Alpha.42 real one-click result: PASSED — Slice 4.5 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.42`
+- release target / tested implementation main: `c40b811658d83c05bdc8a9d4edbbe43253f2eb1f`
+- client: `0.1.0-alpha.42` / Windows
+- platform: `win32`
+- test ID: `live45-dcfdcaea-dd09-4875-b642-75193c2b9284`
+- character: `My_Ranger2`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-03T18:22:54.058Z → 2026-10-03T18:22:55.333Z`
+- diagnostic export: 82 log lines, `Secrets sanitized: yes`
+
+The one-click harness completed the Slice 4.5 live chain:
+
+- automatically selected low-risk visible `crab` target `5330035`;
+- target evidence: HP `400`, attack `24`, distance `22.3`;
+- no preflight move was required in this run because the selected target was already in range: `approachMoveCount:0`;
+- started the official Simple Farmer using bounded no-code Monster / HP / MP / Loot / Respawn configuration;
+- one server-confirmed script-origin attack succeeded through the central Action Gateway:
+  - `act-8a1035d5-5906-4d6e-add8-8c2e9689e962`;
+- one server-confirmed script-origin loot succeeded through the central Action Gateway:
+  - `act-fdcb5c96-8873-47ac-a1f3-c2cb9d0f6779`;
+- structured result: `attackCount:1`, `lootCount:1`;
+- final runtime: `stopped`, `activeTimers:0`, `activeEventListeners:0`;
+- all five terminal steps passed.
+
+Historical alpha.41 `BLOCKED` evidence remains valid: the earlier harness required a safe target to already be in range. Alpha.42 added bounded direct preflight approach through the existing MovementService / Action Gateway. This successful run did not require movement because its selected crab was already in range.
+
+**Canonical queue status: Slice 4.5 = VERIFIED.**
+
+Do not repeat Slice 4.5 merely because the earlier alpha.41 blocked report remains as historical evidence. Phase 5 / Slice 5.1 may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
+
