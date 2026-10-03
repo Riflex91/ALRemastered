@@ -217,37 +217,65 @@ export class MultiCharacterSessionManager {
       gameplayMutation: false,
     });
 
-    const result = await service.start(id);
-    if (result.status !== "connected") {
+    try {
+      const result = await service.start(id);
+      if (result.status !== "connected") {
+        const error = new MultiCharacterSessionManagerError(
+          result.message || "Adventure Land Character session could not be connected.",
+          "SESSION_CONNECT_FAILED",
+          result.errorCode,
+        );
+        this.#rememberError(error, id, key);
+        this.#logger.warn("Managed Adventure Land Character session failed independently.", {
+          characterId: id,
+          characterName: character.name,
+          serverKey: key,
+          errorCode: error.code,
+          causeCode: error.causeCode,
+          primaryStatus: this.#primary.state().status,
+          gameplayMutation: false,
+        });
+        throw error;
+      }
+
+      this.#logger.info("Managed Adventure Land Character session connected.", {
+        characterId: result.characterId,
+        characterName: result.characterName,
+        serverKey: result.serverKey,
+        activeSessionCount: this.#activeSessionCount(),
+        sessionLimit: this.#sessionLimit,
+        sharedStaticData: true,
+        gameplayMutation: false,
+      });
+      return this.state();
+    } catch (error) {
       this.#managed.delete(id);
-      const error = new MultiCharacterSessionManagerError(
-        result.message || "Adventure Land Character session could not be connected.",
+      if (error instanceof MultiCharacterSessionManagerError) throw error;
+      const causeCode = error &&
+          typeof error === "object" &&
+          "code" in error &&
+          typeof (error as { code?: unknown }).code === "string"
+        ? (error as { code: string }).code
+        : undefined;
+      const managerError = new MultiCharacterSessionManagerError(
+        error instanceof Error
+          ? error.message
+          : "Adventure Land Character session could not be connected.",
         "SESSION_CONNECT_FAILED",
-        result.errorCode,
+        causeCode,
       );
-      this.#rememberError(error, id, key);
+      this.#rememberError(managerError, id, key);
       this.#logger.warn("Managed Adventure Land Character session failed independently.", {
         characterId: id,
         characterName: character.name,
         serverKey: key,
-        errorCode: error.code,
-        causeCode: error.causeCode,
+        errorCode: managerError.code,
+        causeCode: managerError.causeCode,
         primaryStatus: this.#primary.state().status,
         gameplayMutation: false,
       });
-      throw error;
+      throw managerError;
     }
-
-    this.#logger.info("Managed Adventure Land Character session connected.", {
-      characterId: result.characterId,
-      characterName: result.characterName,
-      serverKey: result.serverKey,
-      activeSessionCount: this.#activeSessionCount(),
-      sessionLimit: this.#sessionLimit,
-      sharedStaticData: true,
-      gameplayMutation: false,
-    });
-    return this.state();
   }
 
   async stop(
