@@ -8,6 +8,7 @@ import type {
   AdventureLandLootChestState,
 } from "../character/transport.ts";
 import type { AdventureLandVisibleEntity } from "../character/world-state.ts";
+import type { AdventureLandGameEvent } from "../character/game-events.ts";
 import type { AdventureLandGameData } from "../game/data-source.ts";
 
 export type ScriptAdventureApiMethod = "move" | "xmove" | "attack" | "loot";
@@ -27,6 +28,7 @@ export interface ScriptAdventureApiBootstrap {
 export interface ScriptAdventureApiBridge {
   bootstrap(): ScriptAdventureApiBootstrap;
   state(): ScriptAdventureApiDynamicState;
+  onEvent?(listener: (event: AdventureLandGameEvent) => void): () => void;
   call(
     method: ScriptAdventureApiMethod,
     input: Readonly<Record<string, unknown>>,
@@ -37,7 +39,7 @@ export interface AdventureLandScriptApiBridgeOptions {
   readonly character: Pick<
     AdventureLandCharacterService,
     "state" | "attackCooldownRemainingMs"
-  >;
+  > & Partial<Pick<AdventureLandCharacterService, "onGameEvent">>;
   readonly movement: Pick<AdventureLandMovementService, "runScript">;
   readonly attack: Pick<AdventureLandAttackService, "run">;
   readonly loot: Pick<AdventureLandLootConsumableService, "runLoot">;
@@ -48,7 +50,7 @@ export class AdventureLandScriptApiBridge implements ScriptAdventureApiBridge {
   readonly #character: Pick<
     AdventureLandCharacterService,
     "state" | "attackCooldownRemainingMs"
-  >;
+  > & Partial<Pick<AdventureLandCharacterService, "onGameEvent">>;
   readonly #movement: Pick<AdventureLandMovementService, "runScript">;
   readonly #attack: Pick<AdventureLandAttackService, "run">;
   readonly #loot: Pick<AdventureLandLootConsumableService, "runLoot">;
@@ -67,6 +69,10 @@ export class AdventureLandScriptApiBridge implements ScriptAdventureApiBridge {
       G: structuredClone(this.#gameData() ?? {}),
       state: this.state(),
     });
+  }
+
+  onEvent(listener: (event: AdventureLandGameEvent) => void): () => void {
+    return this.#character.onGameEvent?.(listener) ?? (() => undefined);
   }
 
   state(): ScriptAdventureApiDynamicState {
