@@ -23,7 +23,9 @@ import { AdventureLandVersionStore } from "./game/version-store.ts";
 import { Logger } from "./logging/logger.ts";
 import { Slice35LiveTestService } from "./live-test/slice-3-5.ts";
 import { Slice41LiveTestService } from "./live-test/slice-4-1.ts";
+import { Slice42LiveTestService } from "./live-test/slice-4-2.ts";
 import { getUserPaths } from "./platform/paths.ts";
+import { AdventureLandScriptApiBridge } from "./script/adventure-api.ts";
 import { ScriptRuntimeService } from "./script/runtime.ts";
 import { getReleaseMetadata } from "./release/version-model.ts";
 import {
@@ -134,6 +136,7 @@ let lootConsumableService: AdventureLandLootConsumableService | undefined;
 let slice35LiveTestService: Slice35LiveTestService | undefined;
 let scriptRuntime: ScriptRuntimeService | undefined;
 let slice41LiveTestService: Slice41LiveTestService | undefined;
+let slice42LiveTestService: Slice42LiveTestService | undefined;
 let updateService: UpdateService | undefined;
 let gameVersionService: AdventureLandVersionService | undefined;
 let gameDataService: AdventureLandGameDataService | undefined;
@@ -290,20 +293,6 @@ diagnostics.registerComponent("action-gateway", () => {
   };
 });
 
-scriptRuntime = new ScriptRuntimeService({ logger });
-slice41LiveTestService = new Slice41LiveTestService({
-  logger,
-  runtime: scriptRuntime,
-});
-diagnostics.registerComponent("script-runtime", () => {
-  const state = scriptRuntime!.state();
-  return {
-    name: "script-runtime",
-    status: state.status === "crashed" ? "degraded" : "healthy",
-    message: state.message,
-  };
-});
-
 const source = new GitHubReleaseSource(logger);
 const preferences = new UpdatePreferenceStore(join(userPaths.configDir, "update-preferences.json"));
 updateService = new UpdateService({
@@ -446,6 +435,36 @@ slice35LiveTestService = new Slice35LiveTestService({
   gameData: () => gameDataService!.data(),
 });
 
+const scriptApiBridge = new AdventureLandScriptApiBridge({
+  character: characterService!,
+  movement: movementService!,
+  attack: attackService!,
+  loot: lootConsumableService,
+  gameData: () => gameDataService!.data(),
+});
+scriptRuntime = new ScriptRuntimeService({
+  logger,
+  api: scriptApiBridge,
+});
+slice41LiveTestService = new Slice41LiveTestService({
+  logger,
+  runtime: scriptRuntime,
+});
+slice42LiveTestService = new Slice42LiveTestService({
+  logger,
+  runtime: scriptRuntime,
+  character: characterService!,
+  gameData: () => gameDataService!.data(),
+});
+diagnostics.registerComponent("script-runtime", () => {
+  const state = scriptRuntime!.state();
+  return {
+    name: "script-runtime",
+    status: state.status === "crashed" ? "degraded" : "healthy",
+    message: state.message,
+  };
+});
+
 dashboard = new DashboardServer({
   logger,
   runtime,
@@ -460,6 +479,7 @@ dashboard = new DashboardServer({
   slice35LiveTestService,
   scriptRuntime,
   slice41LiveTestService,
+  slice42LiveTestService,
   updateService,
   diagnostics,
   gameVersionService,
