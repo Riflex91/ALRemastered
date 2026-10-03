@@ -83,7 +83,7 @@ test("Slice 4.2 one-click farmer runs compatible script API through the producti
       name: "monster-1",
       type: "crab",
       map: "main",
-      x: 140,
+      x: 260,
       y: 100,
       hp: 120,
       maxHp: 120,
@@ -101,6 +101,12 @@ test("Slice 4.2 one-click farmer runs compatible script API through the producti
       stateReads += 1;
       if (
         stateReads === 2 &&
+        state.entities.length === 1 &&
+        state.entities[0]?.id === "monster-1"
+      ) {
+        state.entities[0].x = 140;
+      } else if (
+        stateReads === 3 &&
         state.entities.length === 1 &&
         state.entities[0]?.id === "monster-1"
       ) {
@@ -206,6 +212,7 @@ test("Slice 4.2 one-click farmer runs compatible script API through the producti
     const result = await liveTest.run();
     assert.equal(result.outcome, "passed");
     assert.equal(result.steps[0]?.evidence?.targetId, "monster-1");
+    assert.equal(result.steps[0]?.evidence?.targetWaitMs, 125);
     assert.equal(result.targetId, "monster-2");
     assert.equal(result.targetType, "crab");
     assert.equal(attackCalls, 1);
@@ -324,6 +331,7 @@ test("Slice 4.2 blocks before mutation when no safe in-range target exists", asy
         danger: { hp: 10000, attack: 1000, xp: 1000, gold: 1000, boss: true },
       },
     }),
+    delay: async () => undefined,
   });
 
   try {
