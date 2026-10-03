@@ -311,7 +311,7 @@ export class Slice72LiveTestService {
         () => Boolean(outboundEnvelope) && logExists(
           this.#logger,
           "script:slice72-local-cm-probe",
-          `slice72-send-result:${token}`,
+          `slice72-send-result:${marker}`,
         ),
         2_500,
       );
@@ -351,7 +351,7 @@ export class Slice72LiveTestService {
           logExists(
             this.#logger,
             "script:slice72-local-cm-probe",
-            `slice72-cm-received:${token}`,
+            `slice72-cm-received:${marker}`,
           ),
         2_500,
       );
