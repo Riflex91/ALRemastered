@@ -268,7 +268,17 @@ export class Slice35LiveTestService {
       (startingState.lootChests ?? []).map((chest) => chest.id),
     );
 
-    let chestId: string | undefined;
+    let chestId = this.#lootConsumable.dashboardOptions().lootChests[0]?.id;
+    if (chestId) {
+      preparationSteps.push(Object.freeze({
+        name: "loot-setup-existing-chest",
+        outcome: "passed",
+        message:
+          "A chest already observed by the current headless session is available; no combat setup is needed.",
+        evidence: Object.freeze({ chestId }),
+      }));
+    }
+
     for (
       let setupNumber = 1;
       setupNumber <= MAX_MONSTER_SETUPS && !chestId;
