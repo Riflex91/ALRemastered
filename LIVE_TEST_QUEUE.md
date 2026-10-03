@@ -14,7 +14,7 @@ This queue is append-only evidence planning for merged slices that still require
 
 ## Slice 3.2 – Move / XMove
 
-**Status: MERGED – AWAITING USER TEST**
+**Status: VERIFIED**
 
 - Release version: `v0.1.0-alpha.22`
 - Update from: `v0.1.0-alpha.21`
@@ -104,6 +104,27 @@ PR #58 targets `0.1.0-alpha.28`. It keeps moving entity snapshots for server con
 
 **Current correction retest rule:** update to installed `0.1.0-alpha.28`. Perform exactly **one** bounded Move attempt. Require `outcome:"success"`, a canonical live position change toward the 32-unit target, and no subsequent rollback to an older in-flight position. Only if that remains stable should exactly one direct-path XMove be tested. Do not begin Slice 3.3 until both pass.
 
+### Live attempt 5 – alpha.28 VERIFIED
+
+- Windows client: `0.1.0-alpha.28`
+- Automatic updater/restart into alpha.28: observed successfully
+- Diagnostic export: `Secrets sanitized: yes`
+- Headless character: `My_Ranger1` on EU II
+- Move start: `main (168, -134)`
+- Move request: `act-7a255dec-8779-49a2-8890-4e0b89dd56d7`
+- Move gateway result: `character.move`, `origin:"dashboard"`, `outcome:"success"`, 334 ms
+- Stable Move result: `main (168, -102)`, exactly 32 units from start; no later rollback in the captured log
+- Direct-path XMove start: `main (168, -102)`
+- XMove request: `act-4abd98ad-837b-4f10-9c77-0233e65c2488`
+- XMove gateway result: `character.xmove`, `origin:"dashboard"`, `outcome:"success"`, 329 ms
+- XMove observed intermediate: `main (168, -82.01300097592767)`
+- Stable XMove result: `main (168, -70)`, exactly 32 units from start
+- No rollback to the old position was present through the end of the supplied XMove log.
+- No autonomous/repeated movement, unexpected map change, crash, disconnect, or unsanitized secret was observed.
+- Result: Move PASS + direct-path XMove PASS. Slice 3.2 is VERIFIED on the corrected alpha.28 release.
+
+**ROADMAP gate:** Slice 3.3 Attack is now unblocked. Continue strictly with exactly one bounded Attack live test before any later slice.
+
 ### Original alpha.22 dashboard steps retained for historical test intent
 
 1. Start from installed `0.1.0-alpha.21`, choose **Install update**, and confirm the client restarts into `0.1.0-alpha.22`.
@@ -157,7 +178,7 @@ Treat the live test as failed and stop further movement testing if any of these 
 
 Preserve the full log and the two request IDs. Then proceed to the next release in this queue if one has been published; do not wait for Slice 3.2 to be marked VERIFIED before testing later prepared releases.
 
-> 2026-10-03 execution override: testing is now performed strictly in ROADMAP order. Because Slice 3.2 has not yet passed stable canonical real movement, do **not** proceed to Slice 3.3 until the alpha.28 correction retest satisfies the Slice 3.2 behavioral PASS criteria. The original alpha.22 update-path requirement remains historical/CI evidence and is not retroactively claimed as a live pass.
+> 2026-10-03 execution override: testing is performed strictly in ROADMAP order. Slice 3.2 passed on alpha.28 with one stable 32-unit Move and one stable direct-path 32-unit XMove, so Slice 3.3 Attack is now the next permitted live test. The original alpha.22 update-path requirement remains historical/CI evidence and is not retroactively claimed as a live pass.
 
 
 ---
