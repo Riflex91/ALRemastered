@@ -736,3 +736,35 @@ Historical alpha.41 `BLOCKED` evidence remains valid: the earlier harness requir
 
 Do not repeat Slice 4.5 merely because the earlier alpha.41 blocked report remains as historical evidence. Phase 5 / Slice 5.1 may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
 
+---
+
+### Alpha.43 real one-click result: PASSED — Slice 5.1 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.43`
+- release target / tested implementation main: `7a05b80c5be84425208e957a115d5964bdfbf8bc`
+- client: `0.1.0-alpha.43` / Windows
+- platform: `win32`
+- test ID: `live51-f53397ab-161c-4cae-bc15-86eb02d314f9`
+- character: `My_Merchant`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-03T18:46:50.249Z → 2026-10-03T18:46:51.492Z`
+- diagnostic export: 26 log lines, `Secrets sanitized: yes`
+
+The one-click harness completed the full Slice 5.1 heartbeat chain:
+
+- Core heartbeat advanced `24 → 25`;
+- Character heartbeat advanced `65 → 69` from real headless transport activity with `pingMs:13`;
+- isolated Script heartbeat advanced `1 → 3` while `activeTimers:0`;
+- final Character state later reported heartbeat sequence `78`;
+- final Script runtime was `stopped`, `activeTimers:0`, `activeEventListeners:0`;
+- no reconnect, restart/watchdog recovery, or gameplay mutation occurred;
+- diagnostic completion evidence reported `gameplayMutation:false` and `recoveryAction:false`;
+- all four terminal steps passed.
+
+**Canonical queue status: Slice 5.1 = VERIFIED.**
+
+Do not repeat Slice 5.1 merely because the planning text remains above. Slice 5.2 may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
+
