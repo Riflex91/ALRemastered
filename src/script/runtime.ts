@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { Worker } from "node:worker_threads";
 import type { Logger, LogLevel } from "../logging/logger.ts";
+import type {
+  ScriptAdventureApiBridge,
+  ScriptAdventureApiMethod,
+} from "./adventure-api.ts";
 
 export type ScriptRuntimeStatus =
   | "unloaded"
@@ -39,6 +43,8 @@ export interface ScriptRuntimeOptions {
   readonly idFactory?: () => string;
   readonly startupTimeoutMs?: number;
   readonly pauseTimeoutMs?: number;
+  readonly api?: ScriptAdventureApiBridge;
+  readonly apiStateIntervalMs?: number;
 }
 
 interface WorkerMessage {
@@ -47,10 +53,16 @@ interface WorkerMessage {
   readonly message?: string;
   readonly activeTimers?: number;
   readonly runId?: string;
+  readonly callId?: number;
+  readonly method?: string;
+  readonly input?: Readonly<Record<string, unknown>>;
   readonly error?: {
     readonly name?: string;
     readonly message?: string;
     readonly stack?: string;
+    readonly code?: string;
+    readonly retryAfterMs?: number;
+    readonly requestId?: string;
   };
 }
 
@@ -63,8 +75,11 @@ export class ScriptRuntimeService {
   readonly #idFactory: () => string;
   readonly #startupTimeoutMs: number;
   readonly #pauseTimeoutMs: number;
+  readonly #api?: ScriptAdventureApiBridge;
+  readonly #apiStateIntervalMs: number;
   #source?: string;
   #worker?: Worker;
+  #apiStateTimer?: NodeJS.Timeout;
   #expectedExit = false;
   #state: ScriptRuntimeState = {
     status: "unloaded",
@@ -77,8 +92,10 @@ export class ScriptRuntimeService {
     this.#logger = options.logger;
     this.#clock = options.clock ?? (() => new Date());
     this.#idFactory = options.idFactory ?? (() => `script-${randomUUID()}`);
-    this.#startupTimeoutMs = options.startupTimeoutMs ?? 1_500;
+    this.#startupTimeoutMs = options.startupTimeoutMs ?? 3_000;
     this.#pauseTimeoutMs = options.pauseTimeoutMs ?? 750;
+    this.#api = options.api;
+    this.#apiStateIntervalMs = Math.max(50, options.apiStateIntervalMs ?? 100);
   }
 
   state(): ScriptRuntimeState {
@@ -92,7 +109,7 @@ export class ScriptRuntimeService {
     }
     if (!request.source.trim()) throw new Error("Script source is required.");
     if (Buffer.byteLength(request.source, "utf8") > MAX_SCRIPT_BYTES) {
-      throw new Error("Script source exceeds the 256 KiB Slice 4.1 limit.");
+      throw new Error("Script source exceeds the 256 KiB runtime limit.");
     }
 
     await this.#terminateWorker();
@@ -126,11 +143,13 @@ export class ScriptRuntimeService {
       import.meta.url.endsWith(".js") ? "./worker.js" : "./worker.ts",
       import.meta.url,
     );
+    const apiBootstrap = this.#api?.bootstrap();
     const worker = new Worker(workerUrl, {
       workerData: {
         source: this.#source,
         scriptName,
         runId,
+        apiBootstrap,
       },
     });
     this.#worker = worker;
@@ -153,6 +172,7 @@ export class ScriptRuntimeService {
     worker.on("exit", (code) => {
       if (worker !== this.#worker) return;
       this.#worker = undefined;
+      this.#stopApiStatePump();
       if (!this.#expectedExit && this.#state.status !== "crashed") {
         this.#markCrashed(undefined, new Error(`Script worker exited unexpectedly with code ${code}.`));
       }
@@ -161,7 +181,9 @@ export class ScriptRuntimeService {
     this.#logger.info("Script worker start requested.", {
       scriptName,
       runId,
+      adventureApi: Boolean(this.#api),
     }, { component: this.#component(scriptName) });
+    this.#startApiStatePump(worker);
 
     const terminal = await this.#waitForStatus(
       ["running", "crashed"],
@@ -233,6 +255,10 @@ export class ScriptRuntimeService {
 
   #handleWorkerMessage(worker: Worker, message: WorkerMessage): void {
     if (worker !== this.#worker) return;
+    if (message.type === "api_call") {
+      void this.#handleApiCall(worker, message);
+      return;
+    }
     if (message.type === "timer_count") {
       this.#state = {
         ...this.#state,
@@ -295,8 +321,100 @@ export class ScriptRuntimeService {
     }
   }
 
+  async #handleApiCall(worker: Worker, message: WorkerMessage): Promise<void> {
+    if (worker !== this.#worker || typeof message.callId !== "number") return;
+    const method = message.method;
+    const supported: readonly ScriptAdventureApiMethod[] = [
+      "move",
+      "xmove",
+      "attack",
+      "loot",
+    ];
+    if (!this.#api || !supported.includes(method as ScriptAdventureApiMethod)) {
+      worker.postMessage({
+        type: "api_result",
+        callId: message.callId,
+        ok: false,
+        error: {
+          name: "ScriptAdventureApiError",
+          code: "SCRIPT_API_UNAVAILABLE",
+          message: this.#api
+            ? "Unsupported Adventure Land script API method."
+            : "Adventure Land script API is unavailable.",
+        },
+      });
+      return;
+    }
+
+    try {
+      const result = await this.#api.call(
+        method as ScriptAdventureApiMethod,
+        message.input ?? {},
+      );
+      if (worker !== this.#worker) return;
+      worker.postMessage({
+        type: "api_result",
+        callId: message.callId,
+        ok: true,
+        result,
+      });
+    } catch (error) {
+      if (worker !== this.#worker) return;
+      const details = error as {
+        readonly name?: unknown;
+        readonly message?: unknown;
+        readonly code?: unknown;
+        readonly retryAfterMs?: unknown;
+        readonly requestId?: unknown;
+      };
+      worker.postMessage({
+        type: "api_result",
+        callId: message.callId,
+        ok: false,
+        error: {
+          name: typeof details.name === "string" ? details.name : "ScriptAdventureApiError",
+          message: typeof details.message === "string"
+            ? details.message
+            : "Adventure Land script API call failed.",
+          code: typeof details.code === "string" ? details.code : "SCRIPT_ACTION_FAILED",
+          retryAfterMs: typeof details.retryAfterMs === "number"
+            ? details.retryAfterMs
+            : undefined,
+          requestId: typeof details.requestId === "string"
+            ? details.requestId
+            : undefined,
+        },
+      });
+    }
+  }
+
+  #startApiStatePump(worker: Worker): void {
+    this.#stopApiStatePump();
+    if (!this.#api) return;
+    const push = () => {
+      if (worker !== this.#worker || !this.#api) return;
+      try {
+        worker.postMessage({
+          type: "api_state",
+          state: this.#api.state(),
+        });
+      } catch {
+        // Worker lifecycle handling reports termination separately.
+      }
+    };
+    push();
+    this.#apiStateTimer = setInterval(push, this.#apiStateIntervalMs);
+    this.#apiStateTimer.unref();
+  }
+
+  #stopApiStatePump(): void {
+    if (this.#apiStateTimer) clearInterval(this.#apiStateTimer);
+    this.#apiStateTimer = undefined;
+  }
+
   #markCrashed(worker: Worker | undefined, error: Error): void {
     if (worker && worker !== this.#worker) return;
+    this.#stopApiStatePump();
     const scriptName = this.#state.scriptName;
     this.#state = {
       ...this.#state,
@@ -323,6 +441,7 @@ export class ScriptRuntimeService {
   }
 
   async #terminateWorker(): Promise<void> {
+    this.#stopApiStatePump();
     const worker = this.#worker;
     if (!worker) return;
     this.#expectedExit = true;
