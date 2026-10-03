@@ -14,6 +14,8 @@ test("simple farmer source is bounded, escaped, and configured without code", ()
     respawn: true,
   });
   assert.match(source, /get_nearest_monster/);
+  assert.match(source, /no_target: true/);
+  assert.match(source, /ACTION_RATE_LIMITED/);
   assert.match(source, /use_hp\(\)/);
   assert.match(source, /use_mp\(\)/);
   assert.match(source, /await respawn\(\)/);

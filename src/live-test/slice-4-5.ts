@@ -57,10 +57,10 @@ interface SafeMonsterCandidate {
   readonly distance: number;
 }
 
-const MAX_TEST_MS = 12_000;
+const MAX_TEST_MS = 25_000;
 const PREFLIGHT_TARGET_WAIT_MS = 5_000;
 const PREFLIGHT_TARGET_POLL_MS = 125;
-const MAX_ATTACKS = 6;
+const MAX_ATTACKS = 12;
 
 export class Slice45LiveTestService {
   readonly #logger: Logger;
@@ -194,7 +194,7 @@ export class Slice45LiveTestService {
         }),
       }));
 
-      const observed = await this.#waitForAttack(logStartId);
+      const observed = await this.#waitForFarmCycle(logStartId);
       const runtimeBeforeStop = this.#runtime.state();
       await this.#farmer.stop();
 
@@ -206,12 +206,21 @@ export class Slice45LiveTestService {
           "automated-farm",
         );
       }
-      if (!observed) {
+      if (!observed.attack) {
         throw new Slice45LiveTestFailure(
           "LIVE_TEST_FARM_ATTACK_TIMEOUT",
           "The Simple Farmer did not complete a confirmed script-origin attack within the bounded test window.",
           false,
           "automated-farm",
+        );
+      }
+      if (!observed.loot) {
+        throw new Slice45LiveTestFailure(
+          "LIVE_TEST_FARM_LOOT_TIMEOUT",
+          "The Simple Farmer attacked successfully but did not collect a script-origin loot chest within the bounded test window.",
+          true,
+          "automated-loot",
+          { attackCount: observed.attackCount },
         );
       }
 
@@ -222,24 +231,37 @@ export class Slice45LiveTestService {
         const action = contextString(record, "action");
         return action === "character.move" || action === "character.xmove";
       });
-      if (attacks.length < 1 || attacks.length > MAX_ATTACKS || movement.length > 0) {
+      if (
+        attacks.length < 1 ||
+        attacks.length > MAX_ATTACKS ||
+        loots.length < 1 ||
+        movement.length > 0
+      ) {
         throw new Slice45LiveTestFailure(
           "LIVE_TEST_FARM_ACTION_EVIDENCE_INVALID",
           "The bounded farmer action evidence did not match the Slice 4.5 safety contract.",
           false,
           "evidence",
-          { attackCount: attacks.length, movementCount: movement.length },
+          { attackCount: attacks.length, lootCount: loots.length, movementCount: movement.length },
         );
       }
       steps.push(Object.freeze({
         name: "automated-farm-action",
         outcome: "passed",
-        message: "The template completed a real server-confirmed script-origin attack through the central Action Gateway.",
+        message: "The template completed real server-confirmed script-origin attacks through the central Action Gateway.",
         evidence: Object.freeze({
           attackCount: attacks.length,
-          lootCount: loots.length,
           requestIds: Object.freeze(attacks.map((record) => record.requestId).filter(Boolean)),
           navigationActions: 0,
+        }),
+      }));
+      steps.push(Object.freeze({
+        name: "automated-loot",
+        outcome: "passed",
+        message: "With Loot enabled, the template collected the resulting chest through the central Action Gateway.",
+        evidence: Object.freeze({
+          lootCount: loots.length,
+          requestIds: Object.freeze(loots.map((record) => record.requestId).filter(Boolean)),
         }),
       }));
 
@@ -283,7 +305,7 @@ export class Slice45LiveTestService {
         attackCount: attacks.length,
         lootCount: loots.length,
         message:
-          "Slice 4.5 passed: the no-code Simple Farmer Template selected a configured monster type and completed a bounded real script-origin farm attack without navigation.",
+          "Slice 4.5 passed: the no-code Simple Farmer Template completed a bounded real attack-and-loot farm cycle without navigation.",
         steps: Object.freeze(steps),
       });
       this.#state = Object.freeze({ status: "passed", message: result.message, lastResult: result });
@@ -457,16 +479,40 @@ export class Slice45LiveTestService {
       )[0];
   }
 
-  async #waitForAttack(logStartId: number): Promise<boolean> {
+  async #waitForFarmCycle(logStartId: number): Promise<{
+    readonly attack: boolean;
+    readonly loot: boolean;
+    readonly attackCount: number;
+  }> {
     const deadline = Date.now() + MAX_TEST_MS;
+    let attackCount = 0;
     while (Date.now() <= deadline) {
-      if (this.#runtime.state().status === "crashed") return false;
-      if (this.#successfulActionsAfter(logStartId).some((record) =>
+      if (this.#runtime.state().status === "crashed") {
+        return { attack: false, loot: false, attackCount };
+      }
+      this.#assertHpSafety(this.#character.state(), true);
+      const actions = this.#successfulActionsAfter(logStartId);
+      attackCount = actions.filter((record) =>
         contextString(record, "action") === "character.attack"
-      )) return true;
+      ).length;
+      const loot = actions.some((record) =>
+        contextString(record, "action") === "character.loot"
+      );
+      if (attackCount > MAX_ATTACKS) {
+        throw new Slice45LiveTestFailure(
+          "LIVE_TEST_FARM_ATTACK_BUDGET_EXCEEDED",
+          "The Simple Farmer exceeded the bounded successful attack budget.",
+          false,
+          "automated-farm",
+          { attackCount },
+        );
+      }
+      if (attackCount >= 1 && loot) {
+        return { attack: true, loot: true, attackCount };
+      }
       await this.#delay(50);
     }
-    return false;
+    return { attack: attackCount >= 1, loot: false, attackCount };
   }
 
   #successfulActionsAfter(logStartId: number): LogRecord[] {

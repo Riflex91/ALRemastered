@@ -40,6 +40,11 @@ test("Slice 4.5 bounded farm test starts no-code template, observes script attac
         { action: "character.attack", origin: "script", outcome: "success" },
         { requestId: "act-slice45-test", characterId: "CH_1" },
       );
+      logger.info(
+        "Action gateway request completed.",
+        { action: "character.loot", origin: "script", outcome: "success" },
+        { requestId: "act-slice45-loot", characterId: "CH_1" },
+      );
       return { status: "running", message: "running", config };
     },
     stop: async () => {
@@ -65,6 +70,7 @@ test("Slice 4.5 bounded farm test starts no-code template, observes script attac
   assert.equal(result.slice, "4.5");
   assert.equal(result.targetType, "goo");
   assert.equal(result.attackCount, 1);
+  assert.equal(result.lootCount, 1);
   assert.equal(startedConfig.monster, "goo");
   assert.equal(startedConfig.hpThresholdPercent, 1);
   assert.equal(startedConfig.mpThresholdPercent, 1);
@@ -74,6 +80,7 @@ test("Slice 4.5 bounded farm test starts no-code template, observes script attac
     "preflight",
     "no-code-template-config",
     "automated-farm-action",
+    "automated-loot",
     "bounded-stop-cleanup",
   ]);
   assert.equal(runtime.status, "stopped");
