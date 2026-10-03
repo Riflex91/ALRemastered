@@ -6,6 +6,7 @@ import type {
   ScriptAdventureApiMethod,
 } from "./adventure-api.ts";
 import type { AdventureLandGameEvent } from "../character/game-events.ts";
+import type { ScriptStorageStore } from "./storage.ts";
 
 export type ScriptRuntimeStatus =
   | "unloaded"
@@ -47,6 +48,7 @@ export interface ScriptRuntimeOptions {
   readonly pauseTimeoutMs?: number;
   readonly api?: ScriptAdventureApiBridge;
   readonly apiStateIntervalMs?: number;
+  readonly storage?: ScriptStorageStore;
 }
 
 interface WorkerMessage {
@@ -60,6 +62,9 @@ interface WorkerMessage {
   readonly input?: Readonly<Record<string, unknown>>;
   readonly activeEventListeners?: number;
   readonly eventNames?: readonly string[];
+  readonly storageOperation?: string;
+  readonly key?: string;
+  readonly value?: unknown;
   readonly error?: {
     readonly name?: string;
     readonly message?: string;
@@ -81,6 +86,7 @@ export class ScriptRuntimeService {
   readonly #pauseTimeoutMs: number;
   readonly #api?: ScriptAdventureApiBridge;
   readonly #apiStateIntervalMs: number;
+  readonly #storage?: ScriptStorageStore;
   #source?: string;
   #worker?: Worker;
   #apiStateTimer?: NodeJS.Timeout;
@@ -103,6 +109,7 @@ export class ScriptRuntimeService {
     this.#pauseTimeoutMs = options.pauseTimeoutMs ?? 750;
     this.#api = options.api;
     this.#apiStateIntervalMs = Math.max(50, options.apiStateIntervalMs ?? 100);
+    this.#storage = options.storage;
   }
 
   state(): ScriptRuntimeState {
@@ -152,12 +159,14 @@ export class ScriptRuntimeService {
       import.meta.url,
     );
     const apiBootstrap = this.#api?.bootstrap();
+    const storageBootstrap = this.#storage?.snapshot(scriptName);
     const worker = new Worker(workerUrl, {
       workerData: {
         source: this.#source,
         scriptName,
         runId,
         apiBootstrap,
+        storageEntries: storageBootstrap?.entries ?? [],
       },
     });
     this.#worker = worker;
@@ -192,6 +201,8 @@ export class ScriptRuntimeService {
       scriptName,
       runId,
       adventureApi: Boolean(this.#api),
+      scriptStorage: Boolean(this.#storage),
+      storedValues: storageBootstrap?.entries.length ?? 0,
     }, { component: this.#component(scriptName) });
     this.#startApiStatePump(worker);
     this.#startApiEventBridge(worker);
@@ -271,6 +282,10 @@ export class ScriptRuntimeService {
     if (worker !== this.#worker) return;
     if (message.type === "api_call") {
       void this.#handleApiCall(worker, message);
+      return;
+    }
+    if (message.type === "storage_call") {
+      void this.#handleStorageCall(worker, message);
       return;
     }
     if (message.type === "event_listener_state") {
@@ -411,6 +426,59 @@ export class ScriptRuntimeService {
           requestId: typeof details.requestId === "string"
             ? details.requestId
             : undefined,
+        },
+      });
+    }
+  }
+
+  async #handleStorageCall(worker: Worker, message: WorkerMessage): Promise<void> {
+    if (worker !== this.#worker || typeof message.callId !== "number") return;
+    const scriptName = this.#state.scriptName;
+    const operation = message.storageOperation;
+    if (!this.#storage || !scriptName || (operation !== "set" && operation !== "delete")) {
+      worker.postMessage({
+        type: "storage_result",
+        callId: message.callId,
+        ok: false,
+        error: {
+          name: "ScriptStorageError",
+          code: "SCRIPT_STORAGE_UNAVAILABLE",
+          message: "Script storage is unavailable.",
+        },
+      });
+      return;
+    }
+
+    try {
+      const snapshot = operation === "set"
+        ? this.#storage.set(scriptName, message.key ?? "", message.value)
+        : this.#storage.delete(scriptName, message.key ?? "");
+      if (worker !== this.#worker) return;
+      worker.postMessage({
+        type: "storage_result",
+        callId: message.callId,
+        ok: true,
+        result: { entryCount: snapshot.entries.length },
+      });
+      this.#logger.debug("Script storage updated.", {
+        scriptName,
+        runId: this.#state.runId,
+        operation,
+        key: message.key,
+        entryCount: snapshot.entries.length,
+        valueLogged: false,
+      }, { component: this.#component(scriptName) });
+    } catch (error) {
+      if (worker !== this.#worker) return;
+      const details = error as { readonly name?: unknown; readonly message?: unknown; readonly code?: unknown };
+      worker.postMessage({
+        type: "storage_result",
+        callId: message.callId,
+        ok: false,
+        error: {
+          name: typeof details.name === "string" ? details.name : "ScriptStorageError",
+          message: typeof details.message === "string" ? details.message : "Script storage operation failed.",
+          code: typeof details.code === "string" ? details.code : "SCRIPT_STORAGE_FAILED",
         },
       });
     }

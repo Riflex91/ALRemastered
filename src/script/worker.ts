@@ -25,6 +25,10 @@ interface WorkerInput {
   readonly scriptName: string;
   readonly runId: string;
   readonly apiBootstrap?: ApiBootstrap;
+  readonly storageEntries?: readonly {
+    readonly key: string;
+    readonly value: unknown;
+  }[];
 }
 
 interface ApiResultMessage {
@@ -51,6 +55,10 @@ const pendingApiCalls = new Map<
   number,
   { resolve: (value: unknown) => void; reject: (error: Error) => void }
 >();
+const pendingStorageCalls = new Map<
+  number,
+  { resolve: (value: unknown) => void; reject: (error: Error) => void }
+>();
 const eventListeners = new Map<
   AdventureLandGameEventName,
   Set<(payload: Readonly<Record<string, unknown>>) => void>
@@ -58,9 +66,13 @@ const eventListeners = new Map<
 const character: Record<string, unknown> = {};
 const Entities: Record<string, Record<string, unknown>> = {};
 const G = input.apiBootstrap?.G ?? {};
+const storageValues = new Map<string, unknown>(
+  (input.storageEntries ?? []).map((entry) => [entry.key, structuredClone(entry.value)]),
+);
 let attackCooldownMs = 0;
 let nextTimerId = 1;
 let nextApiCallId = 1;
+let nextStorageCallId = 1;
 let terminal = false;
 let paused = false;
 
@@ -336,6 +348,82 @@ function apiCall(method: string, payload: Readonly<Record<string, unknown>>): Pr
   });
 }
 
+function storageKey(value: unknown): string {
+  if (typeof value !== "string" || !value.length || /[\u0000-\u001f\u007f]/.test(value)) {
+    throw scriptApiError("SCRIPT_STORAGE_KEY_INVALID", "Storage keys must be non-empty strings without control characters.");
+  }
+  if (Buffer.byteLength(value, "utf8") > 256) {
+    throw scriptApiError("SCRIPT_STORAGE_KEY_INVALID", "Storage keys are limited to 256 bytes.");
+  }
+  return value;
+}
+
+function cloneStorageValue(value: unknown): unknown {
+  if (value === undefined) {
+    throw scriptApiError("SCRIPT_STORAGE_VALUE_INVALID", "Storage values must be JSON-compatible.");
+  }
+  let serialized: string | undefined;
+  try {
+    serialized = JSON.stringify(value);
+  } catch {
+    serialized = undefined;
+  }
+  if (serialized === undefined) {
+    throw scriptApiError("SCRIPT_STORAGE_VALUE_INVALID", "Storage values must be JSON-compatible.");
+  }
+  return JSON.parse(serialized);
+}
+
+function storageCall(
+  operation: "set" | "delete",
+  key: string,
+  value?: unknown,
+): Promise<unknown> {
+  if (terminal) return Promise.reject(scriptApiError("SCRIPT_STOPPED", "Script runtime is stopped."));
+  if (paused) return Promise.reject(scriptApiError("SCRIPT_PAUSED", "Script runtime is paused."));
+  const callId = nextStorageCallId++;
+  return new Promise((resolve, reject) => {
+    pendingStorageCalls.set(callId, { resolve, reject });
+    parentPort!.postMessage({
+      type: "storage_call",
+      callId,
+      storageOperation: operation,
+      key,
+      value,
+    });
+  });
+}
+
+function scriptGet(key: unknown, fallback?: unknown): unknown {
+  const safeKey = storageKey(key);
+  if (!storageValues.has(safeKey)) return fallback;
+  return cloneStorageValue(storageValues.get(safeKey));
+}
+
+function scriptSet(key: unknown, value: unknown): Promise<unknown> {
+  const safeKey = storageKey(key);
+  const safeValue = cloneStorageValue(value);
+  const hadPrevious = storageValues.has(safeKey);
+  const previous = storageValues.get(safeKey);
+  storageValues.set(safeKey, safeValue);
+  return storageCall("set", safeKey, safeValue).catch((error) => {
+    if (hadPrevious) storageValues.set(safeKey, previous);
+    else storageValues.delete(safeKey);
+    throw error;
+  });
+}
+
+function scriptDel(key: unknown): Promise<unknown> {
+  const safeKey = storageKey(key);
+  const hadPrevious = storageValues.has(safeKey);
+  const previous = storageValues.get(safeKey);
+  storageValues.delete(safeKey);
+  return storageCall("delete", safeKey).catch((error) => {
+    if (hadPrevious) storageValues.set(safeKey, previous);
+    throw error;
+  });
+}
+
 function scriptMove(x: unknown, y: unknown): Promise<unknown> {
   const targetX = finiteNumber(x);
   const targetY = finiteNumber(y);
@@ -417,6 +505,14 @@ parentPort.on("message", (raw: unknown) => {
     dispatchGameEvent(message.event);
     return;
   }
+  if (type === "storage_result" && typeof message.callId === "number") {
+    const pending = pendingStorageCalls.get(message.callId);
+    if (!pending) return;
+    pendingStorageCalls.delete(message.callId);
+    if (message.ok) pending.resolve(message.result);
+    else pending.reject(apiResultError(message));
+    return;
+  }
   if (type === "api_result" && typeof message.callId === "number") {
     const pending = pendingApiCalls.get(message.callId);
     if (!pending) return;
@@ -468,6 +564,9 @@ const sandbox: Record<string, unknown> = {
   loot: scriptLoot,
   on: scriptOn,
   off: scriptOff,
+  get: scriptGet,
+  set: scriptSet,
+  del: scriptDel,
 };
 sandbox.globalThis = sandbox;
 sandbox.self = sandbox;

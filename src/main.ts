@@ -25,9 +25,11 @@ import { Slice35LiveTestService } from "./live-test/slice-3-5.ts";
 import { Slice41LiveTestService } from "./live-test/slice-4-1.ts";
 import { Slice42LiveTestService } from "./live-test/slice-4-2.ts";
 import { Slice43LiveTestService } from "./live-test/slice-4-3.ts";
+import { Slice44LiveTestService } from "./live-test/slice-4-4.ts";
 import { getUserPaths } from "./platform/paths.ts";
 import { AdventureLandScriptApiBridge } from "./script/adventure-api.ts";
 import { ScriptRuntimeService } from "./script/runtime.ts";
+import { ScriptStorageStore } from "./script/storage.ts";
 import { getReleaseMetadata } from "./release/version-model.ts";
 import {
   dashboardUpdateInstallerArguments,
@@ -139,6 +141,7 @@ let scriptRuntime: ScriptRuntimeService | undefined;
 let slice41LiveTestService: Slice41LiveTestService | undefined;
 let slice42LiveTestService: Slice42LiveTestService | undefined;
 let slice43LiveTestService: Slice43LiveTestService | undefined;
+let slice44LiveTestService: Slice44LiveTestService | undefined;
 let updateService: UpdateService | undefined;
 let gameVersionService: AdventureLandVersionService | undefined;
 let gameDataService: AdventureLandGameDataService | undefined;
@@ -444,9 +447,14 @@ const scriptApiBridge = new AdventureLandScriptApiBridge({
   loot: lootConsumableService,
   gameData: () => gameDataService!.data(),
 });
+const scriptStorage = new ScriptStorageStore(
+  join(userPaths.dataDir, "scripts", "storage"),
+  logger,
+);
 scriptRuntime = new ScriptRuntimeService({
   logger,
   api: scriptApiBridge,
+  storage: scriptStorage,
 });
 slice41LiveTestService = new Slice41LiveTestService({
   logger,
@@ -462,6 +470,11 @@ slice43LiveTestService = new Slice43LiveTestService({
   logger,
   runtime: scriptRuntime,
   character: characterService!,
+});
+slice44LiveTestService = new Slice44LiveTestService({
+  logger,
+  runtime: scriptRuntime,
+  storage: scriptStorage,
 });
 diagnostics.registerComponent("script-runtime", () => {
   const state = scriptRuntime!.state();
@@ -488,6 +501,7 @@ dashboard = new DashboardServer({
   slice41LiveTestService,
   slice42LiveTestService,
   slice43LiveTestService,
+  slice44LiveTestService,
   updateService,
   diagnostics,
   gameVersionService,
