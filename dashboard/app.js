@@ -35,6 +35,8 @@ const state = {
   slice54LastReport: null,
   slice61LiveTest: null,
   slice61LastReport: null,
+  slice62LiveTest: null,
+  slice62LastReport: null,
   update: null,
   gameVersion: null,
   gameData: null,
@@ -179,6 +181,10 @@ const elements = {
   slice61LiveTestStatus: document.querySelector("#slice-6-1-live-test-status"),
   slice61LiveTestNote: document.querySelector("#slice-6-1-live-test-note"),
   copySlice61LiveTestResult: document.querySelector("#copy-slice-6-1-live-test-result"),
+  startSlice62LiveTest: document.querySelector("#start-slice-6-2-live-test"),
+  slice62LiveTestStatus: document.querySelector("#slice-6-2-live-test-status"),
+  slice62LiveTestNote: document.querySelector("#slice-6-2-live-test-note"),
+  copySlice62LiveTestResult: document.querySelector("#copy-slice-6-2-live-test-result"),
   gameVersion: document.querySelector("#game-version"),
   gameVersionStatus: document.querySelector("#game-version-status"),
   gameLastDeploy: document.querySelector("#game-last-deploy"),
@@ -1382,6 +1388,32 @@ function renderSlice61LiveTest() {
   }
 }
 
+function renderSlice62LiveTest() {
+  const test = state.slice62LiveTest;
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    blocked: "BLOCKED",
+    failed: "FAILED",
+    unavailable: "Unavailable",
+  };
+  const status = test?.status ?? "idle";
+  elements.slice62LiveTestStatus.textContent = labels[status] ?? status;
+  elements.startSlice62LiveTest.disabled = status === "running";
+  elements.copySlice62LiveTestResult.hidden = !state.slice62LastReport;
+  if (status === "running") {
+    elements.slice62LiveTestNote.textContent =
+      "Refreshing live navigation data, selecting a real unconditional cross-map route, and validating waypoints plus every route leg. No Character movement is executed.";
+  } else if (test?.message) {
+    elements.slice62LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  } else {
+    elements.slice62LiveTestNote.textContent =
+      "Passive route planning only. No Character connection, movement execution, gameplay mutation, or raw socket access is required.";
+  }
+}
+
 function renderGameVersion() {
   const gameVersion = state.gameVersion;
   if (!gameVersion) return;
@@ -1946,6 +1978,22 @@ async function refreshSlice61LiveTest() {
       message: "Slice 6.1 map/geometry-model status could not be loaded.",
     };
     renderSlice61LiveTest();
+  }
+}
+
+async function refreshSlice62LiveTest() {
+  try {
+    const response = await fetch("/api/live-test/slice-6-2", { cache: "no-store" });
+    state.slice62LiveTest = response.ok
+      ? await response.json()
+      : { status: "unavailable", message: "Slice 6.2 simple path-planner test is unavailable." };
+    renderSlice62LiveTest();
+  } catch {
+    state.slice62LiveTest = {
+      status: "unavailable",
+      message: "Slice 6.2 simple path-planner status could not be loaded.",
+    };
+    renderSlice62LiveTest();
   }
 }
 
@@ -2684,6 +2732,38 @@ async function startSlice61LiveTest(clipboardWrite) {
   };
   const copied = await clipboardWrite.finish(payload.reportText);
   renderSlice61LiveTest();
+  await refreshCharacterConnection();
+  await refreshGameData();
+  await refreshDiagnostics();
+  return { payload, copied };
+}
+
+async function startSlice62LiveTest(clipboardWrite) {
+  state.slice62LiveTest = {
+    status: "running",
+    message: "Slice 6.2 simple path-planner test is running.",
+  };
+  renderSlice62LiveTest();
+  const response = await fetch("/api/live-test/slice-6-2/start", { method: "POST" });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      payload.error ??
+        payload.message ??
+        `Slice 6.2 simple path-planner test failed with HTTP ${response.status}`,
+    );
+  }
+  if (!payload.reportText || typeof payload.reportText !== "string") {
+    throw new Error("Slice 6.2 simple path-planner test returned no copyable report.");
+  }
+  state.slice62LastReport = payload.reportText;
+  state.slice62LiveTest = {
+    status: payload.result?.outcome ?? "failed",
+    message: payload.result?.message ?? "Slice 6.2 simple path-planner test finished.",
+    lastResult: payload.result,
+  };
+  const copied = await clipboardWrite.finish(payload.reportText);
+  renderSlice62LiveTest();
   await refreshCharacterConnection();
   await refreshGameData();
   await refreshDiagnostics();
@@ -3648,6 +3728,45 @@ elements.copySlice61LiveTestResult.addEventListener("click", async () => {
   }
 });
 
+elements.startSlice62LiveTest.addEventListener("click", async () => {
+  if (state.slice62LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice62LastReport = null;
+  elements.copySlice62LiveTestResult.hidden = true;
+  setFeedback(
+    "Slice 6.2 path planner test started. A live cross-map route will be planned and validated without executing movement.",
+  );
+  try {
+    const { payload, copied } = await startSlice62LiveTest(clipboardWrite);
+    const outcome = payload.result?.outcome ?? "failed";
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 6.2 test ${String(outcome).toUpperCase()}. ${copyMessage}`,
+      outcome === "passed" && copied ? "success" : outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    await refreshSlice62LiveTest();
+    setFeedback(`Slice 6.2 simple path-planner test could not finish: ${error.message}`, "error");
+  } finally {
+    renderSlice62LiveTest();
+  }
+});
+
+elements.copySlice62LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice62LastReport) return;
+  try {
+    await writeClipboard(state.slice62LastReport);
+    setFeedback(
+      "Complete Slice 6.2 path-planner result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Path-planner result copy failed: ${error.message}`, "error");
+  }
+});
+
 elements.reloadGameData.addEventListener("click", async () => {
   elements.reloadGameData.disabled = true;
   setFeedback("Reloading Adventure Land game data…");
@@ -3769,6 +3888,7 @@ await refreshSlice52LiveTest();
 await refreshSlice53LiveTest();
 await refreshSlice54LiveTest();
 await refreshSlice61LiveTest();
+await refreshSlice62LiveTest();
 await refreshGameVersion();
 await refreshGameData();
 await refreshUpdate();
@@ -3795,6 +3915,7 @@ setInterval(refreshSlice52LiveTest, 1500);
 setInterval(refreshSlice53LiveTest, 1500);
 setInterval(refreshSlice54LiveTest, 1500);
 setInterval(refreshSlice61LiveTest, 1500);
+setInterval(refreshSlice62LiveTest, 1500);
 setInterval(refreshGameVersion, 2000);
 setInterval(refreshGameData, 2000);
 setInterval(refreshUpdate, 1500);

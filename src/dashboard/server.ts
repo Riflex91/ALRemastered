@@ -30,7 +30,9 @@ import type { Slice52LiveTestService } from "../live-test/slice-5-2.ts";
 import type { Slice53LiveTestService } from "../live-test/slice-5-3.ts";
 import type { Slice54LiveTestService } from "../live-test/slice-5-4.ts";
 import type { Slice61LiveTestService } from "../live-test/slice-6-1.ts";
+import type { Slice62LiveTestService } from "../live-test/slice-6-2.ts";
 import type { AdventureLandMapModelService } from "../navigation/map-model.ts";
+import type { SimplePathPlannerService } from "../navigation/path-planner.ts";
 import type { WatchdogComponent, WatchdogService } from "../recovery/watchdog.ts";
 import type { ScriptRuntimeService } from "../script/runtime.ts";
 import type { SimpleFarmerConfig, SimpleFarmerTemplateService } from "../script/simple-farmer.ts";
@@ -61,7 +63,9 @@ export interface DashboardServerOptions {
   readonly slice53LiveTestService?: Slice53LiveTestService;
   readonly slice54LiveTestService?: Slice54LiveTestService;
   readonly slice61LiveTestService?: Slice61LiveTestService;
+  readonly slice62LiveTestService?: Slice62LiveTestService;
   readonly mapModelService?: AdventureLandMapModelService;
+  readonly pathPlannerService?: SimplePathPlannerService;
   readonly watchdogService?: WatchdogService;
   readonly simpleFarmerService?: SimpleFarmerTemplateService;
   readonly updateService?: UpdateService;
@@ -95,7 +99,9 @@ export class DashboardServer {
   readonly #slice53LiveTestService?: Slice53LiveTestService;
   readonly #slice54LiveTestService?: Slice54LiveTestService;
   readonly #slice61LiveTestService?: Slice61LiveTestService;
+  readonly #slice62LiveTestService?: Slice62LiveTestService;
   readonly #mapModelService?: AdventureLandMapModelService;
+  readonly #pathPlannerService?: SimplePathPlannerService;
   readonly #watchdogService?: WatchdogService;
   readonly #simpleFarmerService?: SimpleFarmerTemplateService;
   readonly #updateService?: UpdateService;
@@ -132,7 +138,9 @@ export class DashboardServer {
     this.#slice53LiveTestService = options.slice53LiveTestService;
     this.#slice54LiveTestService = options.slice54LiveTestService;
     this.#slice61LiveTestService = options.slice61LiveTestService;
+    this.#slice62LiveTestService = options.slice62LiveTestService;
     this.#mapModelService = options.mapModelService;
+    this.#pathPlannerService = options.pathPlannerService;
     this.#watchdogService = options.watchdogService;
     this.#simpleFarmerService = options.simpleFarmerService;
     this.#updateService = options.updateService;
@@ -973,6 +981,39 @@ export class DashboardServer {
         : this.#json(response, { error: `Map ${key} is not available in the loaded model.` }, 404);
     }
 
+    if (method === "GET" && path === "/api/navigation/path-planner") {
+      if (!this.#pathPlannerService) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Simple path planner service is unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#pathPlannerService.state());
+    }
+    if (method === "POST" && path === "/api/navigation/plan-route") {
+      if (!this.#pathPlannerService) {
+        return this.#json(response, {
+          error: "Simple path planner service is unavailable.",
+        }, 503);
+      }
+      let body: Record<string, unknown>;
+      try {
+        body = await this.#readJsonObject(request);
+      } catch (error) {
+        return this.#json(response, {
+          error: error instanceof Error ? error.message : "Invalid request body.",
+        }, 400);
+      }
+      const from = parsePathLocation(body.from);
+      const to = parsePathLocation(body.to);
+      if (!from || !to) {
+        return this.#json(response, {
+          error: "Route planning requires from/to objects with map and finite x/y coordinates.",
+        }, 400);
+      }
+      return this.#json(response, this.#pathPlannerService.plan(from, to));
+    }
+
     if (method === "GET" && path === "/api/live-test/slice-6-1") {
       if (!this.#slice61LiveTestService) {
         return this.#json(response, {
@@ -994,6 +1035,39 @@ export class DashboardServer {
         schemaVersion: 1,
         kind: "ALRemastered Slice 6.1 one-click map/geometry-model test",
         result,
+        mapModel: this.#mapModelService?.state(),
+        character: this.#characterService?.state(),
+        diagnostic,
+      };
+      return this.#json(response, {
+        result,
+        reportText: JSON.stringify(report, null, 2),
+        clipboardSuggested: true,
+      });
+    }
+
+    if (method === "GET" && path === "/api/live-test/slice-6-2") {
+      if (!this.#slice62LiveTestService) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Slice 6.2 simple path-planner test service is unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#slice62LiveTestService.state());
+    }
+    if (method === "POST" && path === "/api/live-test/slice-6-2/start") {
+      if (!this.#slice62LiveTestService) {
+        return this.#json(response, {
+          error: "Slice 6.2 simple path-planner test service is unavailable.",
+        }, 503);
+      }
+      const result = await this.#slice62LiveTestService.run();
+      const diagnostic = this.#exportPayload();
+      const report = {
+        schemaVersion: 1,
+        kind: "ALRemastered Slice 6.2 one-click simple path-planner test",
+        result,
+        pathPlanner: this.#pathPlannerService?.state(),
         mapModel: this.#mapModelService?.state(),
         character: this.#characterService?.state(),
         diagnostic,
@@ -1267,6 +1341,30 @@ function gatewayStatusCode(result: ActionGatewayResult): number {
     case "timeout": return 504;
     case "error": return 400;
   }
+}
+
+function parsePathLocation(
+  value: unknown,
+): { readonly map: string; readonly x: number; readonly y: number } | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  if (
+    typeof record.map !== "string" ||
+    !record.map.trim() ||
+    typeof record.x !== "number" ||
+    !Number.isFinite(record.x) ||
+    typeof record.y !== "number" ||
+    !Number.isFinite(record.y)
+  ) {
+    return undefined;
+  }
+  return {
+    map: record.map.trim(),
+    x: record.x,
+    y: record.y,
+  };
 }
 
 function parseMovementMode(value: unknown): MovementMode | undefined {

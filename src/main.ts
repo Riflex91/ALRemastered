@@ -33,6 +33,7 @@ import { Slice52LiveTestService } from "./live-test/slice-5-2.ts";
 import { Slice53LiveTestService } from "./live-test/slice-5-3.ts";
 import { Slice54LiveTestService } from "./live-test/slice-5-4.ts";
 import { Slice61LiveTestService } from "./live-test/slice-6-1.ts";
+import { Slice62LiveTestService } from "./live-test/slice-6-2.ts";
 import { getUserPaths } from "./platform/paths.ts";
 import { AdventureLandScriptApiBridge } from "./script/adventure-api.ts";
 import { ScriptRuntimeService } from "./script/runtime.ts";
@@ -40,6 +41,7 @@ import { SimpleFarmerTemplateService } from "./script/simple-farmer.ts";
 import { ScriptStorageStore } from "./script/storage.ts";
 import { getReleaseMetadata } from "./release/version-model.ts";
 import { AdventureLandMapModelService } from "./navigation/map-model.ts";
+import { SimplePathPlannerService } from "./navigation/path-planner.ts";
 import { WatchdogService } from "./recovery/watchdog.ts";
 import {
   dashboardUpdateInstallerArguments,
@@ -160,7 +162,9 @@ let slice52LiveTestService: Slice52LiveTestService | undefined;
 let slice53LiveTestService: Slice53LiveTestService | undefined;
 let slice54LiveTestService: Slice54LiveTestService | undefined;
 let slice61LiveTestService: Slice61LiveTestService | undefined;
+let slice62LiveTestService: Slice62LiveTestService | undefined;
 let mapModelService: AdventureLandMapModelService | undefined;
+let pathPlannerService: SimplePathPlannerService | undefined;
 let watchdogService: WatchdogService | undefined;
 let updateService: UpdateService | undefined;
 let gameVersionService: AdventureLandVersionService | undefined;
@@ -411,6 +415,19 @@ mapModelService = new AdventureLandMapModelService({
   logger,
   gameData: () => gameDataService!.data(),
 });
+pathPlannerService = new SimplePathPlannerService({
+  logger,
+  mapModel: mapModelService,
+});
+
+diagnostics.registerComponent("path-planner", () => {
+  const state = pathPlannerService!.state();
+  return {
+    name: "path-planner",
+    status: state.status === "ready" ? "healthy" : "healthy",
+    message: state.message,
+  };
+});
 
 diagnostics.registerComponent("map-model", () => {
   const state = mapModelService!.state();
@@ -567,6 +584,13 @@ slice61LiveTestService = new Slice61LiveTestService({
   mapModel: mapModelService!,
   character: characterService!,
 });
+slice62LiveTestService = new Slice62LiveTestService({
+  logger,
+  gameData: gameDataService!,
+  mapModel: mapModelService!,
+  planner: pathPlannerService!,
+  character: characterService!,
+});
 watchdogService.start();
 diagnostics.registerComponent("watchdog", () => {
   const state = watchdogService!.state();
@@ -611,7 +635,9 @@ dashboard = new DashboardServer({
   slice53LiveTestService,
   slice54LiveTestService,
   slice61LiveTestService,
+  slice62LiveTestService,
   mapModelService,
+  pathPlannerService,
   watchdogService,
   simpleFarmerService,
   updateService,

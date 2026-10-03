@@ -2130,3 +2130,133 @@ test("dashboard exposes Slice 6.1 map/geometry-model APIs and one-click test", a
   }
 });
 
+test("dashboard exposes Slice 6.2 path-planner APIs and one-click test", async () => {
+  const html = readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
+  const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
+  for (const id of [
+    "start-slice-6-2-live-test",
+    "slice-6-2-live-test-status",
+    "copy-slice-6-2-live-test-result",
+  ]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+  assert.match(html, /ordered waypoints, collision-safe walk legs/);
+  assert.match(html, /No Character connection or movement execution is required/);
+  assert.match(script, /\/api\/live-test\/slice-6-2\/start/);
+
+  const runtime = new CoreRuntime();
+  runtime.start();
+  const logger = new Logger({ component: "dashboard-slice62-test" });
+  const fakePlan = {
+    status: "reachable",
+    message: "Reachable route found with 1 map transition(s).",
+    from: { map: "main", x: 0, y: 0 },
+    to: { map: "cave", x: 0, y: 0 },
+    waypoints: [
+      { id: "__start__", kind: "start", map: "main", x: 0, y: 0 },
+      { id: "main:door:0", kind: "door", map: "main", x: 50, y: 0, transitionId: "main:door:0" },
+      { id: "main:door:0:arrival", kind: "arrival", map: "cave", x: 0, y: 0, transitionId: "main:door:0" },
+      { id: "__target__", kind: "target", map: "cave", x: 0, y: 0 },
+    ],
+    legs: [
+      {
+        kind: "walk",
+        from: { id: "__start__", kind: "start", map: "main", x: 0, y: 0 },
+        to: { id: "main:door:0", kind: "door", map: "main", x: 50, y: 0, transitionId: "main:door:0" },
+        distance: 50,
+      },
+      {
+        kind: "transition",
+        from: { id: "main:door:0", kind: "door", map: "main", x: 50, y: 0, transitionId: "main:door:0" },
+        to: { id: "main:door:0:arrival", kind: "arrival", map: "cave", x: 0, y: 0, transitionId: "main:door:0" },
+        transitionId: "main:door:0",
+        metadata: [],
+      },
+    ],
+    diagnostics: {
+      candidateNodeCount: 5,
+      walkEdgeCount: 4,
+      transitionEdgeCount: 1,
+      directChecks: 3,
+      expandedNodes: 3,
+      mapHops: 1,
+      totalWalkDistance: 50,
+      totalCost: 98,
+      skippedIgnoredMaps: 0,
+      skippedInvalidTransitions: 0,
+      skippedConditionalTransitions: 0,
+      visitedMaps: ["main", "cave"],
+    },
+  };
+  const fakePlanner = {
+    state: () => ({
+      status: "ready",
+      plannedRoutes: 1,
+      reachableRoutes: 1,
+      lastPlan: fakePlan,
+      message: "Simple path planner is ready.",
+    }),
+    plan: () => fakePlan,
+  };
+  const fakeLiveTest = {
+    state: () => ({ status: "idle", message: "ready" }),
+    run: async () => ({
+      testId: "live62-dashboard",
+      slice: "6.2",
+      outcome: "passed",
+      startedAt: "2026-10-03T22:10:00.000Z",
+      completedAt: "2026-10-03T22:10:01.000Z",
+      message: "Slice 6.2 passed.",
+      steps: [],
+      route: fakePlan,
+    }),
+  };
+  const dashboard = new DashboardServer({
+    logger,
+    runtime,
+    pathPlannerService: fakePlanner as any,
+    slice62LiveTestService: fakeLiveTest as any,
+    host: "127.0.0.1",
+    port: 0,
+  });
+  const url = await dashboard.start();
+  try {
+    const state = await fetch(`${url}/api/navigation/path-planner`);
+    assert.equal(state.status, 200);
+    assert.equal((await state.json()).status, "ready");
+
+    const route = await fetch(`${url}/api/navigation/plan-route`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        from: { map: "main", x: 0, y: 0 },
+        to: { map: "cave", x: 0, y: 0 },
+      }),
+    });
+    assert.equal(route.status, 200);
+    assert.equal((await route.json()).status, "reachable");
+
+    const invalid = await fetch(`${url}/api/navigation/plan-route`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ from: { map: "main", x: 0 }, to: null }),
+    });
+    assert.equal(invalid.status, 400);
+
+    const current = await fetch(`${url}/api/live-test/slice-6-2`);
+    assert.equal(current.status, 200);
+    assert.equal((await current.json()).status, "idle");
+
+    const live = await fetch(`${url}/api/live-test/slice-6-2/start`, { method: "POST" });
+    assert.equal(live.status, 200);
+    const payload = await live.json();
+    assert.equal(payload.result.outcome, "passed");
+    assert.equal(payload.result.slice, "6.2");
+    assert.match(payload.reportText, /ALRemastered Slice 6\.2 one-click simple path-planner test/);
+    assert.equal(payload.clipboardSuggested, true);
+  } finally {
+    await dashboard.stop();
+    runtime.stop();
+  }
+});
+
