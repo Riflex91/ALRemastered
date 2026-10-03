@@ -7,6 +7,7 @@ This queue is append-only evidence planning for merged slices that still require
 1. Slice 3.2 – Move / XMove – `v0.1.0-alpha.22`
 2. Slice 3.3 – Attack – `v0.1.0-alpha.23`
 3. Slice 3.4 – Skills – `v0.1.0-alpha.24`
+4. Slice 3.5 – Loot / Consumables – `v0.1.0-alpha.29`
 
 > Current execution gate (2026-10-03): Slice 3.2 failed its first real Move attempt on alpha.22. Retest Slice 3.2 on correction release `v0.1.0-alpha.25` and require PASS before beginning Slice 3.3.
 
@@ -364,4 +365,86 @@ Preserve the full log and the skill request ID. Slice 3.4 remains AWAITING USER 
 - No hidden repeat skill, crash, disconnect, or secret exposure was observed through log end `2026-10-03T09:34:51.660Z`.
 
 **Gate result: Slice 3.4 VERIFIED.**
+
+---
+
+## Slice 3.5 – Loot / Consumables
+
+**Status: MERGED – AWAITING USER TEST**
+
+- Release version: `v0.1.0-alpha.29`
+- Update from installed client: `v0.1.0-alpha.28`
+- Release target SHA: `bfdfa7cd48eeaccf2a2901990476064777c35d3b`
+- Feature PR: #63; release-runner correction: #64
+- Publish workflow: `37115894376` – Linux success, Windows success, release success
+- Safety boundary: only select entries offered by **Loot & consumable test controls**. No free-form chest/item/socket payload and no repeated clicking.
+- Expected loot path: live Adventure Land `drop` → dashboard visible-chest option → central Action Gateway → `open_chest {id}` → matching `chest_opened`.
+- Expected consumable path: exact current inventory slot + current game-data HP/MP validation → central Action Gateway → `equip {num, consume:true}` → Adventure Land `game_response place:"equip"`.
+- Excluded by design: auto-loot, auto-potion, farming loops, arbitrary inventory indices/item names, mixed-resource/non-HP/MP items, hidden/repeated actions, and generic socket payloads.
+
+### Test A – one HP/MP consumable
+
+1. Update the installed Windows client from `0.1.0-alpha.28` to `0.1.0-alpha.29` with **Install update** and confirm the automatic restart.
+2. Connect the normal account/server and start exactly one headless character.
+3. Open **Action Gateway → Loot & consumable test controls**.
+4. Confirm **HP/MP consumable** lists only actual current inventory items and that no free-form item ID/index/payload field exists.
+5. Ensure the resource for the selected item is below maximum. Do not consume anything merely to create this condition if doing so would interfere with another live-test gate.
+6. Select one low-value HP or MP consumable offered by the dashboard.
+7. Note its displayed item name, resource kind, restore amount, quantity, inventory slot, and cooldown if shown.
+8. Click **Use selected HP/MP item once** exactly once.
+9. Record the `act-…` request ID and preserve the full sanitized diagnostic log.
+
+PASS evidence for Test A must show:
+
+- exactly one `character.consume` request with `origin:"dashboard"`
+- current canonical character ID
+- selected inventory index, item name, and `hp` or `mp` kind
+- validation against the actual current inventory slot and current Adventure Land item data
+- official `equip` payload uses that exact slot with `consume:true`
+- completion occurs only after Adventure Land `game_response` for `place:"equip"`
+- successful result reports `serverAccepted:true`
+- item quantity decreases or the expected resource increases in subsequent live state when Adventure Land reports the mutation
+- exactly one use from the one click; no auto-potion or hidden repeat
+- cooldown/full-resource rejection is not masked as success
+- `Secrets sanitized: yes`
+
+### Test B – one visible loot chest
+
+1. Obtain one normal low-risk loot chest through ordinary gameplay. The chest must first appear in the live state from Adventure Land; do not enter a chest ID manually.
+2. Confirm **Visible loot chest** offers that current chest.
+3. Select that offered chest.
+4. Click **Loot selected chest once** exactly once.
+5. Record the `act-…` request ID and preserve the full sanitized diagnostic log.
+
+PASS evidence for Test B must show:
+
+- the chest originated from a real Adventure Land `drop` event and was present in the bounded dashboard options
+- exactly one `character.loot` request with `origin:"dashboard"`
+- current canonical character ID and selected chest ID
+- official `open_chest {id}` request uses exactly that selected visible chest
+- completion occurs only after the matching `chest_opened` server event
+- successful result reports `serverAccepted:true`
+- the chest disappears from live chest options after server confirmation
+- exactly one open from the one click; no auto-loot or hidden repeat
+- an already-gone/non-visible chest is rejected rather than reported as success
+- `Secrets sanitized: yes`
+
+### FAIL / stop conditions
+
+Stop Slice 3.5 testing and preserve the log if any of these occur:
+
+- dashboard exposes arbitrary chest IDs, inventory indices, item IDs, JSON, or socket payload fields
+- a non-current or changed inventory slot can still be consumed
+- a non-HP/MP or mixed-resource item is offered or accepted
+- full HP/MP or active cooldown is falsely reported as success
+- one click causes multiple item uses or multiple chest opens
+- loot succeeds without the chest having been present in current live state
+- gateway reports success before the matching Adventure Land server confirmation
+- auto-loot, auto-potion, or any farming loop starts
+- client crashes/disconnects because of the action
+- any secret/auth token/password appears in diagnostic output
+
+### After these tests
+
+Slice 3.5 remains **AWAITING USER TEST** until both Test A and Test B evidence are reviewed. CI and release publication alone must never mark it VERIFIED.
 
