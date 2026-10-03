@@ -52,7 +52,7 @@ export interface Slice64LiveTestServiceOptions {
   readonly planner: Pick<SimplePathPlannerService, "plan">;
   readonly movement: Pick<
     AdventureLandMovementService,
-    "runDashboardTest" | "runScript"
+    "runDashboardTest" | "runCoordinates"
   >;
   readonly movementDebug: Pick<MovementDebugService, "state">;
   readonly clock?: () => Date;
@@ -287,11 +287,11 @@ export class Slice64LiveTestService {
       }
 
       await this.#delay(RATE_LIMIT_SETTLE_MS);
-      const returned = await this.#movement.runScript({
+      const returned = await this.#movement.runCoordinates({
         mode: "move",
         x: character.x as number,
         y: character.y as number,
-      });
+      }, "dashboard");
       if (returned.outcome !== "success" || !returned.result) {
         throw new Slice64Failure(
           returned.error?.code ?? "LIVE_TEST_RETURN_MOVE_FAILED",
