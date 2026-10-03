@@ -519,6 +519,20 @@
         </div>
       </div>
 
+      <div class="selection-content">
+        <div>
+          <h3>Slice 4.4 one-click storage test</h3>
+          <div class="server-picker">
+            <button id="start-slice-4-4-live-test" type="button">Start test</button>
+            <strong id="slice-4-4-live-test-status" aria-live="polite">Ready</strong>
+            <button id="copy-slice-4-4-live-test-result" type="button" hidden>Copy last test result</button>
+          </div>
+          <small class="selection-note" id="slice-4-4-live-test-note">
+            The test writes JSON script state, starts a fresh isolated worker to restore it from local disk, verifies a second script cannot see or overwrite the first namespace, then deletes its bounded test data. No Adventure Land connection or gameplay mutation is required.
+          </small>
+        </div>
+      </div>
+
       <details id="script-runtime-developer-controls">
         <summary>Script runtime developer controls</summary>
         <div class="selection-content">
@@ -542,7 +556,7 @@ setInterval(() =&gt; console.info("timer tick"), 1000);</textarea>
               <button id="script-runtime-stop" type="button">Stop script</button>
             </div>
             <small class="selection-note">
-              Slice 4.2 exposes character, G, Entities, get_nearest_monster(), is_in_range(), can_attack(), and validated move(), xmove(), attack(), and loot() through the isolated worker and central Action Gateway. Slice 4.3 adds controlled on()/off() game event listeners with safe snapshot payloads and lifecycle cleanup.
+              Slice 4.2 exposes character, G, Entities, get_nearest_monster(), is_in_range(), can_attack(), and validated move(), xmove(), attack(), and loot() through the isolated worker and central Action Gateway. Slice 4.3 adds controlled on()/off() game event listeners with safe snapshot payloads and lifecycle cleanup. Slice 4.4 adds namespaced persistent get()/set()/del() script storage backed by the local data directory.
             </small>
           </div>
         </div>

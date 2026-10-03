@@ -1603,3 +1603,80 @@ test("dashboard exposes Slice 4.3 event API one-click test", async () => {
     runtime.stop();
   }
 });
+
+
+test("dashboard exposes Slice 4.4 persistent script storage one-click test", async () => {
+  const html = readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
+  const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
+
+  for (const id of [
+    "start-slice-4-4-live-test",
+    "slice-4-4-live-test-status",
+    "slice-4-4-live-test-note",
+    "copy-slice-4-4-live-test-result",
+  ]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+  assert.match(html, /Slice 4\.4 one-click storage test/);
+  assert.match(html, /namespaced persistent get\(\)\/set\(\)\/del\(\) script storage/);
+  assert.match(html, /No Adventure Land connection or gameplay mutation is required/);
+  assert.match(script, /\/api\/live-test\/slice-4-4\/start/);
+
+  const runtime = new CoreRuntime();
+  runtime.start();
+  const logger = new Logger({ component: "dashboard-slice-4-4-test" });
+  const fakeRuntime = {
+    state: () => ({
+      status: "stopped",
+      scriptName: "slice-4-4-storage-primary",
+      activeTimers: 0,
+      activeEventListeners: 0,
+      logRecords: 8,
+      message: "Script stopped.",
+    }),
+  };
+  const fakeLiveTest = {
+    state: () => ({
+      status: "idle",
+      message: "Slice 4.4 one-click storage test is ready.",
+    }),
+    run: async () => ({
+      testId: "live44-dashboard",
+      slice: "4.4",
+      outcome: "passed",
+      startedAt: "2026-10-03T17:00:00.000Z",
+      completedAt: "2026-10-03T17:00:02.000Z",
+      message: "Slice 4.4 one-click storage test passed.",
+      steps: [],
+    }),
+  };
+
+  const dashboard = new DashboardServer({
+    logger,
+    runtime,
+    scriptRuntime: fakeRuntime as any,
+    slice44LiveTestService: fakeLiveTest as any,
+    host: "127.0.0.1",
+    port: 0,
+  });
+  const url = await dashboard.start();
+  try {
+    const current = await fetch(`${url}/api/live-test/slice-4-4`);
+    assert.equal(current.status, 200);
+    assert.equal((await current.json()).status, "idle");
+
+    const live = await fetch(`${url}/api/live-test/slice-4-4/start`, {
+      method: "POST",
+    });
+    assert.equal(live.status, 200);
+    const payload = await live.json();
+    assert.equal(payload.result.outcome, "passed");
+    assert.equal(payload.result.slice, "4.4");
+    assert.equal(payload.clipboardSuggested, true);
+    assert.match(payload.reportText, /ALRemastered Slice 4\.4 one-click storage test/);
+    assert.match(payload.reportText, /slice-4-4-storage-primary/);
+  } finally {
+    await dashboard.stop();
+    runtime.stop();
+  }
+});
