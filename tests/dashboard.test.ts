@@ -143,6 +143,15 @@ test("dashboard user interface contains the required English controls", () => {
     "Game data source",
     "Cache status",
     "Cached at",
+    "Simple Farmer Template",
+    "Monster",
+    "HP threshold %",
+    "MP threshold %",
+    "Loot",
+    "Respawn",
+    "Start Simple Farmer",
+    "Stop Simple Farmer",
+    "Slice 4.5 one-click live farm test",
   ]) {
     assert.equal(html.includes(label), true, `Missing dashboard label: ${label}`);
   }
@@ -1675,6 +1684,102 @@ test("dashboard exposes Slice 4.4 persistent script storage one-click test", asy
     assert.equal(payload.clipboardSuggested, true);
     assert.match(payload.reportText, /ALRemastered Slice 4\.4 one-click storage test/);
     assert.match(payload.reportText, /slice-4-4-storage-primary/);
+  } finally {
+    await dashboard.stop();
+    runtime.stop();
+  }
+});
+
+
+test("dashboard exposes Simple Farmer controls and Slice 4.5 live-test APIs", async () => {
+  const html = readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
+  const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
+  for (const id of [
+    "simple-farmer-monster",
+    "simple-farmer-hp-threshold",
+    "simple-farmer-mp-threshold",
+    "simple-farmer-loot",
+    "simple-farmer-respawn",
+    "simple-farmer-start",
+    "simple-farmer-stop",
+    "start-slice-4-5-live-test",
+    "slice-4-5-live-test-status",
+    "copy-slice-4-5-live-test-result",
+  ]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+  assert.match(html, /automatic navigation remains reserved for Phase 6/);
+  assert.match(script, /\/api\/simple-farmer\/start/);
+  assert.match(script, /\/api\/live-test\/slice-4-5\/start/);
+
+  const runtime = new CoreRuntime();
+  runtime.start();
+  const logger = new Logger({ component: "dashboard-slice45-test" });
+  let farmerState:any = { status: "idle", message: "ready" };
+  const fakeFarmer = {
+    options: () => ({
+      status: "ready",
+      message: "ready",
+      monsters: ["goo"],
+      defaults: { hpThresholdPercent: 50, mpThresholdPercent: 30, loot: true, respawn: true },
+    }),
+    state: () => farmerState,
+    start: async (config:any) => farmerState = { status: "running", message: "running", config },
+    stop: async () => farmerState = { status: "stopped", message: "stopped" },
+  };
+  const fakeLiveTest = {
+    state: () => ({ status: "idle", message: "ready" }),
+    run: async () => ({
+      testId: "live45-dashboard",
+      slice: "4.5",
+      outcome: "passed",
+      startedAt: "2026-10-03T17:40:00.000Z",
+      completedAt: "2026-10-03T17:40:01.000Z",
+      targetId: "M1",
+      targetType: "goo",
+      attackCount: 1,
+      lootCount: 0,
+      message: "Slice 4.5 passed.",
+      steps: [],
+    }),
+  };
+  const dashboard = new DashboardServer({
+    logger,
+    runtime,
+    simpleFarmerService: fakeFarmer as any,
+    slice45LiveTestService: fakeLiveTest as any,
+    host: "127.0.0.1",
+    port: 0,
+  });
+  const url = await dashboard.start();
+  try {
+    const options = await fetch(`${url}/api/simple-farmer/options`);
+    assert.equal(options.status, 200);
+    assert.deepEqual((await options.json()).monsters, ["goo"]);
+
+    const start = await fetch(`${url}/api/simple-farmer/start`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        monster: "goo",
+        hpThresholdPercent: 50,
+        mpThresholdPercent: 30,
+        loot: true,
+        respawn: true,
+      }),
+    });
+    assert.equal(start.status, 200);
+    assert.equal((await start.json()).status, "running");
+
+    const live = await fetch(`${url}/api/live-test/slice-4-5/start`, { method: "POST" });
+    assert.equal(live.status, 200);
+    const payload = await live.json();
+    assert.equal(payload.result.outcome, "passed");
+    assert.match(payload.reportText, /ALRemastered Slice 4\.5 one-click live test/);
+
+    const stop = await fetch(`${url}/api/simple-farmer/stop`, { method: "POST" });
+    assert.equal(stop.status, 200);
+    assert.equal((await stop.json()).status, "stopped");
   } finally {
     await dashboard.stop();
     runtime.stop();

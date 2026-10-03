@@ -1,6 +1,7 @@
 import type { AdventureLandAttackService } from "../action/attack.ts";
 import type { ActionGatewayResult } from "../action/gateway.ts";
-import type { AdventureLandLootConsumableService } from "../action/loot-consumable.ts";
+import type { AdventureLandLootConsumableService, ConsumableKind } from "../action/loot-consumable.ts";
+import type { AdventureLandRespawnService } from "../action/respawn.ts";
 import type { AdventureLandMovementService, MovementActionResult } from "../action/movement.ts";
 import type { AdventureLandCharacterService } from "../character/service.ts";
 import type {
@@ -11,7 +12,13 @@ import type { AdventureLandVisibleEntity } from "../character/world-state.ts";
 import type { AdventureLandGameEvent } from "../character/game-events.ts";
 import type { AdventureLandGameData } from "../game/data-source.ts";
 
-export type ScriptAdventureApiMethod = "move" | "xmove" | "attack" | "loot";
+export type ScriptAdventureApiMethod =
+  | "move"
+  | "xmove"
+  | "attack"
+  | "loot"
+  | "consume"
+  | "respawn";
 
 export interface ScriptAdventureApiDynamicState {
   readonly character: Readonly<Record<string, unknown>>;
@@ -42,7 +49,12 @@ export interface AdventureLandScriptApiBridgeOptions {
   > & Partial<Pick<AdventureLandCharacterService, "onGameEvent">>;
   readonly movement: Pick<AdventureLandMovementService, "runScript">;
   readonly attack: Pick<AdventureLandAttackService, "run">;
-  readonly loot: Pick<AdventureLandLootConsumableService, "runLoot">;
+  readonly loot?: Pick<AdventureLandLootConsumableService, "runLoot">;
+  readonly lootConsumable?: Pick<
+    AdventureLandLootConsumableService,
+    "runLoot" | "runConsumable" | "dashboardOptions"
+  >;
+  readonly respawn?: Pick<AdventureLandRespawnService, "run">;
   readonly gameData: () => AdventureLandGameData | undefined;
 }
 
@@ -54,13 +66,27 @@ export class AdventureLandScriptApiBridge implements ScriptAdventureApiBridge {
   readonly #movement: Pick<AdventureLandMovementService, "runScript">;
   readonly #attack: Pick<AdventureLandAttackService, "run">;
   readonly #loot: Pick<AdventureLandLootConsumableService, "runLoot">;
+  readonly #lootConsumable?: Pick<
+    AdventureLandLootConsumableService,
+    "runLoot" | "runConsumable" | "dashboardOptions"
+  >;
+  readonly #respawn?: Pick<AdventureLandRespawnService, "run">;
   readonly #gameData: () => AdventureLandGameData | undefined;
 
   constructor(options: AdventureLandScriptApiBridgeOptions) {
     this.#character = options.character;
     this.#movement = options.movement;
     this.#attack = options.attack;
-    this.#loot = options.loot;
+    this.#loot = options.lootConsumable ?? options.loot ?? {
+      runLoot: async () => {
+        throw new ScriptAdventureApiCallError(
+          "SCRIPT_LOOT_UNAVAILABLE",
+          "Adventure Land loot service is unavailable.",
+        );
+      },
+    };
+    this.#lootConsumable = options.lootConsumable;
+    this.#respawn = options.respawn;
     this.#gameData = options.gameData;
   }
 
@@ -135,6 +161,49 @@ export class AdventureLandScriptApiBridge implements ScriptAdventureApiBridge {
         }
         return unwrapGateway(await this.#loot.runLoot({ chestId }, "script"));
       }
+      case "consume": {
+        const kind = input.kind === "hp" || input.kind === "mp"
+          ? input.kind as ConsumableKind
+          : undefined;
+        if (!kind) {
+          throw new ScriptAdventureApiCallError(
+            "SCRIPT_CONSUMABLE_KIND_REQUIRED",
+            "use_hp()/use_mp() require a supported resource kind.",
+          );
+        }
+        if (!this.#lootConsumable) {
+          throw new ScriptAdventureApiCallError(
+            "SCRIPT_CONSUMABLE_UNAVAILABLE",
+            "Adventure Land consumable service is unavailable.",
+          );
+        }
+        const options = this.#lootConsumable.dashboardOptions();
+        const candidate = options.consumables
+          .filter((entry) => entry.kind === kind)
+          .sort((left, right) =>
+            left.restoreAmount - right.restoreAmount ||
+            left.inventoryIndex - right.inventoryIndex
+          )[0];
+        if (!candidate) {
+          throw new ScriptAdventureApiCallError(
+            "SCRIPT_CONSUMABLE_UNAVAILABLE",
+            `No validated ${kind.toUpperCase()} consumable is available in inventory.`,
+          );
+        }
+        return unwrapGateway(await this.#lootConsumable.runConsumable({
+          inventoryIndex: candidate.inventoryIndex,
+          itemName: candidate.itemName,
+          kind,
+        }, "script"));
+      }
+      case "respawn":
+        if (!this.#respawn) {
+          throw new ScriptAdventureApiCallError(
+            "SCRIPT_RESPAWN_UNAVAILABLE",
+            "Adventure Land respawn service is unavailable.",
+          );
+        }
+        return unwrapGateway(await this.#respawn.run("script"));
     }
   }
 

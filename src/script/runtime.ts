@@ -372,6 +372,8 @@ export class ScriptRuntimeService {
       "xmove",
       "attack",
       "loot",
+      "consume",
+      "respawn",
     ];
     if (!this.#api || !supported.includes(method as ScriptAdventureApiMethod)) {
       worker.postMessage({

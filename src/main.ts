@@ -8,6 +8,7 @@ import { AdventureLandMovementService } from "./action/movement.ts";
 import { AdventureLandAttackService } from "./action/attack.ts";
 import { AdventureLandSkillService } from "./action/skill.ts";
 import { AdventureLandLootConsumableService } from "./action/loot-consumable.ts";
+import { AdventureLandRespawnService } from "./action/respawn.ts";
 import { AdventureLandCharacterService } from "./character/service.ts";
 import { AdventureLandCharacterTransport } from "./character/transport.ts";
 import { CoreRuntime } from "./core/app.ts";
@@ -26,9 +27,11 @@ import { Slice41LiveTestService } from "./live-test/slice-4-1.ts";
 import { Slice42LiveTestService } from "./live-test/slice-4-2.ts";
 import { Slice43LiveTestService } from "./live-test/slice-4-3.ts";
 import { Slice44LiveTestService } from "./live-test/slice-4-4.ts";
+import { Slice45LiveTestService } from "./live-test/slice-4-5.ts";
 import { getUserPaths } from "./platform/paths.ts";
 import { AdventureLandScriptApiBridge } from "./script/adventure-api.ts";
 import { ScriptRuntimeService } from "./script/runtime.ts";
+import { SimpleFarmerTemplateService } from "./script/simple-farmer.ts";
 import { ScriptStorageStore } from "./script/storage.ts";
 import { getReleaseMetadata } from "./release/version-model.ts";
 import {
@@ -136,12 +139,15 @@ let movementService: AdventureLandMovementService | undefined;
 let attackService: AdventureLandAttackService | undefined;
 let skillService: AdventureLandSkillService | undefined;
 let lootConsumableService: AdventureLandLootConsumableService | undefined;
+let respawnService: AdventureLandRespawnService | undefined;
+let simpleFarmerService: SimpleFarmerTemplateService | undefined;
 let slice35LiveTestService: Slice35LiveTestService | undefined;
 let scriptRuntime: ScriptRuntimeService | undefined;
 let slice41LiveTestService: Slice41LiveTestService | undefined;
 let slice42LiveTestService: Slice42LiveTestService | undefined;
 let slice43LiveTestService: Slice43LiveTestService | undefined;
 let slice44LiveTestService: Slice44LiveTestService | undefined;
+let slice45LiveTestService: Slice45LiveTestService | undefined;
 let updateService: UpdateService | undefined;
 let gameVersionService: AdventureLandVersionService | undefined;
 let gameDataService: AdventureLandGameDataService | undefined;
@@ -430,6 +436,11 @@ lootConsumableService = new AdventureLandLootConsumableService({
   character: characterService!,
   gameData: () => gameDataService!.data(),
 });
+respawnService = new AdventureLandRespawnService({
+  gateway: actionGateway!,
+  logger,
+  character: characterService!,
+});
 slice35LiveTestService = new Slice35LiveTestService({
   logger,
   character: characterService!,
@@ -444,7 +455,8 @@ const scriptApiBridge = new AdventureLandScriptApiBridge({
   character: characterService!,
   movement: movementService!,
   attack: attackService!,
-  loot: lootConsumableService,
+  lootConsumable: lootConsumableService,
+  respawn: respawnService,
   gameData: () => gameDataService!.data(),
 });
 const scriptStorage = new ScriptStorageStore(
@@ -455,6 +467,10 @@ scriptRuntime = new ScriptRuntimeService({
   logger,
   api: scriptApiBridge,
   storage: scriptStorage,
+});
+simpleFarmerService = new SimpleFarmerTemplateService({
+  character: characterService!,
+  runtime: scriptRuntime,
 });
 slice41LiveTestService = new Slice41LiveTestService({
   logger,
@@ -475,6 +491,13 @@ slice44LiveTestService = new Slice44LiveTestService({
   logger,
   runtime: scriptRuntime,
   storage: scriptStorage,
+});
+slice45LiveTestService = new Slice45LiveTestService({
+  logger,
+  runtime: scriptRuntime,
+  farmer: simpleFarmerService,
+  character: characterService!,
+  gameData: () => gameDataService!.data(),
 });
 diagnostics.registerComponent("script-runtime", () => {
   const state = scriptRuntime!.state();
@@ -502,6 +525,8 @@ dashboard = new DashboardServer({
   slice42LiveTestService,
   slice43LiveTestService,
   slice44LiveTestService,
+  slice45LiveTestService,
+  simpleFarmerService,
   updateService,
   diagnostics,
   gameVersionService,

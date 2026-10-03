@@ -464,6 +464,18 @@ function scriptLoot(chest?: unknown): Promise<unknown> {
   return apiCall("loot", chestId ? { chestId } : {});
 }
 
+function scriptUseHp(): Promise<unknown> {
+  return apiCall("consume", { kind: "hp" });
+}
+
+function scriptUseMp(): Promise<unknown> {
+  return apiCall("consume", { kind: "mp" });
+}
+
+function scriptRespawn(): Promise<unknown> {
+  return apiCall("respawn", {});
+}
+
 function scriptApiError(code: string, message: string): Error {
   const error = new Error(message) as Error & { code?: string };
   error.name = "ScriptApiError";
@@ -562,6 +574,9 @@ const sandbox: Record<string, unknown> = {
   xmove: scriptXMove,
   attack: scriptAttack,
   loot: scriptLoot,
+  use_hp: scriptUseHp,
+  use_mp: scriptUseMp,
+  respawn: scriptRespawn,
   on: scriptOn,
   off: scriptOff,
   get: scriptGet,
