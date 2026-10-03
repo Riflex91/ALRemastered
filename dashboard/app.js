@@ -10,6 +10,8 @@ const state = {
   actionGateway: null,
   skillOptions: null,
   lootConsumableOptions: null,
+  slice35LiveTest: null,
+  slice35LastReport: null,
   update: null,
   gameVersion: null,
   gameData: null,
@@ -91,6 +93,10 @@ const elements = {
   consumableItem: document.querySelector("#consumable-item"),
   runConsumableTest: document.querySelector("#run-consumable-test"),
   lootConsumableTestNote: document.querySelector("#loot-consumable-test-note"),
+  startSlice35LiveTest: document.querySelector("#start-slice-3-5-live-test"),
+  slice35LiveTestStatus: document.querySelector("#slice-3-5-live-test-status"),
+  slice35LiveTestNote: document.querySelector("#slice-3-5-live-test-note"),
+  copySlice35LiveTestResult: document.querySelector("#copy-slice-3-5-live-test-result"),
   gameVersion: document.querySelector("#game-version"),
   gameVersionStatus: document.querySelector("#game-version-status"),
   gameLastDeploy: document.querySelector("#game-last-deploy"),
@@ -941,6 +947,33 @@ function renderActionGateway() {
     gateway.lastResult?.outcome ?? "—";
 }
 
+function renderSlice35LiveTest() {
+  const test = state.slice35LiveTest;
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    blocked: "BLOCKED",
+    failed: "FAILED",
+    unavailable: "Unavailable",
+  };
+  const status = test?.status ?? "idle";
+  elements.slice35LiveTestStatus.textContent = labels[status] ?? status;
+  elements.startSlice35LiveTest.disabled = status === "running";
+  elements.copySlice35LiveTestResult.hidden = !state.slice35LastReport;
+
+  if (status === "running") {
+    elements.slice35LiveTestNote.textContent =
+      "The one-click test is preparing and validating the required live game state automatically. Do not perform manual gameplay actions while it is running.";
+  } else if (test?.message) {
+    elements.slice35LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  } else {
+    elements.slice35LiveTestNote.textContent =
+      "The test prepares a bounded safe game state automatically, runs the Slice 3.5 loot and consumable checks, verifies Adventure Land server responses and live postconditions, then copies the complete structured result and sanitized diagnostic log to the clipboard. No manual target, chest, item, movement, or combat preparation is required.";
+  }
+}
+
 function renderGameVersion() {
   const gameVersion = state.gameVersion;
   if (!gameVersion) return;
@@ -1260,6 +1293,29 @@ async function refreshLootConsumableOptions() {
   }
 }
 
+async function refreshSlice35LiveTest() {
+  try {
+    const response = await fetch("/api/live-test/slice-3-5", {
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      state.slice35LiveTest = {
+        status: "unavailable",
+        message: "Slice 3.5 one-click live test is unavailable.",
+      };
+    } else {
+      state.slice35LiveTest = await response.json();
+    }
+    renderSlice35LiveTest();
+  } catch {
+    state.slice35LiveTest = {
+      status: "unavailable",
+      message: "Slice 3.5 one-click live-test status could not be loaded.",
+    };
+    renderSlice35LiveTest();
+  }
+}
+
 async function refreshGameData() {
   try {
     const response = await fetch("/api/game-data", { cache: "no-store" });
@@ -1565,6 +1621,82 @@ async function consumableTest() {
   await new Promise((resolve) => setTimeout(resolve, 250));
   await refreshCharacterConnection();
   return payload;
+}
+
+function beginDeferredClipboardWrite() {
+  if (
+    navigator.clipboard?.write &&
+    typeof ClipboardItem === "function"
+  ) {
+    let resolveText;
+    const textPromise = new Promise((resolve) => {
+      resolveText = resolve;
+    });
+    const item = new ClipboardItem({
+      "text/plain": textPromise.then((text) =>
+        new Blob([text], { type: "text/plain;charset=utf-8" })
+      ),
+    });
+    const writePromise = navigator.clipboard.write([item]).then(
+      () => true,
+      () => false,
+    );
+    return {
+      finish: async (text) => {
+        resolveText(text);
+        return await writePromise;
+      },
+    };
+  }
+
+  return {
+    finish: async (text) => {
+      try {
+        await writeClipboard(text);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  };
+}
+
+async function startSlice35LiveTest(clipboardWrite) {
+  state.slice35LiveTest = {
+    status: "running",
+    message: "Slice 3.5 one-click live test is running.",
+  };
+  renderSlice35LiveTest();
+
+  const response = await fetch("/api/live-test/slice-3-5/start", {
+    method: "POST",
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      payload.error ??
+      payload.message ??
+      `Slice 3.5 live test failed with HTTP ${response.status}`,
+    );
+  }
+  if (!payload.reportText || typeof payload.reportText !== "string") {
+    throw new Error("Slice 3.5 live test returned no copyable report.");
+  }
+
+  state.slice35LastReport = payload.reportText;
+  state.slice35LiveTest = {
+    status: payload.result?.outcome ?? "failed",
+    message: payload.result?.message ?? "Slice 3.5 live test finished.",
+    lastResult: payload.result,
+  };
+  const copied = await clipboardWrite.finish(payload.reportText);
+  renderSlice35LiveTest();
+  await refreshCharacterConnection();
+  await refreshActionGateway();
+  await refreshSkillOptions();
+  await refreshLootConsumableOptions();
+
+  return { payload, copied };
 }
 
 async function gameDataAction(path) {
@@ -1997,6 +2129,50 @@ elements.runConsumableTest.addEventListener("click", async () => {
   }
 });
 
+elements.startSlice35LiveTest.addEventListener("click", async () => {
+  if (state.slice35LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice35LastReport = null;
+  elements.copySlice35LiveTestResult.hidden = true;
+  setFeedback(
+    "Slice 3.5 live test started. Safe preparation and all checks now run automatically.",
+  );
+
+  try {
+    const { payload, copied } = await startSlice35LiveTest(clipboardWrite);
+    const outcome = payload.result?.outcome ?? "failed";
+    const outcomeLabel = String(outcome).toUpperCase();
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 3.5 test ${outcomeLabel}. ${copyMessage}`,
+      outcome === "passed" && copied ? "success" : outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    await refreshSlice35LiveTest();
+    setFeedback(
+      `Slice 3.5 one-click test could not finish: ${error.message}`,
+      "error",
+    );
+  } finally {
+    renderSlice35LiveTest();
+  }
+});
+
+elements.copySlice35LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice35LastReport) return;
+  try {
+    await writeClipboard(state.slice35LastReport);
+    setFeedback(
+      "Complete Slice 3.5 test result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Test-result copy failed: ${error.message}`, "error");
+  }
+});
+
 elements.reloadGameData.addEventListener("click", async () => {
   elements.reloadGameData.disabled = true;
   setFeedback("Reloading Adventure Land game data…");
@@ -2105,6 +2281,7 @@ await refreshCharacterConnection();
 await refreshActionGateway();
 await refreshSkillOptions();
 await refreshLootConsumableOptions();
+await refreshSlice35LiveTest();
 await refreshGameVersion();
 await refreshGameData();
 await refreshUpdate();
@@ -2118,6 +2295,7 @@ setInterval(refreshCharacterConnection, 1500);
 setInterval(refreshActionGateway, 2000);
 setInterval(refreshSkillOptions, 1500);
 setInterval(refreshLootConsumableOptions, 1500);
+setInterval(refreshSlice35LiveTest, 1500);
 setInterval(refreshGameVersion, 2000);
 setInterval(refreshGameData, 2000);
 setInterval(refreshUpdate, 1500);
