@@ -1860,3 +1860,50 @@ Result: the real Windows alpha.42 run proves the official no-code Simple Farmer 
 
 Phase 5 / Slice 5.1 may begin only after this append-only verification record is merged and the resulting exact `main` CI is fully green.
 
+---
+
+## Append-only verification record — Slice 5.1 Heartbeats — 2026-10-03
+
+**Canonical status update: Slice 5.1 = VERIFIED.**
+
+Release/live environment:
+
+- release: `v0.1.0-alpha.43`
+- release target / tested implementation main: `7a05b80c5be84425208e957a115d5964bdfbf8bc`
+- Windows client: `0.1.0-alpha.43`
+- platform: `win32`
+- one-click test ID: `live51-f53397ab-161c-4cae-bc15-86eb02d314f9`
+- character: `My_Merchant`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-03T18:46:50.249Z → 2026-10-03T18:46:51.492Z`
+- diagnostic export: 26 log lines, `Secrets sanitized: yes`
+
+Heartbeat evidence:
+
+- Core heartbeat advanced from sequence `24` to `25`;
+- Character heartbeat advanced from sequence `65` to `69` from real headless transport activity, with `pingMs:13`;
+- isolated Script worker heartbeat advanced from sequence `1` to `3`;
+- Script heartbeat advanced while `activeTimers:0`, proving the host-observed worker heartbeat does not depend on script sandbox timers;
+- final Character state reported heartbeat sequence `78` with a fresh heartbeat timestamp;
+- final Script state retained heartbeat sequence `3`.
+
+Passive-scope and cleanup evidence:
+
+- all four required steps passed:
+  - `core-heartbeat`
+  - `character-heartbeat`
+  - `script-heartbeat`
+  - `final-cleanup`
+- final Script runtime: `stopped`;
+- final `activeTimers:0`;
+- final `activeEventListeners:0`;
+- no reconnect was triggered;
+- no restart/watchdog recovery was triggered;
+- no gameplay mutation was performed;
+- the diagnostic completion record explicitly reported `gameplayMutation:false` and `recoveryAction:false`.
+
+Result: the real Windows alpha.43 run proves passive liveness heartbeats for Core, connected Character transport, and isolated Script worker, with clean resource release and no recovery/gameplay side effects. **Slice 5.1 is VERIFIED.**
+
+Slice 5.2 may begin only after this append-only verification record is merged and the resulting exact `main` CI is fully green.
+
