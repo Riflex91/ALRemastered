@@ -217,3 +217,36 @@ test("a managed Character connection failure is isolated from the primary and ot
   assert.equal(state.lastError?.causeCode, "synthetic_failure");
   assert.match(logger.exportText(), /failed independently/);
 });
+
+
+test("multi-character manager releases a reserved slot when session start throws synchronously", async () => {
+  const logger = new Logger({ component: "session-manager-sync-failure-test" });
+  const manager = new MultiCharacterSessionManager({
+    logger,
+    primary: { state: () => connectedState("CH_PRIMARY", "Primary") as any },
+    selection: { state: () => selectionState() as any },
+    createSession: () => ({
+      state: () => ({ status: "disconnected", message: "Disconnected." } as any),
+      start: () => {
+        const error = new Error("Synthetic synchronous start failure.") as Error & { code: string };
+        error.code = "synthetic_sync_failure";
+        throw error;
+      },
+      stop: async () => ({ status: "disconnected", message: "Disconnected." } as any),
+    }) as any,
+  });
+
+  await assert.rejects(
+    () => manager.start("CH_TWO"),
+    (error: unknown) =>
+      error instanceof MultiCharacterSessionManagerError &&
+      error.code === "SESSION_CONNECT_FAILED" &&
+      error.causeCode === "synthetic_sync_failure",
+  );
+
+  const state = manager.state();
+  assert.equal(state.activeSessionCount, 1);
+  assert.equal(state.managedSessionCount, 0);
+  assert.equal(state.availableSlots, 3);
+  assert.equal(state.lastError?.causeCode, "synthetic_sync_failure");
+});
