@@ -20,7 +20,7 @@ export interface Slice43LiveTestResult {
   readonly characterId?: string;
   readonly characterName?: string;
   readonly serverKey?: string;
-  readonly observedEvent: "player";
+  readonly observedEvent: "entities";
   readonly message: string;
   readonly steps: readonly Slice43LiveTestStep[];
   readonly error?: {
@@ -47,8 +47,8 @@ export interface Slice43LiveTestServiceOptions {
 }
 
 const SCRIPT_NAME = "slice-4-3-live-events";
-const EVENT_MARKER = "slice43:event:player";
-const OFF_MARKER = "slice43:off:player";
+const EVENT_MARKER = "slice43:event:entities";
+const OFF_MARKER = "slice43:off:entities";
 const READY_MARKER = "slice43:listener-ready";
 const PERSISTENT_PREFIX = "slice43:persistent-event:";
 const CRASH_MESSAGE = "Slice 4.3 handler crash probe";
@@ -98,7 +98,7 @@ export class Slice43LiveTestService {
     });
     this.#logger.info("Slice 4.3 one-click live test started.", {
       testId,
-      observedEvent: "player",
+      observedEvent: "entities",
       readOnlyRefresh: true,
     });
 
@@ -146,9 +146,9 @@ export class Slice43LiveTestService {
         characterId: initialCharacter.characterId,
         characterName: initialCharacter.characterName,
         serverKey: initialCharacter.serverKey,
-        observedEvent: "player",
+        observedEvent: "entities",
         message:
-          "Slice 4.3 passed: a real headless player event reached an isolated script as a safe snapshot, off()/pause/stop/restart cleanup was enforced, and a handler crash remained isolated from the connected core.",
+          "Slice 4.3 passed: a real headless entities event reached an isolated script as a safe snapshot, off()/pause/stop/restart cleanup was enforced, and a handler crash remained isolated from the connected core.",
         steps: Object.freeze(steps),
       });
       this.#state = Object.freeze({
@@ -159,7 +159,7 @@ export class Slice43LiveTestService {
       this.#logger.info("Slice 4.3 one-click live test passed.", {
         testId,
         stepCount: steps.length,
-        observedEvent: "player",
+        observedEvent: "entities",
         finalRuntimeStatus: finalState.status,
         activeEventListeners: finalState.activeEventListeners,
       });
@@ -177,7 +177,7 @@ export class Slice43LiveTestService {
         characterId: initialCharacter.characterId,
         characterName: initialCharacter.characterName,
         serverKey: initialCharacter.serverKey,
-        observedEvent: "player",
+        observedEvent: "entities",
         message: failure.message,
         steps: Object.freeze(steps),
         error: Object.freeze({ code: failure.code, message: failure.message }),
@@ -212,10 +212,10 @@ export class Slice43LiveTestService {
         "  if (typeof payload.send === 'function' || typeof payload.close === 'function') throw new Error('Slice 4.3 leaked a transport object.');",
         "  if (payload.auth !== undefined && payload.auth !== '[REDACTED]') throw new Error('Slice 4.3 event payload leaked auth data.');",
         `  console.info('${EVENT_MARKER}');`,
-        "  off('player', handler);",
+        "  off('entities', handler);",
         `  console.info('${OFF_MARKER}');`,
         "}",
-        "on('player', handler);",
+        "on('entities', handler);",
         `console.info('${READY_MARKER}');`,
       ].join("\n"),
     });
@@ -229,7 +229,7 @@ export class Slice43LiveTestService {
     if (!await waitFor(() => this.#runtime.state().activeEventListeners === 1, 1_000)) {
       throw new Slice43LiveTestFailure(
         "LISTENER_REGISTRATION_FAILED",
-        "The isolated script did not register its player listener.",
+        "The isolated script did not register its entities listener.",
       );
     }
     const observed = await this.#requestFreshEventsUntil(
@@ -238,7 +238,7 @@ export class Slice43LiveTestService {
     if (!observed) {
       throw new Slice43LiveTestFailure(
         "LIVE_EVENT_UNAVAILABLE",
-        "No fresh real player event arrived during the bounded read-only live-state refresh window.",
+        "No fresh real entities event arrived during the bounded read-only live-state refresh window.",
         true,
       );
     }
@@ -251,14 +251,14 @@ export class Slice43LiveTestService {
     ) {
       throw new Slice43LiveTestFailure(
         "OFF_CLEANUP_FAILED",
-        "off() did not remove the registered player listener.",
+        "off() did not remove the registered entities listener.",
       );
     }
     steps.push(Object.freeze({
       name: "subscribe-real-event-and-off",
       outcome: "passed",
       detail:
-        "A fresh server player event reached the worker as a safe snapshot and off() reduced active listeners to zero.",
+        "A fresh server entities event reached the worker as a safe snapshot and off() reduced active listeners to zero.",
     }));
 
     const callbackCount = this.#scriptLogCount(EVENT_MARKER);
@@ -293,7 +293,7 @@ export class Slice43LiveTestService {
       name: SCRIPT_NAME,
       source: [
         "let seen = 0;",
-        "on('player', () => { seen += 1; console.info('slice43:persistent-event:' + seen); });",
+        "on('entities', () => { seen += 1; console.info('slice43:persistent-event:' + seen); });",
         `console.info('${READY_MARKER}');`,
       ].join("\n"),
     });
@@ -314,7 +314,7 @@ export class Slice43LiveTestService {
     if (!await this.#requestFreshEventsUntil(() => this.#persistentLogCount() >= 1)) {
       throw new Slice43LiveTestFailure(
         "PERSISTENT_EVENT_UNAVAILABLE",
-        "The cleanup probe received no fresh player event.",
+        "The cleanup probe received no fresh entities event.",
         true,
       );
     }
@@ -351,7 +351,7 @@ export class Slice43LiveTestService {
     if (!await this.#requestFreshEventsUntil(() => this.#persistentLogCount() > countBeforePause)) {
       throw new Slice43LiveTestFailure(
         "RESTART_EVENT_UNAVAILABLE",
-        "The restarted worker received no fresh player event.",
+        "The restarted worker received no fresh entities event.",
         true,
       );
     }
@@ -368,7 +368,7 @@ export class Slice43LiveTestService {
     await this.#runtime.load({
       name: SCRIPT_NAME,
       source: [
-        `on('player', () => { throw new Error('${CRASH_MESSAGE}'); });`,
+        `on('entities', () => { throw new Error('${CRASH_MESSAGE}'); });`,
         `console.info('${READY_MARKER}');`,
       ].join("\n"),
     });
@@ -388,7 +388,7 @@ export class Slice43LiveTestService {
     if (!await this.#requestFreshEventsUntil(() => this.#runtime.state().status === "crashed")) {
       throw new Slice43LiveTestFailure(
         "CRASH_PROBE_EVENT_UNAVAILABLE",
-        "The handler crash probe received no fresh player event.",
+        "The handler crash probe received no fresh entities event.",
         true,
       );
     }

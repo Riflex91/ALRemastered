@@ -55,10 +55,10 @@ test("Slice 4.3 one-click test verifies real-event plumbing and lifecycle cleanu
     state: () => connectedState(),
     requestStateRefresh: () => {
       queueMicrotask(() => {
-        const event = createAdventureLandGameEvent("player", {
-          id: "CH_1",
-          name: "RangerOne",
-          hp: 4000,
+        const event = createAdventureLandGameEvent("entities", {
+          type: "all",
+          players: [{ id: "CH_1", name: "RangerOne", hp: 4000 }],
+          monsters: [],
           auth: "must-not-leak",
         });
         for (const listener of [...listeners]) listener(event);
@@ -76,7 +76,7 @@ test("Slice 4.3 one-click test verifies real-event plumbing and lifecycle cleanu
     const result = await liveTest.run();
     assert.equal(result.outcome, "passed");
     assert.equal(result.slice, "4.3");
-    assert.equal(result.observedEvent, "player");
+    assert.equal(result.observedEvent, "entities");
     assert.deepEqual(result.steps.map((step) => step.name), [
       "subscribe-real-event-and-off",
       "off-and-stop-suppress-callbacks",
