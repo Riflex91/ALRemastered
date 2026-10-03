@@ -22,7 +22,9 @@ import { AdventureLandVersionSource } from "./game/version-source.ts";
 import { AdventureLandVersionStore } from "./game/version-store.ts";
 import { Logger } from "./logging/logger.ts";
 import { Slice35LiveTestService } from "./live-test/slice-3-5.ts";
+import { Slice41LiveTestService } from "./live-test/slice-4-1.ts";
 import { getUserPaths } from "./platform/paths.ts";
+import { ScriptRuntimeService } from "./script/runtime.ts";
 import { getReleaseMetadata } from "./release/version-model.ts";
 import {
   dashboardUpdateInstallerArguments,
@@ -130,6 +132,8 @@ let attackService: AdventureLandAttackService | undefined;
 let skillService: AdventureLandSkillService | undefined;
 let lootConsumableService: AdventureLandLootConsumableService | undefined;
 let slice35LiveTestService: Slice35LiveTestService | undefined;
+let scriptRuntime: ScriptRuntimeService | undefined;
+let slice41LiveTestService: Slice41LiveTestService | undefined;
 let updateService: UpdateService | undefined;
 let gameVersionService: AdventureLandVersionService | undefined;
 let gameDataService: AdventureLandGameDataService | undefined;
@@ -146,6 +150,14 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   updateService?.stop();
   gameVersionService?.stop();
   gameDataService?.stop();
+
+  if (scriptRuntime) {
+    try {
+      await scriptRuntime.dispose();
+    } catch (error) {
+      logger.error("Script runtime failed to stop cleanly.", error);
+    }
+  }
 
   if (characterService) {
     try {
@@ -275,6 +287,20 @@ diagnostics.registerComponent("action-gateway", () => {
     name: "action-gateway",
     status: "healthy",
     message: `Action gateway ready. ${state.totalRequests} requests handled; ${state.active} active.`,
+  };
+});
+
+scriptRuntime = new ScriptRuntimeService({ logger });
+slice41LiveTestService = new Slice41LiveTestService({
+  logger,
+  runtime: scriptRuntime,
+});
+diagnostics.registerComponent("script-runtime", () => {
+  const state = scriptRuntime!.state();
+  return {
+    name: "script-runtime",
+    status: state.status === "crashed" ? "degraded" : "healthy",
+    message: state.message,
   };
 });
 
@@ -432,6 +458,8 @@ dashboard = new DashboardServer({
   skillService,
   lootConsumableService,
   slice35LiveTestService,
+  scriptRuntime,
+  slice41LiveTestService,
   updateService,
   diagnostics,
   gameVersionService,
