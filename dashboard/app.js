@@ -8,6 +8,7 @@ const state = {
   selection: null,
   character: null,
   actionGateway: null,
+  skillOptions: null,
   update: null,
   gameVersion: null,
   gameData: null,
@@ -80,6 +81,10 @@ const elements = {
   movementButtons: document.querySelectorAll("[data-movement-direction]"),
   attackTarget: document.querySelector("#attack-target"),
   runAttackTest: document.querySelector("#run-attack-test"),
+  skillName: document.querySelector("#skill-name"),
+  skillTarget: document.querySelector("#skill-target"),
+  runSkillTest: document.querySelector("#run-skill-test"),
+  skillTestNote: document.querySelector("#skill-test-note"),
   gameVersion: document.querySelector("#game-version"),
   gameVersionStatus: document.querySelector("#game-version-status"),
   gameLastDeploy: document.querySelector("#game-last-deploy"),
@@ -519,6 +524,104 @@ function renderAttackTargets(monsters, character, connected) {
     ? previous
     : monsters[0].id;
   elements.runAttackTest.disabled = !elements.attackTarget.value;
+}
+
+function renderSkillControls() {
+  const payload = state.skillOptions;
+  const previousSkill = elements.skillName.value;
+  const previousTarget = elements.skillTarget.value;
+  elements.skillName.replaceChildren();
+
+  const skills = payload?.skills ?? [];
+  if (payload?.status !== "ready" || !skills.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = payload?.message ?? "No supported skills";
+    elements.skillName.append(option);
+    elements.skillName.disabled = true;
+    elements.skillTarget.replaceChildren();
+    const targetOption = document.createElement("option");
+    targetOption.value = "";
+    targetOption.textContent = "No target available";
+    elements.skillTarget.append(targetOption);
+    elements.skillTarget.disabled = true;
+    elements.runSkillTest.disabled = true;
+    elements.skillTestNote.textContent =
+      payload?.message ??
+      "Slice 3.4 safe skill options are not available yet.";
+    return;
+  }
+
+  for (const skill of skills) {
+    const option = document.createElement("option");
+    option.value = skill.skillName;
+    const details = [skill.displayName, skill.skillName];
+    if (skill.mpCost > 0) details.push(`${skill.mpCost} MP`);
+    if (typeof skill.cooldownMs === "number") {
+      details.push(`${skill.cooldownMs} ms cooldown`);
+    }
+    option.textContent = details.join(" · ");
+    elements.skillName.append(option);
+  }
+  elements.skillName.disabled = false;
+  elements.skillName.value = skills.some((skill) => skill.skillName === previousSkill)
+    ? previousSkill
+    : skills[0].skillName;
+  renderSkillTargets(previousTarget);
+}
+
+function renderSkillTargets(previousTarget = elements.skillTarget.value) {
+  const skills = state.skillOptions?.skills ?? [];
+  const skill = skills.find((entry) => entry.skillName === elements.skillName.value);
+  elements.skillTarget.replaceChildren();
+
+  if (!skill) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "No skill selected";
+    elements.skillTarget.append(option);
+    elements.skillTarget.disabled = true;
+    elements.runSkillTest.disabled = true;
+    return;
+  }
+
+  if (skill.targetMode === "none") {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "No target required";
+    elements.skillTarget.append(option);
+    elements.skillTarget.disabled = true;
+    elements.runSkillTest.disabled = false;
+  } else if (!skill.targets?.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = `No in-range visible ${skill.targetMode} targets`;
+    elements.skillTarget.append(option);
+    elements.skillTarget.disabled = true;
+    elements.runSkillTest.disabled = true;
+  } else {
+    for (const target of skill.targets) {
+      const option = document.createElement("option");
+      option.value = target.id;
+      const details = [target.name, target.kind, `ID ${target.id}`];
+      if (typeof target.distance === "number") {
+        details.push(`Distance ${target.distance.toFixed(1)}`);
+      }
+      option.textContent = details.join(" · ");
+      elements.skillTarget.append(option);
+    }
+    elements.skillTarget.disabled = false;
+    elements.skillTarget.value = skill.targets.some((target) => target.id === previousTarget)
+      ? previousTarget
+      : skill.targets[0].id;
+    elements.runSkillTest.disabled = !elements.skillTarget.value;
+  }
+
+  const range = typeof skill.range === "number"
+    ? ` Range: ${skill.range}.`
+    : "";
+  elements.skillTestNote.textContent =
+    `Slice 3.4 safe skill: ${skill.displayName}. Target mode: ${skill.targetMode}. MP cost: ${skill.mpCost}.${range} One click sends at most one validated skill and waits for the Adventure Land server result; special, hostile, movement, item-consuming and multi-target payloads remain excluded.`;
 }
 
 function renderPartyState(party) {
@@ -1033,6 +1136,23 @@ async function refreshActionGateway() {
   }
 }
 
+async function refreshSkillOptions() {
+  try {
+    const response = await fetch("/api/action-gateway/skill-options", {
+      cache: "no-store",
+    });
+    state.skillOptions = await response.json();
+    renderSkillControls();
+  } catch {
+    state.skillOptions = {
+      status: "unavailable",
+      message: "Skill options could not be loaded.",
+      skills: [],
+    };
+    renderSkillControls();
+  }
+}
+
 async function refreshGameData() {
   try {
     const response = await fetch("/api/game-data", { cache: "no-store" });
@@ -1242,6 +1362,36 @@ async function attackTest() {
       (payload.error?.message ??
         payload.error ??
         `Attack test failed with HTTP ${response.status}`) + retry,
+    );
+  }
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  await refreshCharacterConnection();
+  return payload;
+}
+
+async function skillTest() {
+  const skillName = elements.skillName.value;
+  if (!skillName) throw new Error("Select a supported skill first.");
+  const targetId = elements.skillTarget.disabled
+    ? undefined
+    : elements.skillTarget.value || undefined;
+
+  const response = await fetch("/api/action-gateway/skill-test", {
+    method: "POST",
+    headers: { "Content-Type": "application/json; charset=utf-8" },
+    body: JSON.stringify({ skillName, targetId }),
+  });
+  const payload = await response.json();
+  await refreshActionGateway();
+  await refreshSkillOptions();
+  if (!response.ok) {
+    const retry = typeof payload.retryAfterMs === "number"
+      ? ` Retry after ${payload.retryAfterMs} ms.`
+      : "";
+    throw new Error(
+      (payload.error?.message ??
+        payload.error ??
+        `Skill test failed with HTTP ${response.status}`) + retry,
     );
   }
   await new Promise((resolve) => setTimeout(resolve, 250));
@@ -1591,6 +1741,41 @@ elements.runAttackTest.addEventListener("click", async () => {
   }
 });
 
+elements.skillName.addEventListener("change", () => {
+  renderSkillTargets("");
+});
+
+elements.skillTarget.addEventListener("change", () => {
+  const skills = state.skillOptions?.skills ?? [];
+  const skill = skills.find((entry) => entry.skillName === elements.skillName.value);
+  elements.runSkillTest.disabled = !skill ||
+    (skill.targetMode !== "none" && !elements.skillTarget.value);
+});
+
+elements.runSkillTest.addEventListener("click", async () => {
+  const skillName = elements.skillName.value;
+  if (!skillName) return;
+  elements.runSkillTest.disabled = true;
+  setFeedback(`Using safe skill ${skillName} once…`);
+  try {
+    const result = await skillTest();
+    const target = result.result?.targetName
+      ? ` Target: ${result.result.targetName} (${result.result.targetId}).`
+      : "";
+    const cooldown = typeof result.result?.cooldownMs === "number"
+      ? ` Cooldown: ${result.result.cooldownMs} ms.`
+      : "";
+    setFeedback(
+      `Skill confirmed by server. Request ID: ${result.requestId}. Outcome: ${result.outcome}. Skill: ${result.result?.displayName ?? skillName}.${target}${cooldown}`,
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Skill test failed: ${error.message}`, "error");
+  } finally {
+    await refreshSkillOptions();
+  }
+});
+
 elements.reloadGameData.addEventListener("click", async () => {
   elements.reloadGameData.disabled = true;
   setFeedback("Reloading Adventure Land game data…");
@@ -1697,6 +1882,7 @@ await refreshAccount();
 await refreshSelection();
 await refreshCharacterConnection();
 await refreshActionGateway();
+await refreshSkillOptions();
 await refreshGameVersion();
 await refreshGameData();
 await refreshUpdate();
@@ -1708,6 +1894,7 @@ setInterval(refreshAccount, 2000);
 setInterval(refreshSelection, 2000);
 setInterval(refreshCharacterConnection, 1500);
 setInterval(refreshActionGateway, 2000);
+setInterval(refreshSkillOptions, 1500);
 setInterval(refreshGameVersion, 2000);
 setInterval(refreshGameData, 2000);
 setInterval(refreshUpdate, 1500);
