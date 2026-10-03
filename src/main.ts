@@ -66,6 +66,14 @@ delete process.env[UPDATE_SESSION_HANDOFF_ENV];
 const updateSessionHandoff = args.has("--post-update")
   ? decodeUpdateSessionHandoff(updateSessionHandoffRaw)
   : undefined;
+if (args.has("--post-update")) {
+  logger.info("Update restart session handoff status.", {
+    present: Boolean(updateSessionHandoffRaw),
+    decoded: Boolean(updateSessionHandoff),
+    consumed: true,
+    secretPersisted: false,
+  });
+}
 if (args.has("--post-update") && updateSessionHandoffRaw && !updateSessionHandoff) {
   logger.warn("Update session handoff was invalid and was discarded.", {
     secretPersisted: false,
