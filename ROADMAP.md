@@ -2272,3 +2272,69 @@ Result: the real Windows alpha.49 run proves that the Slice 6.2 planner can deri
 
 Slice 6.3 – Smart-Move-Kompatibilität may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
 
+---
+
+## Append-only verification record — Slice 6.3 Smart-Move-Kompatibilität — 2026-10-04
+
+**Canonical status update: Slice 6.3 = VERIFIED.**
+
+Release/live environment:
+
+- verified release: `v0.1.0-alpha.50`
+- tested implementation main / release target: `14b80c34b3803b46fd2ff4bce70026b2eef68aac`
+- Windows client: `0.1.0-alpha.50`
+- platform: `win32`
+- one-click test ID: `live63-ba01676e-106d-4eb1-8b01-96663b19c3bf`
+- outcome: `passed`
+- test window: `2026-10-03T22:06:35.139Z → 2026-10-03T22:06:35.388Z`
+- live Character: `My_Merchant` on `EU II`, map `main`, position `-25,-478`
+- diagnostic export: 32 log lines, `Secrets sanitized: yes`
+
+Smart-move compatibility evidence:
+
+- the isolated script worker exposed `smart_move()`;
+- an Adventure Land-style coordinate destination matching the current Character position completed with status `already_there`;
+- the successful probe planned a reachable zero-leg route on `main`;
+- smart-move service counters changed by exactly two requests and one completed request;
+- the successful route contained no movement leg and no map hop;
+- an intentionally unsupported string selector was returned to the script as stable explicit error code `SMART_MOVE_TARGET_UNSUPPORTED`;
+- the SmartMove service retained that exact error as its final diagnostic state;
+- the script runtime stopped cleanly after the probe with zero active timers and zero active event listeners.
+
+Passive-safety evidence:
+
+- Character position remained `main -25,-478 → main -25,-478`;
+- Character remained connected;
+- `movementExecution:false`;
+- `gameplayMutation:false`;
+- `rawSocketAccess:false`;
+- action-gateway records during the probe: `0`;
+- the compatibility proof therefore exercised the real isolated-worker API and error propagation without hidden movement or gameplay mutation.
+
+Navigation precondition evidence:
+
+- live Adventure Land game-data version: `17397`;
+- canonical navigation model status: `ready`;
+- map count: `54`;
+- transition count: `98`;
+- collision-line count: `13342`;
+- blocking invalid transition count: `0`;
+- the SmartMove service and Slice 6.2 path planner both reported `ready`.
+
+Repository/release gate evidence:
+
+- implementation PR #98 merged with method `merge` at exact main `14b80c34b3803b46fd2ff4bce70026b2eef68aac`;
+- final implementation PR CI run `37156623042` completed with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- exact post-implementation-main CI run `37156789360` completed with all four required jobs successful;
+- release publish run `37156936073` completed successfully;
+- GitHub release `v0.1.0-alpha.50` targets exact commit `14b80c34b3803b46fd2ff4bce70026b2eef68aac`;
+- release branch `release/v0.1.0-alpha.50`, tag `v0.1.0-alpha.50`, and implementation `main` were verified commit-identical;
+- published assets:
+  - Windows x64 installer SHA-256 `71df41d0353b50dc62cc6c62c075ee42679cf0e0bb55e399d6d12dd02139f5b6`
+  - Linux x64 installer SHA-256 `22fa0038bf921cb2c95e7049aed9a0b6e253817b2cd9dedd5205b9fb26ceac29`
+  - updater manifest SHA-256 `cf7940825bc6059bf00f7a00f268b91611b31a334445c51b9a75431f9717687e`.
+
+Result: the real Windows alpha.50 run proves the first `smart_move()`-compatible API inside the isolated worker, including a successful coordinate destination, planner-backed already-at-target semantics, stable explicit error propagation, and preservation of the existing Action Gateway safety boundary. **Slice 6.3 is VERIFIED.**
+
+Slice 6.4 – Movement Trail und geplante Route im Dashboard may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
+
