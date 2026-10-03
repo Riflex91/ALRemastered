@@ -599,6 +599,20 @@
         </div>
       </div>
 
+      <div class="selection-content">
+        <div>
+          <h3>Slice 5.2 one-click disconnect/reconnect test</h3>
+          <div class="server-picker">
+            <button id="start-slice-5-2-live-test" type="button">Start reconnect test</button>
+            <strong id="slice-5-2-live-test-status" aria-live="polite">Ready</strong>
+            <button id="copy-slice-5-2-live-test-result" type="button" hidden>Copy last test result</button>
+          </div>
+          <small class="selection-note" id="slice-5-2-live-test-note">
+            Intentionally interrupts the real headless character socket, verifies disconnect detection, bounded exponential backoff, automatic reconnect, ordered recovery logs, and a fresh post-reconnect state update. No gameplay action is sent.
+          </small>
+        </div>
+      </div>
+
       <details id="script-runtime-developer-controls">
         <summary>Script runtime developer controls</summary>
         <div class="selection-content">

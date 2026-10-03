@@ -31,6 +31,7 @@ export type AdventureLandCharacterConnectionStatus =
   | "disconnected"
   | "connecting"
   | "connected"
+  | "reconnecting"
   | "disconnecting"
   | "error";
 
@@ -50,6 +51,12 @@ export interface AdventureLandCharacterConnectionState {
   readonly lastLiveUpdateAt?: string;
   readonly heartbeatSequence?: number;
   readonly lastHeartbeatAt?: string;
+  readonly reconnectAttempt?: number;
+  readonly reconnectDelayMs?: number;
+  readonly reconnectScheduledAt?: string;
+  readonly reconnectCount?: number;
+  readonly lastDisconnectAt?: string;
+  readonly lastReconnectAt?: string;
   readonly message: string;
   readonly errorCode?: string;
 }
@@ -60,6 +67,9 @@ export interface AdventureLandCharacterServiceOptions {
   readonly selection: Pick<AdventureLandSelectionService, "state">;
   readonly session: () => AdventureLandAccountSession | undefined;
   readonly now?: () => Date;
+  readonly reconnectInitialDelayMs?: number;
+  readonly reconnectMaxDelayMs?: number;
+  readonly reconnectMaxAttempts?: number;
 }
 
 export class AdventureLandCharacterService {
@@ -68,10 +78,21 @@ export class AdventureLandCharacterService {
   readonly #selection: Pick<AdventureLandSelectionService, "state">;
   readonly #session: () => AdventureLandAccountSession | undefined;
   readonly #now: () => Date;
+  readonly #reconnectInitialDelayMs: number;
+  readonly #reconnectMaxDelayMs: number;
+  readonly #reconnectMaxAttempts: number;
   #state: AdventureLandCharacterConnectionState = disconnectedState();
   #connection?: AdventureLandCharacterConnection;
   #connecting?: Promise<AdventureLandCharacterConnectionState>;
   #connectAbort?: AbortController;
+  #reconnectTimer?: ReturnType<typeof setTimeout>;
+  #reconnectContext?: {
+    readonly attempt: number;
+    readonly reason?: string;
+    readonly delayMs: number;
+  };
+  #desiredCharacterId?: string;
+  #reconnectCount = 0;
   readonly #gameEventListeners = new Set<(event: AdventureLandGameEvent) => void>();
 
   constructor(options: AdventureLandCharacterServiceOptions) {
@@ -80,6 +101,12 @@ export class AdventureLandCharacterService {
     this.#selection = options.selection;
     this.#session = options.session;
     this.#now = options.now ?? (() => new Date());
+    this.#reconnectInitialDelayMs = Math.max(25, options.reconnectInitialDelayMs ?? 500);
+    this.#reconnectMaxDelayMs = Math.max(
+      this.#reconnectInitialDelayMs,
+      options.reconnectMaxDelayMs ?? 5_000,
+    );
+    this.#reconnectMaxAttempts = Math.max(1, Math.floor(options.reconnectMaxAttempts ?? 6));
   }
 
   state(): AdventureLandCharacterConnectionState {
@@ -87,10 +114,13 @@ export class AdventureLandCharacterService {
   }
 
   start(characterId: string): Promise<AdventureLandCharacterConnectionState> {
-    if (this.#connection || this.#connecting) {
+    if (this.#connection || this.#connecting || this.#reconnectTimer) {
       throw new Error("A character connection is already active or being started.");
     }
 
+    const reconnectContext = this.#reconnectContext;
+    this.#reconnectContext = undefined;
+    const isReconnect = Boolean(reconnectContext);
     const id = characterId.trim();
     if (!id) throw new Error("Character selection is required.");
 
@@ -112,26 +142,49 @@ export class AdventureLandCharacterService {
     );
     if (!server) throw new Error("The selected Adventure Land server is not available.");
 
+    if (!isReconnect) {
+      this.#desiredCharacterId = id;
+      this.#reconnectCount = 0;
+    }
+
     const controller = new AbortController();
     this.#connectAbort = controller;
     this.#setState({
-      status: "connecting",
+      ...this.#state,
+      status: isReconnect ? "reconnecting" : "connecting",
       characterId: character.id,
       characterName: character.name,
       serverKey: server.key,
       serverRegion: server.region,
       serverName: server.name,
-      message: "Connecting " + character.name + " headlessly to " +
-        server.region + " " + server.name + "…",
+      reconnectAttempt: reconnectContext?.attempt,
+      reconnectDelayMs: reconnectContext?.delayMs,
+      reconnectCount: this.#reconnectCount,
+      message: isReconnect
+        ? "Reconnect attempt " + reconnectContext!.attempt + " for " + character.name + " is starting…"
+        : "Connecting " + character.name + " headlessly to " + server.region + " " + server.name + "…",
+      errorCode: undefined,
     });
-    this.#logger.info("Adventure Land headless character connection started.", {
-      characterId: character.id,
-      characterName: character.name,
-      serverKey: server.key,
-      region: server.region,
-      name: server.name,
-      automation: false,
-    });
+    if (isReconnect) {
+      this.#logger.info("Adventure Land character reconnect attempt started.", {
+        characterId: character.id,
+        characterName: character.name,
+        serverKey: server.key,
+        attempt: reconnectContext!.attempt,
+        reconnectDelayMs: reconnectContext!.delayMs,
+        reason: reconnectContext!.reason,
+        automation: true,
+      });
+    } else {
+      this.#logger.info("Adventure Land headless character connection started.", {
+        characterId: character.id,
+        characterName: character.name,
+        serverKey: server.key,
+        region: server.region,
+        name: server.name,
+        automation: false,
+      });
+    }
 
     this.#connecting = this.#transport.connect({
       session,
@@ -193,8 +246,10 @@ export class AdventureLandCharacterService {
       connection.onUnexpectedClose((reason) => {
         if (this.#connection !== connection) return;
         this.#connection = undefined;
+        const lastDisconnectAt = this.#now().toISOString();
         this.#setState({
-          status: "error",
+          ...this.#state,
+          status: "reconnecting",
           character: connection.character,
           characterId: connection.character.id,
           characterName: connection.character.name,
@@ -203,9 +258,11 @@ export class AdventureLandCharacterService {
           serverName: server.name,
           heartbeatSequence: this.#state.heartbeatSequence,
           lastHeartbeatAt: this.#state.lastHeartbeatAt,
+          lastDisconnectAt,
+          reconnectCount: this.#reconnectCount,
           message: reason
-            ? "Adventure Land closed the character connection (" + reason + ")."
-            : "Adventure Land character connection closed unexpectedly.",
+            ? "Adventure Land closed the character connection (" + reason + "). Reconnect will be attempted."
+            : "Adventure Land character connection closed unexpectedly. Reconnect will be attempted.",
           errorCode: "socket_closed",
         });
         this.#logger.warn("Adventure Land headless character connection closed unexpectedly.", {
@@ -213,12 +270,17 @@ export class AdventureLandCharacterService {
           characterName: connection.character.name,
           serverKey: server.key,
           reason,
-          automation: false,
+          lastDisconnectAt,
+          automation: true,
         });
+        this.#scheduleReconnect(connection.character.id, connection.character.name, server.key, reason, 1);
       });
 
       const connectedAt = this.#now().toISOString();
       const initialLiveState = connection.snapshot();
+      if (isReconnect) this.#reconnectCount += 1;
+      const heartbeatSequence = Math.max(1, (this.#state.heartbeatSequence ?? 0) + 1);
+      const lastReconnectAt = isReconnect ? connectedAt : this.#state.lastReconnectAt;
       this.#setState({
         status: "connected",
         character: initialLiveState.character,
@@ -233,22 +295,41 @@ export class AdventureLandCharacterService {
         connectedAt,
         pingMs: initialLiveState.pingMs,
         lastLiveUpdateAt: initialLiveState.updatedAt,
-        heartbeatSequence: 1,
+        heartbeatSequence,
         lastHeartbeatAt: initialLiveState.updatedAt,
+        reconnectCount: this.#reconnectCount,
+        lastDisconnectAt: this.#state.lastDisconnectAt,
+        lastReconnectAt,
         message: initialLiveState.character.name +
           " is connected headlessly. Live state is updating; no automation is running.",
       });
-      this.#logger.info("Adventure Land character connected headlessly.", {
-        characterId: initialLiveState.character.id,
-        characterName: initialLiveState.character.name,
-        characterType: initialLiveState.character.type,
-        serverKey: server.key,
-        region: server.region,
-        name: server.name,
-        connectedAt,
-        automation: false,
-        ...liveStateContext(initialLiveState),
-      });
+      if (isReconnect) {
+        this.#logger.info("Adventure Land headless character reconnected.", {
+          characterId: initialLiveState.character.id,
+          characterName: initialLiveState.character.name,
+          characterType: initialLiveState.character.type,
+          serverKey: server.key,
+          region: server.region,
+          name: server.name,
+          connectedAt,
+          reconnectAttempt: reconnectContext!.attempt,
+          reconnectCount: this.#reconnectCount,
+          automation: true,
+          ...liveStateContext(initialLiveState),
+        });
+      } else {
+        this.#logger.info("Adventure Land character connected headlessly.", {
+          characterId: initialLiveState.character.id,
+          characterName: initialLiveState.character.name,
+          characterType: initialLiveState.character.type,
+          serverKey: server.key,
+          region: server.region,
+          name: server.name,
+          connectedAt,
+          automation: false,
+          ...liveStateContext(initialLiveState),
+        });
+      }
       return this.state();
     }).catch((error) => {
       this.#connectAbort = undefined;
@@ -263,6 +344,44 @@ export class AdventureLandCharacterService {
         return this.state();
       }
 
+      if (isReconnect) {
+        this.#logger.warn("Adventure Land character reconnect attempt failed.", {
+          characterId: character.id,
+          characterName: character.name,
+          serverKey: server.key,
+          attempt: reconnectContext!.attempt,
+          code: transportError.code,
+          error: transportError.message,
+          automation: true,
+        });
+        if (reconnectContext!.attempt < this.#reconnectMaxAttempts) {
+          this.#scheduleReconnect(
+            character.id,
+            character.name,
+            server.key,
+            reconnectContext!.reason ?? transportError.code,
+            reconnectContext!.attempt + 1,
+          );
+        } else {
+          this.#setState({
+            ...this.#state,
+            status: "error",
+            reconnectAttempt: reconnectContext!.attempt,
+            reconnectCount: this.#reconnectCount,
+            message: "Adventure Land reconnect attempts were exhausted: " + transportError.message,
+            errorCode: transportError.code,
+          });
+          this.#logger.error("Adventure Land character reconnect attempts exhausted.", transportError, {
+            characterId: character.id,
+            characterName: character.name,
+            serverKey: server.key,
+            attempts: reconnectContext!.attempt,
+            automation: true,
+          });
+        }
+        return this.state();
+      }
+
       this.#setState({
         status: "error",
         characterId: character.id,
@@ -270,6 +389,7 @@ export class AdventureLandCharacterService {
         serverKey: server.key,
         serverRegion: server.region,
         serverName: server.name,
+        reconnectCount: this.#reconnectCount,
         message: transportError.message,
         errorCode: transportError.code,
       });
@@ -289,6 +409,23 @@ export class AdventureLandCharacterService {
     });
 
     return this.#connecting;
+  }
+
+  interruptForReconnectTest(): void {
+    const connection = this.#connection;
+    if (!connection || this.#state.status !== "connected") {
+      throw new AdventureLandCharacterTransportError(
+        "Connect a headless character before running the reconnect live test.",
+        "reconnect_test_not_connected",
+      );
+    }
+    this.#logger.info("Slice 5.2 requested an intentional transport interruption.", {
+      characterId: this.#state.characterId,
+      characterName: this.#state.characterName,
+      serverKey: this.#state.serverKey,
+      gameplayMutation: false,
+    });
+    connection.interruptUnexpectedlyForTest("slice52_live_test");
   }
 
   sendSkill(input: AdventureLandSkillInput): Promise<AdventureLandSkillReceipt> {
@@ -494,15 +631,26 @@ export class AdventureLandCharacterService {
   }
 
   async stop(reason = "user"): Promise<AdventureLandCharacterConnectionState> {
-    const hadConnection = Boolean(this.#connection || this.#connecting);
+    const hadConnection = Boolean(
+      this.#connection ||
+      this.#connecting ||
+      this.#reconnectTimer ||
+      this.#state.status === "reconnecting",
+    );
     const characterId = this.#state.characterId;
     const characterName = this.#state.characterName;
     const serverKey = this.#state.serverKey;
 
     if (!hadConnection) {
+      this.#desiredCharacterId = undefined;
+      this.#reconnectContext = undefined;
       this.#setState(disconnectedState());
       return this.state();
     }
+
+    this.#cancelReconnect();
+    this.#desiredCharacterId = undefined;
+    this.#reconnectContext = undefined;
 
     this.#setState({
       ...this.#state,
@@ -546,6 +694,79 @@ export class AdventureLandCharacterService {
       ...(finalLiveState ? liveStateContext(finalLiveState) : {}),
     });
     return this.state();
+  }
+
+  #scheduleReconnect(
+    characterId: string,
+    characterName: string,
+    serverKey: string,
+    reason: string | undefined,
+    attempt: number,
+  ): void {
+    if (this.#desiredCharacterId !== characterId || attempt > this.#reconnectMaxAttempts) return;
+    this.#cancelReconnect();
+    const delayMs = Math.min(
+      this.#reconnectMaxDelayMs,
+      this.#reconnectInitialDelayMs * 2 ** Math.max(0, attempt - 1),
+    );
+    const scheduledAt = new Date(this.#now().getTime() + delayMs).toISOString();
+    this.#setState({
+      ...this.#state,
+      status: "reconnecting",
+      reconnectAttempt: attempt,
+      reconnectDelayMs: delayMs,
+      reconnectScheduledAt: scheduledAt,
+      reconnectCount: this.#reconnectCount,
+      message: "Reconnect attempt " + attempt + " scheduled in " + delayMs + " ms.",
+    });
+    this.#logger.info("Adventure Land character reconnect scheduled.", {
+      characterId,
+      characterName,
+      serverKey,
+      attempt,
+      reconnectDelayMs: delayMs,
+      reconnectScheduledAt: scheduledAt,
+      reason,
+      automation: true,
+    });
+
+    this.#reconnectTimer = setTimeout(() => {
+      this.#reconnectTimer = undefined;
+      if (this.#desiredCharacterId !== characterId || this.#state.status === "disconnecting") return;
+      this.#reconnectContext = { attempt, reason, delayMs };
+      try {
+        void this.start(characterId);
+      } catch (error) {
+        this.#reconnectContext = undefined;
+        const message = error instanceof Error ? error.message : String(error);
+        this.#logger.warn("Adventure Land character reconnect attempt failed before transport start.", {
+          characterId,
+          characterName,
+          serverKey,
+          attempt,
+          error: message,
+          automation: true,
+        });
+        if (attempt < this.#reconnectMaxAttempts) {
+          this.#scheduleReconnect(characterId, characterName, serverKey, reason ?? message, attempt + 1);
+        } else {
+          this.#setState({
+            ...this.#state,
+            status: "error",
+            reconnectAttempt: attempt,
+            reconnectCount: this.#reconnectCount,
+            message: "Adventure Land reconnect attempts were exhausted: " + message,
+            errorCode: "reconnect_setup_failed",
+          });
+        }
+      }
+    }, delayMs);
+    this.#reconnectTimer.unref();
+  }
+
+  #cancelReconnect(): void {
+    if (this.#reconnectTimer) clearTimeout(this.#reconnectTimer);
+    this.#reconnectTimer = undefined;
   }
 
   #setState(state: AdventureLandCharacterConnectionState): void {

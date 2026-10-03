@@ -27,6 +27,8 @@ const state = {
   slice45LastReport: null,
   slice51LiveTest: null,
   slice51LastReport: null,
+  slice52LiveTest: null,
+  slice52LastReport: null,
   update: null,
   gameVersion: null,
   gameData: null,
@@ -155,6 +157,10 @@ const elements = {
   slice51LiveTestStatus: document.querySelector("#slice-5-1-live-test-status"),
   slice51LiveTestNote: document.querySelector("#slice-5-1-live-test-note"),
   copySlice51LiveTestResult: document.querySelector("#copy-slice-5-1-live-test-result"),
+  startSlice52LiveTest: document.querySelector("#start-slice-5-2-live-test"),
+  slice52LiveTestStatus: document.querySelector("#slice-5-2-live-test-status"),
+  slice52LiveTestNote: document.querySelector("#slice-5-2-live-test-note"),
+  copySlice52LiveTestResult: document.querySelector("#copy-slice-5-2-live-test-result"),
   gameVersion: document.querySelector("#game-version"),
   gameVersionStatus: document.querySelector("#game-version-status"),
   gameLastDeploy: document.querySelector("#game-last-deploy"),
@@ -1254,6 +1260,32 @@ function renderSlice51LiveTest() {
   }
 }
 
+function renderSlice52LiveTest() {
+  const test = state.slice52LiveTest;
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    blocked: "BLOCKED",
+    failed: "FAILED",
+    unavailable: "Unavailable",
+  };
+  const status = test?.status ?? "idle";
+  elements.slice52LiveTestStatus.textContent = labels[status] ?? status;
+  elements.startSlice52LiveTest.disabled = status === "running";
+  elements.copySlice52LiveTestResult.hidden = !state.slice52LastReport;
+  if (status === "running") {
+    elements.slice52LiveTestNote.textContent =
+      "The real character socket is being interrupted once. ALRemastered is verifying bounded backoff, automatic reconnect, ordered logs, and fresh state without gameplay mutation.";
+  } else if (test?.message) {
+    elements.slice52LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  } else {
+    elements.slice52LiveTestNote.textContent =
+      "Intentionally interrupts the real headless character socket and verifies disconnect detection, bounded reconnect, and recovery evidence.";
+  }
+}
+
 function renderGameVersion() {
   const gameVersion = state.gameVersion;
   if (!gameVersion) return;
@@ -1754,6 +1786,22 @@ async function refreshSlice51LiveTest() {
       message: "Slice 5.1 heartbeat-test status could not be loaded.",
     };
     renderSlice51LiveTest();
+  }
+}
+
+async function refreshSlice52LiveTest() {
+  try {
+    const response = await fetch("/api/live-test/slice-5-2", { cache: "no-store" });
+    state.slice52LiveTest = response.ok
+      ? await response.json()
+      : { status: "unavailable", message: "Slice 5.2 reconnect test is unavailable." };
+    renderSlice52LiveTest();
+  } catch {
+    state.slice52LiveTest = {
+      status: "unavailable",
+      message: "Slice 5.2 reconnect-test status could not be loaded.",
+    };
+    renderSlice52LiveTest();
   }
 }
 
@@ -2371,6 +2419,33 @@ async function startSlice51LiveTest(clipboardWrite) {
   await refreshStatus();
   await refreshCharacterConnection();
   await refreshScriptRuntime();
+  await refreshDiagnostics();
+  return { payload, copied };
+}
+
+async function startSlice52LiveTest(clipboardWrite) {
+  state.slice52LiveTest = {
+    status: "running",
+    message: "Slice 5.2 reconnect test is running.",
+  };
+  renderSlice52LiveTest();
+  const response = await fetch("/api/live-test/slice-5-2/start", { method: "POST" });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error ?? payload.message ?? `Slice 5.2 reconnect test failed with HTTP ${response.status}`);
+  }
+  if (!payload.reportText || typeof payload.reportText !== "string") {
+    throw new Error("Slice 5.2 reconnect test returned no copyable report.");
+  }
+  state.slice52LastReport = payload.reportText;
+  state.slice52LiveTest = {
+    status: payload.result?.outcome ?? "failed",
+    message: payload.result?.message ?? "Slice 5.2 reconnect test finished.",
+    lastResult: payload.result,
+  };
+  const copied = await clipboardWrite.finish(payload.reportText);
+  renderSlice52LiveTest();
+  await refreshCharacterConnection();
   await refreshDiagnostics();
   return { payload, copied };
 }
@@ -3182,6 +3257,40 @@ elements.copySlice51LiveTestResult.addEventListener("click", async () => {
   }
 });
 
+elements.startSlice52LiveTest.addEventListener("click", async () => {
+  if (state.slice52LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice52LastReport = null;
+  elements.copySlice52LiveTestResult.hidden = true;
+  setFeedback("Slice 5.2 reconnect test started. The real character socket will be interrupted once and recovered automatically.");
+  try {
+    const { payload, copied } = await startSlice52LiveTest(clipboardWrite);
+    const outcome = payload.result?.outcome ?? "failed";
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 5.2 test ${String(outcome).toUpperCase()}. ${copyMessage}`,
+      outcome === "passed" && copied ? "success" : outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    await refreshSlice52LiveTest();
+    setFeedback(`Slice 5.2 reconnect test could not finish: ${error.message}`, "error");
+  } finally {
+    renderSlice52LiveTest();
+  }
+});
+
+elements.copySlice52LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice52LastReport) return;
+  try {
+    await writeClipboard(state.slice52LastReport);
+    setFeedback("Complete Slice 5.2 reconnect result and sanitized diagnostic log copied.", "success");
+  } catch (error) {
+    setFeedback(`Reconnect-result copy failed: ${error.message}`, "error");
+  }
+});
+
 elements.reloadGameData.addEventListener("click", async () => {
   elements.reloadGameData.disabled = true;
   setFeedback("Reloading Adventure Land game data…");
@@ -3299,6 +3408,7 @@ await refreshSlice44LiveTest();
 await refreshSimpleFarmer();
 await refreshSlice45LiveTest();
 await refreshSlice51LiveTest();
+await refreshSlice52LiveTest();
 await refreshGameVersion();
 await refreshGameData();
 await refreshUpdate();
@@ -3321,6 +3431,7 @@ setInterval(refreshSlice44LiveTest, 1500);
 setInterval(refreshSimpleFarmer, 1500);
 setInterval(refreshSlice45LiveTest, 1500);
 setInterval(refreshSlice51LiveTest, 1500);
+setInterval(refreshSlice52LiveTest, 1500);
 setInterval(refreshGameVersion, 2000);
 setInterval(refreshGameData, 2000);
 setInterval(refreshUpdate, 1500);

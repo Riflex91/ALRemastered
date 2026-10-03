@@ -500,6 +500,9 @@ test("character service allows exactly one connection and disconnects controllab
         cooldownMs: 2000,
       };
     },
+    interruptUnexpectedlyForTest(reason) {
+      unexpectedClose?.(reason);
+    },
     async close() {
       closeCalls += 1;
     },
@@ -522,6 +525,8 @@ test("character service allows exactly one connection and disconnects controllab
       connect: async () => connection,
     },
     now: () => new Date("2026-10-02T20:05:00.000Z"),
+    reconnectInitialDelayMs: 10_000,
+    reconnectMaxDelayMs: 10_000,
   });
 
   const connected = await service.start("CH_1");
@@ -679,7 +684,102 @@ test("character service allows exactly one connection and disconnects controllab
 
   await service.start("CH_1");
   unexpectedClose?.("limits");
-  const failed = service.state();
-  assert.equal(failed.status, "error");
-  assert.match(failed.message, /limits/);
+  const recovering = service.state();
+  assert.equal(recovering.status, "reconnecting");
+  assert.equal(recovering.reconnectAttempt, 1);
+  assert.equal(recovering.reconnectDelayMs, 10_000);
+  assert.match(recovering.message, /Reconnect attempt 1/);
+  await service.stop("test-cleanup");
+});
+
+test("character service reconnects after an unexpected close with bounded backoff", async () => {
+  const logger = new Logger({ component: "character-reconnect-test" });
+  let connectCalls = 0;
+  let firstUnexpectedClose: ((reason?: string) => void) | undefined;
+  const makeConnection = (index: number): AdventureLandCharacterConnection => ({
+    character: {
+      id: "CH_1",
+      name: "RangerOne",
+      type: "ranger",
+      level: 45,
+      hp: 4000,
+      maxHp: 4000,
+      mp: 900,
+      maxMp: 1000,
+      dead: false,
+      range: 120,
+    },
+    snapshot() {
+      return {
+        character: this.character,
+        entities: [],
+        party: { inParty: false, members: [], details: {} },
+        lootChests: [],
+        pingMs: 12,
+        updatedAt: new Date().toISOString(),
+      };
+    },
+    onState() { return () => undefined; },
+    onGameEvent() { return () => undefined; },
+    onUnexpectedClose(listener) {
+      if (index === 1) firstUnexpectedClose = listener;
+    },
+    requestStateRefresh() {},
+    sendMove(input) { return { fromX: 0, fromY: 0, targetX: input.x, targetY: input.y }; },
+    async sendAttack(input) { return { targetId: input.targetId, success: true }; },
+    attackCooldownRemainingMs() { return 0; },
+    async sendSkill(input) { return { name: input.name, targetId: input.targetId, success: true }; },
+    skillCooldownRemainingMs() { return 0; },
+    async sendLoot(input) { return { chestId: input.chestId, success: true }; },
+    async sendConsumable(input) {
+      return { inventoryIndex: input.inventoryIndex, itemName: input.itemName, kind: input.kind, success: true };
+    },
+    async sendRespawn() { return { success: true }; },
+    interruptUnexpectedlyForTest(reason) { firstUnexpectedClose?.(reason); },
+    async close() {},
+  });
+  const service = new AdventureLandCharacterService({
+    logger,
+    session: () => ({ userId: "US_user", auth: "private-auth" }),
+    selection: {
+      state: () => ({
+        status: "ready",
+        characters: [character],
+        servers: [server],
+        selectedServerKey: "SR_EUII",
+        loadedAt: new Date().toISOString(),
+        message: "Ready.",
+      }),
+    },
+    transport: {
+      connect: async () => {
+        connectCalls += 1;
+        return makeConnection(connectCalls);
+      },
+    },
+    reconnectInitialDelayMs: 25,
+    reconnectMaxDelayMs: 100,
+    reconnectMaxAttempts: 3,
+  });
+
+  const first = await service.start("CH_1");
+  assert.equal(first.status, "connected");
+  firstUnexpectedClose?.("network-reset");
+  assert.equal(service.state().status, "reconnecting");
+  assert.equal(service.state().reconnectAttempt, 1);
+  assert.equal(service.state().reconnectDelayMs, 25);
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  const reconnected = service.state();
+  assert.equal(connectCalls, 2);
+  assert.equal(reconnected.status, "connected");
+  assert.equal(reconnected.reconnectCount, 1);
+  assert.ok(reconnected.lastDisconnectAt);
+  assert.ok(reconnected.lastReconnectAt);
+  const log = logger.exportText();
+  const closedAt = log.indexOf("connection closed unexpectedly");
+  const scheduledAt = log.indexOf("reconnect scheduled");
+  const attemptAt = log.indexOf("reconnect attempt started");
+  const restoredAt = log.indexOf("headless character reconnected");
+  assert.ok(closedAt >= 0 && scheduledAt > closedAt && attemptAt > scheduledAt && restoredAt > attemptAt);
+  await service.stop("test-cleanup");
 });
