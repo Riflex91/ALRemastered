@@ -627,6 +627,20 @@
         </div>
       </div>
 
+      <div class="selection-content">
+        <div>
+          <h3>Slice 5.4 one-click watchdog/restart-guard test</h3>
+          <div class="server-picker">
+            <button id="start-slice-5-4-live-test" type="button">Start watchdog test</button>
+            <strong id="slice-5-4-live-test-status" aria-live="polite">Ready</strong>
+            <button id="copy-slice-5-4-live-test-result" type="button" hidden>Copy last test result</button>
+          </div>
+          <small class="selection-note" id="slice-5-4-live-test-note">
+            Uses a bounded test-only suppression of host-observed Script heartbeats to verify real production watchdog stall detection, controlled worker restart, restart-budget exhaustion, and protection against endless restart loops. No gameplay action or raw socket access is used.
+          </small>
+        </div>
+      </div>
+
       <details id="script-runtime-developer-controls">
         <summary>Script runtime developer controls</summary>
         <div class="selection-content">
