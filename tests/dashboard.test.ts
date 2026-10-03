@@ -1567,7 +1567,7 @@ test("dashboard exposes Slice 4.3 event API one-click test", async () => {
       characterId: "CH_1",
       characterName: "RangerOne",
       serverKey: "SR_EUII",
-      observedEvent: "player",
+      observedEvent: "entities",
       message: "Slice 4.3 one-click live test passed.",
       steps: [],
     }),
@@ -1594,7 +1594,7 @@ test("dashboard exposes Slice 4.3 event API one-click test", async () => {
     const payload = await live.json();
     assert.equal(payload.result.outcome, "passed");
     assert.equal(payload.result.slice, "4.3");
-    assert.equal(payload.result.observedEvent, "player");
+    assert.equal(payload.result.observedEvent, "entities");
     assert.equal(payload.clipboardSuggested, true);
     assert.match(payload.reportText, /ALRemastered Slice 4\.3 one-click live test/);
     assert.match(payload.reportText, /slice-4-3-live-events/);
