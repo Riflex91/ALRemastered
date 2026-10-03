@@ -1894,3 +1894,58 @@ test("dashboard exposes Slice 5.2 disconnect/reconnect one-click test", async ()
     runtime.stop();
   }
 });
+
+
+test("dashboard exposes Slice 5.3 death/respawn recovery one-click test", async () => {
+  const html = readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
+  const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
+  for (const id of [
+    "start-slice-5-3-live-test",
+    "slice-5-3-live-test-status",
+    "copy-slice-5-3-live-test-result",
+  ]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+  assert.match(html, /real Adventure Land server-observed death state/);
+  assert.match(html, /central Action Gateway/);
+  assert.match(script, /\/api\/live-test\/slice-5-3\/start/);
+
+  const runtime = new CoreRuntime();
+  runtime.start();
+  const logger = new Logger({ component: "dashboard-slice53-test" });
+  const fakeLiveTest = {
+    state: () => ({ status: "idle", message: "ready" }),
+    run: async () => ({
+      testId: "live53-dashboard",
+      slice: "5.3",
+      outcome: "passed",
+      startedAt: "2026-10-03T20:00:00.000Z",
+      completedAt: "2026-10-03T20:00:01.000Z",
+      message: "Slice 5.3 passed.",
+      steps: [],
+    }),
+  };
+  const dashboard = new DashboardServer({
+    logger,
+    runtime,
+    slice53LiveTestService: fakeLiveTest as any,
+    host: "127.0.0.1",
+    port: 0,
+  });
+  const url = await dashboard.start();
+  try {
+    const current = await fetch(`${url}/api/live-test/slice-5-3`);
+    assert.equal(current.status, 200);
+    assert.equal((await current.json()).status, "idle");
+    const live = await fetch(`${url}/api/live-test/slice-5-3/start`, { method: "POST" });
+    assert.equal(live.status, 200);
+    const payload = await live.json();
+    assert.equal(payload.result.outcome, "passed");
+    assert.equal(payload.result.slice, "5.3");
+    assert.match(payload.reportText, /ALRemastered Slice 5\.3 one-click death\/respawn recovery test/);
+    assert.equal(payload.clipboardSuggested, true);
+  } finally {
+    await dashboard.stop();
+    runtime.stop();
+  }
+});

@@ -669,6 +669,39 @@ test("character service allows exactly one connection and disconnects controllab
   assert.ok((live.heartbeatSequence ?? 0) > 1);
   assert.equal(live.lastHeartbeatAt, "2026-10-02T20:05:01.000Z");
 
+  for (const listener of [...liveListeners]) listener({
+    ...connection.snapshot(),
+    character: {
+      ...connection.character,
+      hp: 0,
+      dead: true,
+      target: undefined,
+    },
+    updatedAt: "2026-10-02T20:05:02.000Z",
+  });
+  const dead = service.state();
+  assert.equal(dead.character?.dead, true);
+  assert.equal(dead.deathCount, 1);
+  assert.equal(dead.respawnCount, 0);
+  assert.equal(dead.lastDeathAt, "2026-10-02T20:05:02.000Z");
+  assert.equal(dead.lastRespawnAt, undefined);
+
+  for (const listener of [...liveListeners]) listener({
+    ...connection.snapshot(),
+    character: {
+      ...connection.character,
+      hp: 4000,
+      dead: false,
+    },
+    updatedAt: "2026-10-02T20:05:03.000Z",
+  });
+  const respawned = service.state();
+  assert.equal(respawned.character?.dead, false);
+  assert.equal(respawned.deathCount, 1);
+  assert.equal(respawned.respawnCount, 1);
+  assert.equal(respawned.lastDeathAt, "2026-10-02T20:05:02.000Z");
+  assert.equal(respawned.lastRespawnAt, "2026-10-02T20:05:03.000Z");
+
   const stopped = await service.stop("dashboard");
   assert.equal(stopped.status, "disconnected");
   assert.equal(closeCalls, 1);
@@ -680,6 +713,10 @@ test("character service allows exactly one connection and disconnects controllab
   assert.match(logger.exportText(), /"visiblePlayers":1/);
   assert.match(logger.exportText(), /"visibleMonsters":1/);
   assert.match(logger.exportText(), /"partyMembers":\["RangerOne","MageOne"\]/);
+  assert.match(logger.exportText(), /Adventure Land headless character died\./);
+  assert.match(logger.exportText(), /Adventure Land headless character respawned\./);
+  assert.match(logger.exportText(), /"deathCount":1/);
+  assert.match(logger.exportText(), /"respawnCount":1/);
   assert.doesNotMatch(logger.exportText(), /private-auth/);
 
   await service.start("CH_1");

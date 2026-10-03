@@ -1,6 +1,6 @@
 {
   "name": "alremastered",
-  "version": "0.1.0-alpha.44",
+  "version": "0.1.0-alpha.45",
   "private": true,
   "description": "A resource-efficient Adventure Land client with headless and browser modes.",
   "type": "module",
@@ -12,7 +12,7 @@
     "lint": "node scripts/check-style.mjs",
     "format": "node scripts/format.mjs",
     "format:check": "node scripts/check-format.mjs",
-    "test": "npm run build && node --test build/package/tests/respawn.test.js build/package/tests/simple-farmer.test.js build/package/tests/simple-farmer-script-api.test.js build/package/tests/slice-4-5-live-test.test.js build/package/tests/slice-5-1-live-test.test.js build/package/tests/slice-5-2-live-test.test.js build/package/tests/script-storage.test.js build/package/tests/slice-4-4-live-test.test.js build/package/tests/slice-4-2-live-test.test.js build/package/tests/slice-4-3-live-test.test.js build/package/tests/script-events.test.js build/package/tests/script-api.test.js build/package/tests/core.test.js build/package/tests/action-gateway.test.js build/package/tests/movement.test.js build/package/tests/attack.test.js build/package/tests/skill.test.js build/package/tests/loot-consumable.test.js build/package/tests/live-test.test.js build/package/tests/script-runtime.test.js build/package/tests/version-paths.test.js build/package/tests/logging.test.js build/package/tests/account.test.js build/package/tests/selection.test.js build/package/tests/character.test.js build/package/tests/dashboard.test.js build/package/tests/update-state.test.js build/package/tests/update-download.test.js build/package/tests/update-source.test.js build/package/tests/diagnostics.test.js build/package/tests/game-version.test.js build/package/tests/game-data.test.js",
+    "test": "npm run build && node --test build/package/tests/respawn.test.js build/package/tests/simple-farmer.test.js build/package/tests/simple-farmer-script-api.test.js build/package/tests/slice-4-5-live-test.test.js build/package/tests/slice-5-1-live-test.test.js build/package/tests/slice-5-2-live-test.test.js build/package/tests/slice-5-3-live-test.test.js build/package/tests/script-storage.test.js build/package/tests/slice-4-4-live-test.test.js build/package/tests/slice-4-2-live-test.test.js build/package/tests/slice-4-3-live-test.test.js build/package/tests/script-events.test.js build/package/tests/script-api.test.js build/package/tests/core.test.js build/package/tests/action-gateway.test.js build/package/tests/movement.test.js build/package/tests/attack.test.js build/package/tests/skill.test.js build/package/tests/loot-consumable.test.js build/package/tests/live-test.test.js build/package/tests/script-runtime.test.js build/package/tests/version-paths.test.js build/package/tests/logging.test.js build/package/tests/account.test.js build/package/tests/selection.test.js build/package/tests/character.test.js build/package/tests/dashboard.test.js build/package/tests/update-state.test.js build/package/tests/update-download.test.js build/package/tests/update-source.test.js build/package/tests/diagnostics.test.js build/package/tests/game-version.test.js build/package/tests/game-data.test.js",
     "check": "npm run lint && npm run format:check && npm test",
     "start": "node src/main.ts",
     "health": "node src/main.ts --health-check",
