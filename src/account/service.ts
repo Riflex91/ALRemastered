@@ -61,6 +61,33 @@ export class AdventureLandAccountService {
     return this.#connecting;
   }
 
+  restoreSession(
+    session: AdventureLandAccountSession,
+    source = "update_handoff",
+  ): AdventureLandAccountState {
+    const connectedAt = this.#now().toISOString();
+    this.#session = Object.freeze({
+      userId: session.userId,
+      auth: session.auth,
+      language: session.language,
+    });
+    this.#setState({
+      status: "connected",
+      userId: session.userId,
+      language: session.language,
+      connectedAt,
+      message: "Adventure Land account session restored after update.",
+    });
+    this.#logger.info("Adventure Land account session restored.", {
+      userId: session.userId,
+      language: session.language,
+      connectedAt,
+      source,
+      secretPersisted: false,
+    });
+    return this.state();
+  }
+
   disconnect(): AdventureLandAccountState {
     const previousUserId = this.#state.userId;
     this.#session = undefined;
