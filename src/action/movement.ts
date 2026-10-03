@@ -39,6 +39,12 @@ export interface MovementActionResult {
   readonly serverConfirmed: true;
 }
 
+export interface ConfirmedMovementTelemetryEvent {
+  readonly requestId: string;
+  readonly origin: ActionOrigin;
+  readonly result: MovementActionResult;
+}
+
 export interface AdventureLandMovementServiceOptions {
   readonly gateway: ActionGateway;
   readonly character: Pick<
@@ -47,6 +53,9 @@ export interface AdventureLandMovementServiceOptions {
   >;
   readonly gameData: () => AdventureLandGameData | undefined;
   readonly stepDistance?: number;
+  readonly onConfirmedMovement?: (
+    event: ConfirmedMovementTelemetryEvent,
+  ) => void;
 }
 
 const DEFAULT_STEP_DISTANCE = 32;
@@ -60,12 +69,16 @@ export class AdventureLandMovementService {
   >;
   readonly #gameData: () => AdventureLandGameData | undefined;
   readonly #stepDistance: number;
+  readonly #onConfirmedMovement?: (
+    event: ConfirmedMovementTelemetryEvent,
+  ) => void;
 
   constructor(options: AdventureLandMovementServiceOptions) {
     this.#gateway = options.gateway;
     this.#character = options.character;
     this.#gameData = options.gameData;
     this.#stepDistance = positiveStep(options.stepDistance);
+    this.#onConfirmedMovement = options.onConfirmedMovement;
   }
 
   runDashboardTest(
@@ -94,7 +107,7 @@ export class AdventureLandMovementService {
     }, "script");
   }
 
-  #runRequest(
+  async #runRequest(
     request: {
       readonly mode: MovementMode;
       readonly direction?: MovementDirection;
@@ -111,7 +124,7 @@ export class AdventureLandMovementService {
       ? { mode: request.mode, direction: request.direction }
       : { mode: request.mode, x: request.targetX, y: request.targetY };
 
-    return this.#gateway.run({
+    const result = await this.#gateway.run({
       action,
       origin,
       characterId,
@@ -246,6 +259,19 @@ export class AdventureLandMovementService {
         };
       },
     });
+
+    if (result.outcome === "success" && result.result) {
+      try {
+        this.#onConfirmedMovement?.({
+          requestId: result.requestId,
+          origin: result.origin,
+          result: result.result,
+        });
+      } catch {
+        // Read-only telemetry must never change a confirmed movement outcome.
+      }
+    }
+    return result;
   }
 }
 
