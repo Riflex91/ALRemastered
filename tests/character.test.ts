@@ -431,10 +431,21 @@ test("character service allows exactly one connection and disconnects controllab
     listener({
       character: {
         ...connection.character,
-        x: 20,
+        x: 12,
         y: 34,
       },
-      entities: [],
+      entities: [{
+        id: "RangerOne",
+        kind: "player",
+        name: "RangerOne",
+        type: "ranger",
+        x: 20,
+        y: 34,
+        moving: true,
+        goingX: 44,
+        goingY: 34,
+        moveNum: 1,
+      }],
       party: {
         inParty: true,
         leader: "RangerOne",
