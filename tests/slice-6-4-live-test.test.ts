@@ -147,6 +147,11 @@ test("Slice 6.4 verifies planned-route and server-confirmed movement-trail telem
     result.steps.map((step) => step.name),
     ["preflight", "planned-route", "movement-trail", "final-state"],
   );
+  const movementEvidence = result.steps.find((step) =>
+    step.name === "movement-trail"
+  )?.evidence;
+  assert.equal(movementEvidence?.outwardOrigin, "dashboard");
+  assert.equal(movementEvidence?.returnOrigin, "dashboard");
   assert.equal(characterState.character.x, 100);
   assert.equal(characterState.character.y, 100);
 
@@ -207,7 +212,7 @@ test("Slice 6.4 blocks without interrupting a running user script", async () => 
         movementCalls += 1;
         throw new Error("movement must not run");
       },
-      runScript: async () => {
+      runCoordinates: async () => {
         movementCalls += 1;
         throw new Error("movement must not run");
       },
