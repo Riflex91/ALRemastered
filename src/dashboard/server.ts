@@ -32,7 +32,9 @@ import type { Slice54LiveTestService } from "../live-test/slice-5-4.ts";
 import type { Slice61LiveTestService } from "../live-test/slice-6-1.ts";
 import type { Slice62LiveTestService } from "../live-test/slice-6-2.ts";
 import type { Slice63LiveTestService } from "../live-test/slice-6-3.ts";
+import type { Slice64LiveTestService } from "../live-test/slice-6-4.ts";
 import type { AdventureLandMapModelService } from "../navigation/map-model.ts";
+import type { MovementDebugService } from "../navigation/movement-debug.ts";
 import type { SimplePathPlannerService } from "../navigation/path-planner.ts";
 import type { SmartMoveService } from "../navigation/smart-move.ts";
 import type { WatchdogComponent, WatchdogService } from "../recovery/watchdog.ts";
@@ -67,7 +69,9 @@ export interface DashboardServerOptions {
   readonly slice61LiveTestService?: Slice61LiveTestService;
   readonly slice62LiveTestService?: Slice62LiveTestService;
   readonly slice63LiveTestService?: Slice63LiveTestService;
+  readonly slice64LiveTestService?: Slice64LiveTestService;
   readonly mapModelService?: AdventureLandMapModelService;
+  readonly movementDebugService?: MovementDebugService;
   readonly pathPlannerService?: SimplePathPlannerService;
   readonly smartMoveService?: SmartMoveService;
   readonly watchdogService?: WatchdogService;
@@ -105,7 +109,9 @@ export class DashboardServer {
   readonly #slice61LiveTestService?: Slice61LiveTestService;
   readonly #slice62LiveTestService?: Slice62LiveTestService;
   readonly #slice63LiveTestService?: Slice63LiveTestService;
+  readonly #slice64LiveTestService?: Slice64LiveTestService;
   readonly #mapModelService?: AdventureLandMapModelService;
+  readonly #movementDebugService?: MovementDebugService;
   readonly #pathPlannerService?: SimplePathPlannerService;
   readonly #smartMoveService?: SmartMoveService;
   readonly #watchdogService?: WatchdogService;
@@ -146,7 +152,9 @@ export class DashboardServer {
     this.#slice61LiveTestService = options.slice61LiveTestService;
     this.#slice62LiveTestService = options.slice62LiveTestService;
     this.#slice63LiveTestService = options.slice63LiveTestService;
+    this.#slice64LiveTestService = options.slice64LiveTestService;
     this.#mapModelService = options.mapModelService;
+    this.#movementDebugService = options.movementDebugService;
     this.#pathPlannerService = options.pathPlannerService;
     this.#smartMoveService = options.smartMoveService;
     this.#watchdogService = options.watchdogService;
@@ -1030,6 +1038,52 @@ export class DashboardServer {
         }, 503);
       }
       return this.#json(response, this.#smartMoveService.state());
+    }
+
+    if (method === "GET" && path === "/api/live-test/slice-6-4") {
+      if (!this.#slice64LiveTestService) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Slice 6.4 movement-debug test service is unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#slice64LiveTestService.state());
+    }
+    if (method === "POST" && path === "/api/live-test/slice-6-4/start") {
+      if (!this.#slice64LiveTestService) {
+        return this.#json(response, {
+          error: "Slice 6.4 movement-debug test service is unavailable.",
+        }, 503);
+      }
+      const result = await this.#slice64LiveTestService.run();
+      const diagnostic = this.#exportPayload();
+      const report = {
+        schemaVersion: 1,
+        kind: "ALRemastered Slice 6.4 one-click movement trail and planned-route test",
+        result,
+        movementDebug: this.#movementDebugService?.state(),
+        pathPlanner: this.#pathPlannerService?.state(),
+        mapModel: this.#mapModelService?.state(),
+        character: this.#characterService?.state(),
+        scriptRuntime: this.#scriptRuntime?.state(),
+        actionGateway: this.#actionGateway?.state(),
+        diagnostic,
+      };
+      return this.#json(response, {
+        result,
+        reportText: JSON.stringify(report, null, 2),
+        clipboardSuggested: true,
+      });
+    }
+
+    if (method === "GET" && path === "/api/navigation/movement-debug") {
+      if (!this.#movementDebugService) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Movement debug telemetry is unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#movementDebugService.state());
     }
 
     if (method === "GET" && path === "/api/live-test/slice-6-1") {

@@ -39,6 +39,9 @@ const state = {
   slice62LastReport: null,
   slice63LiveTest: null,
   slice63LastReport: null,
+  slice64LiveTest: null,
+  slice64LastReport: null,
+  movementDebug: null,
   update: null,
   gameVersion: null,
   gameData: null,
@@ -191,6 +194,17 @@ const elements = {
   slice63LiveTestStatus: document.querySelector("#slice-6-3-live-test-status"),
   slice63LiveTestNote: document.querySelector("#slice-6-3-live-test-note"),
   copySlice63LiveTestResult: document.querySelector("#copy-slice-6-3-live-test-result"),
+  startSlice64LiveTest: document.querySelector("#start-slice-6-4-live-test"),
+  slice64LiveTestStatus: document.querySelector("#slice-6-4-live-test-status"),
+  slice64LiveTestNote: document.querySelector("#slice-6-4-live-test-note"),
+  copySlice64LiveTestResult: document.querySelector("#copy-slice-6-4-live-test-result"),
+  movementDebugStatus: document.querySelector("#movement-debug-status"),
+  movementDebugTrailCount: document.querySelector("#movement-debug-trail-count"),
+  movementDebugMovementCount: document.querySelector("#movement-debug-movement-count"),
+  movementDebugPlanCount: document.querySelector("#movement-debug-plan-count"),
+  movementDebugTrail: document.querySelector("#movement-debug-trail"),
+  movementDebugRoute: document.querySelector("#movement-debug-route"),
+  movementDebugNote: document.querySelector("#movement-debug-note"),
   gameVersion: document.querySelector("#game-version"),
   gameVersionStatus: document.querySelector("#game-version-status"),
   gameLastDeploy: document.querySelector("#game-last-deploy"),
@@ -1446,6 +1460,75 @@ function renderSlice63LiveTest() {
   }
 }
 
+function renderSlice64LiveTest() {
+  const test = state.slice64LiveTest;
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    blocked: "BLOCKED",
+    failed: "FAILED",
+    unavailable: "Unavailable",
+  };
+  const status = test?.status ?? "idle";
+  elements.slice64LiveTestStatus.textContent = labels[status] ?? status;
+  elements.startSlice64LiveTest.disabled = status === "running";
+  elements.copySlice64LiveTestResult.hidden = !state.slice64LastReport;
+  if (status === "running") {
+    elements.slice64LiveTestNote.textContent =
+      "Planning one short route, moving 32 units through the central Action Gateway, returning to the original position, and verifying the server-confirmed trail. A user script is never interrupted.";
+  } else if (test?.message) {
+    elements.slice64LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  } else {
+    elements.slice64LiveTestNote.textContent =
+      "Requires one connected headless Character and no running or paused user script. The test performs one bounded movement round-trip through the central Action Gateway and uses no raw sockets.";
+  }
+}
+
+function renderMovementDebug() {
+  const debug = state.movementDebug;
+  if (!debug) {
+    elements.movementDebugStatus.textContent = "Waiting";
+    return;
+  }
+
+  elements.movementDebugStatus.textContent =
+    debug.status === "ready" ? "Ready" : "Unavailable";
+  elements.movementDebugTrailCount.textContent =
+    String(debug.trailPointCount ?? 0);
+  elements.movementDebugMovementCount.textContent =
+    String(debug.movementCount ?? 0);
+  elements.movementDebugPlanCount.textContent =
+    String(debug.plannedRouteCount ?? 0);
+
+  const trail = Array.isArray(debug.trail) ? debug.trail : [];
+  elements.movementDebugTrail.value = trail.length > 0
+    ? trail.slice(-40).map((point) => {
+      const coordinates = `${Number(point.x).toFixed(2)}, ${Number(point.y).toFixed(2)}`;
+      return `#${point.sequence} ${point.recordedAt} [${point.origin}] ${point.map} ${coordinates} ${point.kind}`;
+    }).join("\n")
+    : "No confirmed movement recorded yet.";
+
+  const route = debug.plannedRoute;
+  elements.movementDebugRoute.value = route
+    ? JSON.stringify({
+      status: route.status,
+      message: route.message,
+      reasonCode: route.reasonCode,
+      from: route.from,
+      to: route.to,
+      waypoints: route.waypoints,
+      legs: route.legs,
+      diagnostics: route.diagnostics,
+    }, null, 2)
+    : "No route planned yet.";
+
+  elements.movementDebugNote.textContent =
+    debug.message ??
+    "Read-only movement and route debug telemetry is available.";
+}
+
 function renderGameVersion() {
   const gameVersion = state.gameVersion;
   if (!gameVersion) return;
@@ -2042,6 +2125,51 @@ async function refreshSlice63LiveTest() {
       message: "Slice 6.3 smart_move() compatibility status could not be loaded.",
     };
     renderSlice63LiveTest();
+  }
+}
+
+async function refreshSlice64LiveTest() {
+  try {
+    const response = await fetch("/api/live-test/slice-6-4", { cache: "no-store" });
+    state.slice64LiveTest = response.ok
+      ? await response.json()
+      : { status: "unavailable", message: "Slice 6.4 movement-debug test is unavailable." };
+    renderSlice64LiveTest();
+  } catch {
+    state.slice64LiveTest = {
+      status: "unavailable",
+      message: "Slice 6.4 movement-debug status could not be loaded.",
+    };
+    renderSlice64LiveTest();
+  }
+}
+
+async function refreshMovementDebug() {
+  try {
+    const response = await fetch("/api/navigation/movement-debug", {
+      cache: "no-store",
+    });
+    state.movementDebug = response.ok
+      ? await response.json()
+      : {
+        status: "unavailable",
+        trailPointCount: 0,
+        movementCount: 0,
+        plannedRouteCount: 0,
+        trail: [],
+        message: "Movement debug telemetry is unavailable.",
+      };
+    renderMovementDebug();
+  } catch {
+    state.movementDebug = {
+      status: "unavailable",
+      trailPointCount: 0,
+      movementCount: 0,
+      plannedRouteCount: 0,
+      trail: [],
+      message: "Movement debug telemetry could not be loaded.",
+    };
+    renderMovementDebug();
   }
 }
 
@@ -2845,6 +2973,39 @@ async function startSlice63LiveTest(clipboardWrite) {
   const copied = await clipboardWrite.finish(payload.reportText);
   renderSlice63LiveTest();
   await refreshCharacterConnection();
+  await refreshDiagnostics();
+  return { payload, copied };
+}
+
+async function startSlice64LiveTest(clipboardWrite) {
+  state.slice64LiveTest = {
+    status: "running",
+    message: "Slice 6.4 movement-debug test is running.",
+  };
+  renderSlice64LiveTest();
+  const response = await fetch("/api/live-test/slice-6-4/start", { method: "POST" });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      payload.error ??
+        payload.message ??
+        `Slice 6.4 movement-debug test failed with HTTP ${response.status}`,
+    );
+  }
+  if (!payload.reportText || typeof payload.reportText !== "string") {
+    throw new Error("Slice 6.4 movement-debug test returned no copyable report.");
+  }
+  state.slice64LastReport = payload.reportText;
+  state.slice64LiveTest = {
+    status: payload.result?.outcome ?? "failed",
+    message: payload.result?.message ?? "Slice 6.4 movement-debug test finished.",
+    lastResult: payload.result,
+  };
+  const copied = await clipboardWrite.finish(payload.reportText);
+  renderSlice64LiveTest();
+  await refreshCharacterConnection();
+  await refreshMovementDebug();
+  await refreshActionGateway();
   await refreshDiagnostics();
   return { payload, copied };
 }
@@ -3885,6 +4046,45 @@ elements.copySlice63LiveTestResult.addEventListener("click", async () => {
   }
 });
 
+elements.startSlice64LiveTest.addEventListener("click", async () => {
+  if (state.slice64LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice64LastReport = null;
+  elements.copySlice64LiveTestResult.hidden = true;
+  setFeedback(
+    "Slice 6.4 movement-debug test started. One bounded planned route and server-confirmed movement round-trip will be verified without taking over the user script worker.",
+  );
+  try {
+    const { payload, copied } = await startSlice64LiveTest(clipboardWrite);
+    const outcome = payload.result?.outcome ?? "failed";
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 6.4 test ${String(outcome).toUpperCase()}. ${copyMessage}`,
+      outcome === "passed" && copied ? "success" : outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    await refreshSlice64LiveTest();
+    setFeedback(`Slice 6.4 movement-debug test could not finish: ${error.message}`, "error");
+  } finally {
+    renderSlice64LiveTest();
+  }
+});
+
+elements.copySlice64LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice64LastReport) return;
+  try {
+    await writeClipboard(state.slice64LastReport);
+    setFeedback(
+      "Complete Slice 6.4 movement-debug result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Movement-debug result copy failed: ${error.message}`, "error");
+  }
+});
+
 elements.reloadGameData.addEventListener("click", async () => {
   elements.reloadGameData.disabled = true;
   setFeedback("Reloading Adventure Land game data…");
@@ -4008,6 +4208,8 @@ await refreshSlice54LiveTest();
 await refreshSlice61LiveTest();
 await refreshSlice62LiveTest();
 await refreshSlice63LiveTest();
+await refreshSlice64LiveTest();
+await refreshMovementDebug();
 await refreshGameVersion();
 await refreshGameData();
 await refreshUpdate();
@@ -4036,6 +4238,8 @@ setInterval(refreshSlice54LiveTest, 1500);
 setInterval(refreshSlice61LiveTest, 1500);
 setInterval(refreshSlice62LiveTest, 1500);
 setInterval(refreshSlice63LiveTest, 1500);
+setInterval(refreshSlice64LiveTest, 1500);
+setInterval(refreshMovementDebug, 1500);
 setInterval(refreshGameVersion, 2000);
 setInterval(refreshGameData, 2000);
 setInterval(refreshUpdate, 1500);

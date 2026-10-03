@@ -90,6 +90,7 @@ test("movement geometry accepts clear direct paths and rejects wall crossings", 
 test("dashboard Move uses the Action Gateway and emits one bounded direct step", async () => {
   const logger = new Logger({ component: "movement-test" });
   const sent: Array<{ x: number; y: number }> = [];
+  const telemetry: any[] = [];
   const service = new AdventureLandMovementService({
     gateway: new ActionGateway({
       logger,
@@ -97,6 +98,7 @@ test("dashboard Move uses the Action Gateway and emits one bounded direct step",
     }),
     character: connectedCharacter(sent) as any,
     gameData: () => gameData(),
+    onConfirmedMovement: (event) => telemetry.push(event),
   });
 
   const result = await service.runDashboardTest({
@@ -110,6 +112,10 @@ test("dashboard Move uses the Action Gateway and emits one bounded direct step",
   assert.equal(result.origin, "dashboard");
   assert.equal(result.characterId, "CH_1");
   assert.deepEqual(sent, [{ x: 132, y: 100 }]);
+  assert.equal(telemetry.length, 1);
+  assert.equal(telemetry[0]?.requestId, "act-move-test");
+  assert.equal(telemetry[0]?.origin, "dashboard");
+  assert.equal(telemetry[0]?.result.confirmedX, 132);
   assert.deepEqual(result.result, {
     mode: "move",
     direction: "right",
