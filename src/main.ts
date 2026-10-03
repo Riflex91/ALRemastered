@@ -21,6 +21,7 @@ import { AdventureLandVersionService } from "./game/version-service.ts";
 import { AdventureLandVersionSource } from "./game/version-source.ts";
 import { AdventureLandVersionStore } from "./game/version-store.ts";
 import { Logger } from "./logging/logger.ts";
+import { Slice35LiveTestService } from "./live-test/slice-3-5.ts";
 import { getUserPaths } from "./platform/paths.ts";
 import { getReleaseMetadata } from "./release/version-model.ts";
 import {
@@ -120,6 +121,7 @@ let movementService: AdventureLandMovementService | undefined;
 let attackService: AdventureLandAttackService | undefined;
 let skillService: AdventureLandSkillService | undefined;
 let lootConsumableService: AdventureLandLootConsumableService | undefined;
+let slice35LiveTestService: Slice35LiveTestService | undefined;
 let updateService: UpdateService | undefined;
 let gameVersionService: AdventureLandVersionService | undefined;
 let gameDataService: AdventureLandGameDataService | undefined;
@@ -400,6 +402,15 @@ lootConsumableService = new AdventureLandLootConsumableService({
   character: characterService!,
   gameData: () => gameDataService!.data(),
 });
+slice35LiveTestService = new Slice35LiveTestService({
+  logger,
+  character: characterService!,
+  attack: attackService!,
+  movement: movementService!,
+  skill: skillService!,
+  lootConsumable: lootConsumableService,
+  gameData: () => gameDataService!.data(),
+});
 
 dashboard = new DashboardServer({
   logger,
@@ -412,6 +423,7 @@ dashboard = new DashboardServer({
   attackService,
   skillService,
   lootConsumableService,
+  slice35LiveTestService,
   updateService,
   diagnostics,
   gameVersionService,
