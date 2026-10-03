@@ -93,6 +93,7 @@ export class Slice63LiveTestService {
     const testId = this.#idFactory();
     const startedAt = this.#clock().toISOString();
     const steps: Slice63LiveTestStep[] = [];
+    let ownsRuntime = false;
     this.#state = Object.freeze({
       status: "running",
       message: "Slice 6.3 is exercising smart_move() inside the isolated script worker.",
@@ -169,6 +170,7 @@ export class Slice63LiveTestService {
       }
 
       const logStartId = this.#logger.records().at(-1)?.id ?? 0;
+      ownsRuntime = true;
       await this.#runtime.load({
         name: SCRIPT_NAME,
         source: smartMoveProbeScript(),
@@ -341,7 +343,9 @@ export class Slice63LiveTestService {
       });
       return result;
     } catch (error) {
-      await this.#runtime.stop().catch(() => undefined);
+      if (ownsRuntime) {
+        await this.#runtime.stop().catch(() => undefined);
+      }
       const failure = error instanceof Slice63Failure
         ? error
         : new Slice63Failure(
