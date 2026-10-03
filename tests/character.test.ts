@@ -130,6 +130,20 @@ test("headless transport follows welcome-loaded-auth-start without automation ev
   assert.equal(connection.character.movementSequence, 7);
   assert.equal(connection.character.range, 120);
 
+  const gameEvents: any[] = [];
+  const unsubscribeGameEvents = connection.onGameEvent((event) => gameEvents.push(event));
+  socket.message('42["player",{"hp":4000,"auth":"must-not-leak"}]');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(gameEvents.length, 1);
+  assert.equal(gameEvents[0].name, "player");
+  assert.equal(gameEvents[0].payload.hp, 4000);
+  assert.equal(gameEvents[0].payload.auth, "[REDACTED]");
+  assert.equal(typeof gameEvents[0].payload.send, "undefined");
+  unsubscribeGameEvents();
+  socket.message('42["player",{"hp":4000}]');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(gameEvents.length, 1);
+
   const moveReceipt = connection.sendMove({ x: 44, y: 34 });
   assert.deepEqual(moveReceipt, {
     fromX: 12,
