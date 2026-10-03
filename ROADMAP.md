@@ -1579,3 +1579,69 @@ Whole-run safety/result:
 Result: both required Slice 3.5 live mutation paths are now proven against real Adventure Land server confirmation and observed live postconditions. **Slice 3.5 is VERIFIED.**
 
 Phase 4 may be considered for the next planned slice only after this append-only verification record is merged and the resulting `main` CI is fully green.
+
+
+---
+
+## Append-only verification record — Slice 4.1 Isolated Script Runtime — 2026-10-03
+
+**Canonical status update: Slice 4.1 = VERIFIED.**
+
+Real live environment:
+
+- Windows client: `0.1.0-alpha.32`
+- platform: `win32`
+- one-click test ID: `live41-7df34dc6-b7e4-4f4d-8bdc-18f5a338da08`
+- test result: `passed`
+- test window: `2026-10-03T13:31:42.078Z → 2026-10-03T13:31:42.567Z`
+- complete diagnostic export: 28 structured records, `Secrets sanitized: yes`
+
+Script load/start/logging evidence:
+
+- `slice-4-1-live-timers` loaded and started in the isolated runtime.
+- runtime reached `running`.
+- the script log component was separately marked as `script:slice-4-1-live-timers`.
+- repeated timer-backed script logs were observed.
+- the running state reported one active timer.
+
+Pause/timer-lifecycle evidence:
+
+- pause reached `paused`.
+- active timers fell to `0`.
+- script log count was unchanged across the post-pause observation window (`6 → 6`), proving the interval no longer executed.
+
+Restart/stop evidence:
+
+- the paused script started a fresh isolated run and returned to `running`.
+- stop reached `stopped`.
+- active timers were `0` after stop.
+
+Crash-isolation evidence:
+
+- `slice-4-1-live-crash` intentionally threw `slice41-intentional-crash`.
+- the runtime reported `crashed`.
+- the crash was recorded under the script-specific component, with `coreIsolated:true`.
+- this ERROR record is intentional test evidence, not an unexpected client failure.
+
+Post-crash recovery evidence:
+
+- `slice-4-1-live-recovery` loaded after the intentional crash.
+- the recovery script reached `running`.
+- the separately marked `slice41:recovered` script log was observed.
+- final runtime state reached `stopped` with `activeTimers:0`.
+
+Whole-run result:
+
+- all five required live-test steps passed:
+  - `load-start-and-script-logging`
+  - `pause-clears-timers`
+  - `restart-and-stop`
+  - `crash-isolation`
+  - `post-crash-recovery`
+- the final runtime state was stopped and resource-clean.
+- the final diagnostic record was `Slice 4.1 one-click live test passed.`
+- no Adventure Land gameplay preparation or gameplay mutation was required for this runtime-only slice.
+
+Result: the real Windows alpha.32 run proves script load/start/pause/stop, timer cleanup, isolated crash containment, post-crash recovery, and separately marked script logging. **Slice 4.1 is VERIFIED.**
+
+Slice 4.2 may begin only after this append-only verification record is merged and the resulting `main` CI is fully green.
