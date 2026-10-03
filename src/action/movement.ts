@@ -100,11 +100,18 @@ export class AdventureLandMovementService {
   runScript(
     request: ScriptMovementRequest,
   ): Promise<ActionGatewayResult<MovementActionResult>> {
+    return this.runCoordinates(request, "script");
+  }
+
+  runCoordinates(
+    request: ScriptMovementRequest,
+    origin: ActionOrigin,
+  ): Promise<ActionGatewayResult<MovementActionResult>> {
     return this.#runRequest({
       mode: request.mode,
       targetX: request.x,
       targetY: request.y,
-    }, "script");
+    }, origin);
   }
 
   async #runRequest(
