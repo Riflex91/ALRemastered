@@ -60,6 +60,29 @@ PR #54 targets `0.1.0-alpha.26`. It requests Adventure Land's official read-only
 
 **Current correction retest rule:** update to installed `0.1.0-alpha.26` and perform exactly one bounded Move attempt first. Do not test XMove or Slice 3.3 unless that Move changes the real live position and is server-confirmed.
 
+### Live attempt 3 – alpha.26 server-confirmed / canonical state still FAILED
+
+- Windows client: `0.1.0-alpha.26`
+- Automatic updater/restart into alpha.26: observed successfully
+- Account/server/character: connected successfully on EU II with `My_Ranger1`
+- Canonical position exposed during the captured attempts: `main` at `(-1225.4472875234312, -42.474173958785244)`
+- Four bounded dashboard `character.move` requests were recorded:
+  - `act-09673a4b-7724-479c-b8db-edc833878f7a` – success, 275 ms
+  - `act-78720058-9a10-4ec0-be85-2dd5b401d129` – success, 681 ms
+  - `act-ad8e9159-d1be-41dc-93ad-48eb6965c770` – success, 673 ms
+  - `act-85e4dacb-ca13-4ddd-bd49-7e784b98bdc3` – success, 675 ms
+- Every request used `origin:"dashboard"` and passed the alpha.26 authoritative server-observation gate.
+- The canonical dashboard/diagnostic character `x/y` remained unchanged across the captured log. Therefore Slice 3.2 still does not satisfy its visible live-position PASS criterion.
+- Diagnostic export: `Secrets sanitized: yes`
+- XMove: not attempted because the canonical Move state still had not passed.
+- The retest instruction called for exactly one Move; the supplied log contains four. Treat them as bounded failure evidence only, not as a PASS.
+
+PR #56 targets `0.1.0-alpha.27`. It synchronizes the authenticated own-player entity snapshot back into the canonical connected-character state so a server-observed movement must also become visible in `liveState.character.x/y`.
+
+CI note: the original PR #56 Linux jobs on `ubuntu-22.04` remained queued without a runner or executed steps. Ubuntu 22.04 entered GitHub-hosted runner deprecation on 2026-09-17. PR #56 pins Linux CI to `ubuntu-24.04`; the replacement Ubuntu verify and Linux installer smoke started normally and passed in CI run `37109436866`.
+
+**Current correction retest rule:** update to installed `0.1.0-alpha.27`. Perform exactly **one** bounded Move attempt first. Require both `outcome:"success"` and an actual canonical live `x/y` change. Only then perform exactly one direct-path XMove. Do not begin Slice 3.3 until both pass.
+
 ### Original alpha.22 dashboard steps retained for historical test intent
 
 1. Start from installed `0.1.0-alpha.21`, choose **Install update**, and confirm the client restarts into `0.1.0-alpha.22`.
@@ -113,7 +136,7 @@ Treat the live test as failed and stop further movement testing if any of these 
 
 Preserve the full log and the two request IDs. Then proceed to the next release in this queue if one has been published; do not wait for Slice 3.2 to be marked VERIFIED before testing later prepared releases.
 
-> 2026-10-03 execution override: testing is now performed strictly in ROADMAP order. Because Slice 3.2 has not yet passed real movement, do **not** proceed to Slice 3.3 until the alpha.26 correction retest satisfies the Slice 3.2 behavioral PASS criteria. The original alpha.22 update-path requirement remains historical/CI evidence and is not retroactively claimed as a live pass.
+> 2026-10-03 execution override: testing is now performed strictly in ROADMAP order. Because Slice 3.2 has not yet passed canonical real movement, do **not** proceed to Slice 3.3 until the alpha.27 correction retest satisfies the Slice 3.2 behavioral PASS criteria. The original alpha.22 update-path requirement remains historical/CI evidence and is not retroactively claimed as a live pass.
 
 
 ---
