@@ -812,3 +812,45 @@ Repository/release evidence:
 
 Do not repeat Slice 5.2 merely because implementation/planning text remains elsewhere. Slice 5.3 may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
 
+---
+
+### Alpha.45 real one-click result: PASSED — Slice 5.3 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.45`
+- release target / tested implementation main: `4369e661692f0ffc6926eb38bebf115d2978aeac`
+- client: `0.1.0-alpha.45` / Windows
+- platform: `win32`
+- test ID: `live53-e366a683-1782-4765-94df-89d98e339db9`
+- character: `My_Rogue` / `CH_TQTrIfkU6DEnJBl0kXUArLVTw1ht6`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-03T19:51:17.664Z → 2026-10-03T19:51:18.063Z`
+- diagnostic export: 74 log lines, `Secrets sanitized: yes`
+
+The one-click harness completed the full Slice 5.3 recovery chain:
+
+- real server-observed death evidence was present: `dead:true`, `deathCount:1`, `lastDeathAt:2026-10-03T19:51:10.444Z`;
+- structured death log record 15 was present;
+- the isolated recovery worker independently observed `character.rip` in log record 48;
+- the worker invoked `character.respawn` through the script bridge and central Action Gateway;
+- Action Gateway request `act-b04923c7-2a16-4a9f-8407-80196e8c3fbb` completed with `origin:"script"` and `outcome:"success"`;
+- `respawnCount` advanced to `1`, with `lastRespawnAt:2026-10-03T19:51:17.948Z`;
+- final Character state was alive: `dead:false`, `hp:1101/1101`, heartbeat `91`, `pingMs:20`;
+- the script run ID stayed exactly `script-f1e730bb-a079-440e-87c8-1991f5098cc1` before and after respawn;
+- continuation log record 72 confirmed `slice53:continued-after-respawn`;
+- final runtime: `stopped`, `activeTimers:0`, `activeEventListeners:0`;
+- completion evidence recorded the intended gameplay mutation `character.respawn` and `rawSocketAccess:false`.
+
+Repository/release evidence:
+
+- implementation PR #89 is merged at exact main `4369e661692f0ffc6926eb38bebf115d2978aeac`;
+- exact post-merge main CI run `37148900780` completed with all four required jobs successful;
+- release publish run `37149125597` completed successfully;
+- `v0.1.0-alpha.45` targets the tested implementation commit and contains Windows installer, Linux installer, and updater manifest.
+
+**Canonical queue status: Slice 5.3 = VERIFIED.**
+
+Do not repeat Slice 5.3 merely because implementation/planning text remains elsewhere. Slice 5.4 may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
+
