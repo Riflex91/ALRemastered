@@ -50,7 +50,10 @@ export interface Slice64LiveTestServiceOptions {
   readonly character: Pick<AdventureLandCharacterService, "state">;
   readonly mapModel: Pick<AdventureLandMapModelService, "model">;
   readonly planner: Pick<SimplePathPlannerService, "plan">;
-  readonly movement: Pick<AdventureLandMovementService, "runDashboardTest">;
+  readonly movement: Pick<
+    AdventureLandMovementService,
+    "runDashboardTest" | "runScript"
+  >;
   readonly movementDebug: Pick<MovementDebugService, "state">;
   readonly clock?: () => Date;
   readonly delay?: (milliseconds: number) => Promise<void>;
@@ -284,15 +287,16 @@ export class Slice64LiveTestService {
       }
 
       await this.#delay(RATE_LIMIT_SETTLE_MS);
-      const returned = await this.#movement.runDashboardTest({
+      const returned = await this.#movement.runScript({
         mode: "move",
-        direction: oppositeDirection(probe.direction),
+        x: character.x as number,
+        y: character.y as number,
       });
       if (returned.outcome !== "success" || !returned.result) {
         throw new Slice64Failure(
           returned.error?.code ?? "LIVE_TEST_RETURN_MOVE_FAILED",
           returned.error?.message ??
-            "The bounded return movement did not complete successfully.",
+            "The exact-coordinate return movement did not complete successfully.",
           "movement-trail",
         );
       }
@@ -332,12 +336,14 @@ export class Slice64LiveTestService {
         name: "movement-trail",
         outcome: "passed",
         message:
-          "Two bounded dashboard-origin movements completed through the central Action Gateway and both server-confirmed positions are present in the actual movement trail.",
+          "A bounded dashboard-origin movement plus an exact-coordinate return completed through the central Action Gateway, and both server-confirmed positions are present in the actual movement trail.",
         evidence: Object.freeze({
           outwardRequestId: outward.requestId,
           outwardConfirmedX: outward.result.confirmedX,
           outwardConfirmedY: outward.result.confirmedY,
           returnRequestId: returned.requestId,
+          outwardOrigin: outward.origin,
+          returnOrigin: returned.origin,
           returnConfirmedX: returned.result.confirmedX,
           returnConfirmedY: returned.result.confirmedY,
           movementCountDelta: debugAfter.movementCount - debugBefore.movementCount,
