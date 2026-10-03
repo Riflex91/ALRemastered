@@ -452,8 +452,8 @@ export class Slice42LiveTestService {
     readonly state: AdventureLandCharacterConnectionState;
     readonly waitedMs: number;
   } | undefined> {
-    const started = Date.now();
-    while (Date.now() - started <= PREFLIGHT_TARGET_WAIT_MS) {
+    const attempts = Math.ceil(PREFLIGHT_TARGET_WAIT_MS / PREFLIGHT_TARGET_POLL_MS);
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
       await this.#delay(PREFLIGHT_TARGET_POLL_MS);
       const state = this.#character.state();
       this.#requireReady(state, data);
@@ -462,10 +462,7 @@ export class Slice42LiveTestService {
         return Object.freeze({
           target,
           state,
-          waitedMs: Math.min(
-            PREFLIGHT_TARGET_WAIT_MS,
-            Math.max(PREFLIGHT_TARGET_POLL_MS, Date.now() - started),
-          ),
+          waitedMs: attempt * PREFLIGHT_TARGET_POLL_MS,
         });
       }
     }
