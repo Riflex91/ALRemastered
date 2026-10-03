@@ -142,6 +142,16 @@ export interface AdventureLandConsumableReceipt {
   readonly cooldownMs?: number;
 }
 
+export interface AdventureLandRespawnInput {
+  readonly signal?: AbortSignal;
+}
+
+export interface AdventureLandRespawnReceipt {
+  readonly success: boolean;
+  readonly reason?: string;
+  readonly retryAfterMs?: number;
+}
+
 export interface AdventureLandCharacterLiveState {
   readonly character: AdventureLandConnectedCharacter;
   readonly entities: readonly AdventureLandVisibleEntity[];
@@ -168,6 +178,7 @@ export interface AdventureLandCharacterConnection {
   sendConsumable(
     input: AdventureLandConsumableInput,
   ): Promise<AdventureLandConsumableReceipt>;
+  sendRespawn(input?: AdventureLandRespawnInput): Promise<AdventureLandRespawnReceipt>;
   close(): Promise<void>;
 }
 
@@ -468,6 +479,12 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
     readonly signal?: AbortSignal;
     readonly onAbort?: () => void;
   };
+  #pendingRespawn?: {
+    readonly resolve: (receipt: AdventureLandRespawnReceipt) => void;
+    readonly reject: (error: AdventureLandCharacterTransportError) => void;
+    readonly signal?: AbortSignal;
+    readonly onAbort?: () => void;
+  };
   #intentional = false;
   #closed = false;
   #pingSequence = 0;
@@ -511,6 +528,12 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
         new AdventureLandCharacterTransportError(
           "Adventure Land character transport closed during consumable use.",
           "consumable_transport_closed",
+        ),
+      );
+      this.#rejectPendingRespawn(
+        new AdventureLandCharacterTransportError(
+          "Adventure Land character transport closed during respawn.",
+          "respawn_transport_closed",
         ),
       );
       if (this.#intentional) return;
@@ -721,6 +744,27 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
         success: !failed,
         reason,
         cooldownMs: cooldownMs > 0 ? cooldownMs : undefined,
+      }));
+      return;
+    }
+
+    if (data.place === "respawn" && this.#pendingRespawn) {
+      const pending = this.#pendingRespawn;
+      this.#pendingRespawn = undefined;
+      if (pending.signal && pending.onAbort) {
+        pending.signal.removeEventListener("abort", pending.onAbort);
+      }
+      const failed = data.failed === true || data.success === false;
+      const reason = typeof data.reason === "string"
+        ? data.reason
+        : failed && typeof data.response === "string"
+          ? data.response
+          : undefined;
+      const retryAfterMs = finiteNumber(data.ms) ?? finiteNumber(data.time);
+      pending.resolve(Object.freeze({
+        success: !failed,
+        reason,
+        retryAfterMs: retryAfterMs === undefined ? undefined : Math.max(0, retryAfterMs),
       }));
       return;
     }
@@ -1124,6 +1168,64 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
     });
   }
 
+  sendRespawn(
+    input: AdventureLandRespawnInput = {},
+  ): Promise<AdventureLandRespawnReceipt> {
+    if (input.signal?.aborted) {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Adventure Land respawn was cancelled before it was sent.",
+        "respawn_aborted",
+      ));
+    }
+    if (this.#closed || this.#socket.readyState !== 1) {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Adventure Land character transport is not ready for respawn.",
+        "respawn_transport_unavailable",
+      ));
+    }
+    if (!this.#character.dead) {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Adventure Land respawn is only valid while the character is dead.",
+        "respawn_character_alive",
+      ));
+    }
+    if (this.#pendingRespawn) {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Another Adventure Land respawn is still waiting for the server.",
+        "respawn_already_pending",
+      ));
+    }
+
+    return new Promise<AdventureLandRespawnReceipt>((resolve, reject) => {
+      const onAbort = () => {
+        if (!this.#pendingRespawn) return;
+        this.#pendingRespawn = undefined;
+        input.signal?.removeEventListener("abort", onAbort);
+        reject(new AdventureLandCharacterTransportError(
+          "Adventure Land respawn was cancelled while waiting for the server.",
+          "respawn_aborted",
+        ));
+      };
+      this.#pendingRespawn = {
+        resolve,
+        reject,
+        signal: input.signal,
+        onAbort,
+      };
+      input.signal?.addEventListener("abort", onAbort, { once: true });
+      try {
+        this.#socket.send("42" + JSON.stringify(["respawn"]));
+      } catch {
+        this.#pendingRespawn = undefined;
+        input.signal?.removeEventListener("abort", onAbort);
+        reject(new AdventureLandCharacterTransportError(
+          "Adventure Land respawn request could not be sent.",
+          "respawn_send_failed",
+        ));
+      }
+    });
+  }
+
   async close(): Promise<void> {
     if (this.#closed || this.#socket.readyState === 3) return;
     this.#intentional = true;
@@ -1151,6 +1253,12 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
       new AdventureLandCharacterTransportError(
         "Adventure Land consumable use was cancelled because the character stopped.",
         "consumable_transport_closed",
+      ),
+    );
+    this.#rejectPendingRespawn(
+      new AdventureLandCharacterTransportError(
+        "Adventure Land respawn was cancelled because the character stopped.",
+        "respawn_transport_closed",
       ),
     );
 
@@ -1206,6 +1314,16 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
     const pending = this.#pendingConsumable;
     if (!pending) return;
     this.#pendingConsumable = undefined;
+    if (pending.signal && pending.onAbort) {
+      pending.signal.removeEventListener("abort", pending.onAbort);
+    }
+    pending.reject(error);
+  }
+
+  #rejectPendingRespawn(error: AdventureLandCharacterTransportError): void {
+    const pending = this.#pendingRespawn;
+    if (!pending) return;
+    this.#pendingRespawn = undefined;
     if (pending.signal && pending.onAbort) {
       pending.signal.removeEventListener("abort", pending.onAbort);
     }

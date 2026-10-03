@@ -8,6 +8,7 @@ import { AdventureLandMovementService } from "./action/movement.ts";
 import { AdventureLandAttackService } from "./action/attack.ts";
 import { AdventureLandSkillService } from "./action/skill.ts";
 import { AdventureLandLootConsumableService } from "./action/loot-consumable.ts";
+import { AdventureLandRespawnService } from "./action/respawn.ts";
 import { AdventureLandCharacterService } from "./character/service.ts";
 import { AdventureLandCharacterTransport } from "./character/transport.ts";
 import { CoreRuntime } from "./core/app.ts";
@@ -29,6 +30,7 @@ import { Slice44LiveTestService } from "./live-test/slice-4-4.ts";
 import { getUserPaths } from "./platform/paths.ts";
 import { AdventureLandScriptApiBridge } from "./script/adventure-api.ts";
 import { ScriptRuntimeService } from "./script/runtime.ts";
+import { SimpleFarmerTemplateService } from "./script/simple-farmer.ts";
 import { ScriptStorageStore } from "./script/storage.ts";
 import { getReleaseMetadata } from "./release/version-model.ts";
 import {
@@ -136,6 +138,8 @@ let movementService: AdventureLandMovementService | undefined;
 let attackService: AdventureLandAttackService | undefined;
 let skillService: AdventureLandSkillService | undefined;
 let lootConsumableService: AdventureLandLootConsumableService | undefined;
+let respawnService: AdventureLandRespawnService | undefined;
+let simpleFarmerService: SimpleFarmerTemplateService | undefined;
 let slice35LiveTestService: Slice35LiveTestService | undefined;
 let scriptRuntime: ScriptRuntimeService | undefined;
 let slice41LiveTestService: Slice41LiveTestService | undefined;
@@ -430,6 +434,11 @@ lootConsumableService = new AdventureLandLootConsumableService({
   character: characterService!,
   gameData: () => gameDataService!.data(),
 });
+respawnService = new AdventureLandRespawnService({
+  gateway: actionGateway!,
+  logger,
+  character: characterService!,
+});
 slice35LiveTestService = new Slice35LiveTestService({
   logger,
   character: characterService!,
@@ -444,7 +453,8 @@ const scriptApiBridge = new AdventureLandScriptApiBridge({
   character: characterService!,
   movement: movementService!,
   attack: attackService!,
-  loot: lootConsumableService,
+  lootConsumable: lootConsumableService,
+  respawn: respawnService,
   gameData: () => gameDataService!.data(),
 });
 const scriptStorage = new ScriptStorageStore(
@@ -455,6 +465,10 @@ scriptRuntime = new ScriptRuntimeService({
   logger,
   api: scriptApiBridge,
   storage: scriptStorage,
+});
+simpleFarmerService = new SimpleFarmerTemplateService({
+  character: characterService!,
+  runtime: scriptRuntime,
 });
 slice41LiveTestService = new Slice41LiveTestService({
   logger,

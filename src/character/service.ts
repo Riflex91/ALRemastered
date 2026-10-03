@@ -16,6 +16,8 @@ import {
   type AdventureLandLootChestState,
   type AdventureLandConsumableInput,
   type AdventureLandConsumableReceipt,
+  type AdventureLandRespawnInput,
+  type AdventureLandRespawnReceipt,
   type AdventureLandCharacterTransport,
   type AdventureLandConnectedCharacter,
 } from "./transport.ts";
@@ -320,6 +322,19 @@ export class AdventureLandCharacterService {
       ));
     }
     return connection.sendConsumable(input);
+  }
+
+  sendRespawn(
+    input: AdventureLandRespawnInput = {},
+  ): Promise<AdventureLandRespawnReceipt> {
+    const connection = this.#connection;
+    if (!connection || this.#state.status !== "connected") {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Connect a headless character before respawning.",
+        "respawn_not_connected",
+      ));
+    }
+    return connection.sendRespawn(input);
   }
 
   sendAttack(input: AdventureLandAttackInput): Promise<AdventureLandAttackReceipt> {
