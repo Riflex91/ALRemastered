@@ -29,6 +29,8 @@ import type { Slice51LiveTestService } from "../live-test/slice-5-1.ts";
 import type { Slice52LiveTestService } from "../live-test/slice-5-2.ts";
 import type { Slice53LiveTestService } from "../live-test/slice-5-3.ts";
 import type { Slice54LiveTestService } from "../live-test/slice-5-4.ts";
+import type { Slice61LiveTestService } from "../live-test/slice-6-1.ts";
+import type { AdventureLandMapModelService } from "../navigation/map-model.ts";
 import type { WatchdogComponent, WatchdogService } from "../recovery/watchdog.ts";
 import type { ScriptRuntimeService } from "../script/runtime.ts";
 import type { SimpleFarmerConfig, SimpleFarmerTemplateService } from "../script/simple-farmer.ts";
@@ -58,6 +60,8 @@ export interface DashboardServerOptions {
   readonly slice52LiveTestService?: Slice52LiveTestService;
   readonly slice53LiveTestService?: Slice53LiveTestService;
   readonly slice54LiveTestService?: Slice54LiveTestService;
+  readonly slice61LiveTestService?: Slice61LiveTestService;
+  readonly mapModelService?: AdventureLandMapModelService;
   readonly watchdogService?: WatchdogService;
   readonly simpleFarmerService?: SimpleFarmerTemplateService;
   readonly updateService?: UpdateService;
@@ -90,6 +94,8 @@ export class DashboardServer {
   readonly #slice52LiveTestService?: Slice52LiveTestService;
   readonly #slice53LiveTestService?: Slice53LiveTestService;
   readonly #slice54LiveTestService?: Slice54LiveTestService;
+  readonly #slice61LiveTestService?: Slice61LiveTestService;
+  readonly #mapModelService?: AdventureLandMapModelService;
   readonly #watchdogService?: WatchdogService;
   readonly #simpleFarmerService?: SimpleFarmerTemplateService;
   readonly #updateService?: UpdateService;
@@ -125,6 +131,8 @@ export class DashboardServer {
     this.#slice52LiveTestService = options.slice52LiveTestService;
     this.#slice53LiveTestService = options.slice53LiveTestService;
     this.#slice54LiveTestService = options.slice54LiveTestService;
+    this.#slice61LiveTestService = options.slice61LiveTestService;
+    this.#mapModelService = options.mapModelService;
     this.#watchdogService = options.watchdogService;
     this.#simpleFarmerService = options.simpleFarmerService;
     this.#updateService = options.updateService;
@@ -927,6 +935,67 @@ export class DashboardServer {
         watchdog: this.#watchdogService?.state(),
         character: this.#characterService?.state(),
         scriptRuntime: this.#scriptRuntime?.state(),
+        diagnostic,
+      };
+      return this.#json(response, {
+        result,
+        reportText: JSON.stringify(report, null, 2),
+        clipboardSuggested: true,
+      });
+    }
+
+    if (method === "GET" && path === "/api/navigation/map-model") {
+      if (!this.#mapModelService) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Map/geometry model service is unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#mapModelService.state());
+    }
+    if (method === "POST" && path === "/api/navigation/map-model/map") {
+      if (!this.#mapModelService) {
+        return this.#json(response, { error: "Map/geometry model service is unavailable." }, 503);
+      }
+      let body: Record<string, unknown>;
+      try {
+        body = await this.#readJsonObject(request);
+      } catch (error) {
+        return this.#json(response, {
+          error: error instanceof Error ? error.message : "Invalid request body.",
+        }, 400);
+      }
+      const key = typeof body.key === "string" ? body.key.trim() : "";
+      if (!key) return this.#json(response, { error: "Map key is required." }, 400);
+      const map = this.#mapModelService.map(key);
+      return map
+        ? this.#json(response, map)
+        : this.#json(response, { error: `Map ${key} is not available in the loaded model.` }, 404);
+    }
+
+    if (method === "GET" && path === "/api/live-test/slice-6-1") {
+      if (!this.#slice61LiveTestService) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Slice 6.1 map/geometry-model test service is unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#slice61LiveTestService.state());
+    }
+    if (method === "POST" && path === "/api/live-test/slice-6-1/start") {
+      if (!this.#slice61LiveTestService) {
+        return this.#json(response, {
+          error: "Slice 6.1 map/geometry-model test service is unavailable.",
+        }, 503);
+      }
+      const result = await this.#slice61LiveTestService.run();
+      const diagnostic = this.#exportPayload();
+      const report = {
+        schemaVersion: 1,
+        kind: "ALRemastered Slice 6.1 one-click map/geometry-model test",
+        result,
+        mapModel: this.#mapModelService?.state(),
+        character: this.#characterService?.state(),
         diagnostic,
       };
       return this.#json(response, {
