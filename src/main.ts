@@ -10,6 +10,7 @@ import { AdventureLandSkillService } from "./action/skill.ts";
 import { AdventureLandLootConsumableService } from "./action/loot-consumable.ts";
 import { AdventureLandRespawnService } from "./action/respawn.ts";
 import { AdventureLandCharacterService } from "./character/service.ts";
+import { MultiCharacterSessionManager } from "./character/session-manager.ts";
 import { AdventureLandCharacterTransport } from "./character/transport.ts";
 import { CoreRuntime } from "./core/app.ts";
 import { openDashboard } from "./dashboard/open.ts";
@@ -36,6 +37,7 @@ import { Slice61LiveTestService } from "./live-test/slice-6-1.ts";
 import { Slice62LiveTestService } from "./live-test/slice-6-2.ts";
 import { Slice63LiveTestService } from "./live-test/slice-6-3.ts";
 import { Slice64LiveTestService } from "./live-test/slice-6-4.ts";
+import { Slice71LiveTestService } from "./live-test/slice-7-1.ts";
 import { getUserPaths } from "./platform/paths.ts";
 import { AdventureLandScriptApiBridge } from "./script/adventure-api.ts";
 import { ScriptRuntimeService } from "./script/runtime.ts";
@@ -147,6 +149,7 @@ let dashboard: DashboardServer | undefined;
 let accountService: AdventureLandAccountService | undefined;
 let selectionService: AdventureLandSelectionService | undefined;
 let characterService: AdventureLandCharacterService | undefined;
+let multiCharacterSessionManager: MultiCharacterSessionManager | undefined;
 let actionGateway: ActionGateway | undefined;
 let movementService: AdventureLandMovementService | undefined;
 let attackService: AdventureLandAttackService | undefined;
@@ -169,6 +172,7 @@ let slice61LiveTestService: Slice61LiveTestService | undefined;
 let slice62LiveTestService: Slice62LiveTestService | undefined;
 let slice63LiveTestService: Slice63LiveTestService | undefined;
 let slice64LiveTestService: Slice64LiveTestService | undefined;
+let slice71LiveTestService: Slice71LiveTestService | undefined;
 let mapModelService: AdventureLandMapModelService | undefined;
 let movementDebugService: MovementDebugService | undefined;
 let pathPlannerService: SimplePathPlannerService | undefined;
@@ -197,6 +201,14 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
       await scriptRuntime.dispose();
     } catch (error) {
       logger.error("Script runtime failed to stop cleanly.", error);
+    }
+  }
+
+  if (multiCharacterSessionManager) {
+    try {
+      await multiCharacterSessionManager.stopAll("shutdown");
+    } catch (error) {
+      logger.error("Managed Character sessions failed to stop cleanly.", error);
     }
   }
 
@@ -418,6 +430,32 @@ gameDataService = new AdventureLandGameDataService({
   source: liveGameDataSource,
   cache: new AdventureLandGameDataCache(join(userPaths.dataDir, "game", "cache")),
   expectedVersion: () => gameVersionStore.load()?.version,
+});
+multiCharacterSessionManager = new MultiCharacterSessionManager({
+  logger,
+  primary: characterService!,
+  selection: selectionService!,
+  createSession: (serverKey) =>
+    new AdventureLandCharacterService({
+      logger,
+      transport: new AdventureLandCharacterTransport(),
+      selection: {
+        state: () => ({
+          ...selectionService!.state(),
+          selectedServerKey: serverKey,
+        }),
+      },
+      session: () => accountService!.session(),
+    }),
+  sharedGameDataVersion: () => gameDataService!.state().version,
+});
+diagnostics.registerComponent("character-sessions", () => {
+  const state = multiCharacterSessionManager!.state();
+  return {
+    name: "character-sessions",
+    status: state.status === "degraded" ? "degraded" : "healthy",
+    message: state.message,
+  };
 });
 mapModelService = new AdventureLandMapModelService({
   logger,
@@ -643,6 +681,14 @@ slice64LiveTestService = new Slice64LiveTestService({
   movement: movementService!,
   movementDebug: movementDebugService!,
 });
+slice71LiveTestService = new Slice71LiveTestService({
+  logger,
+  runtime: scriptRuntime!,
+  primary: characterService!,
+  selection: selectionService!,
+  sessions: multiCharacterSessionManager!,
+  gameData: gameDataService!,
+});
 watchdogService.start();
 diagnostics.registerComponent("watchdog", () => {
   const state = watchdogService!.state();
@@ -670,6 +716,7 @@ dashboard = new DashboardServer({
   accountService,
   selectionService,
   characterService,
+  multiCharacterSessionManager,
   actionGateway,
   movementService,
   attackService,
@@ -690,6 +737,7 @@ dashboard = new DashboardServer({
   slice62LiveTestService,
   slice63LiveTestService,
   slice64LiveTestService,
+  slice71LiveTestService,
   mapModelService,
   movementDebugService,
   pathPlannerService,
