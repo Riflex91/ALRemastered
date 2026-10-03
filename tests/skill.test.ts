@@ -180,7 +180,12 @@ test("dashboard skill options expose only safe simple class skills", () => {
 
 test("safe no-target skill runs once through gateway and waits for server success", async () => {
   const logger = new Logger({ component: "skill-success-test" });
-  const sent: Array<{ name: string; targetId?: string; cooldownKey?: string }> = [];
+  const sent: Array<{
+    name: string;
+    targetId?: string;
+    cooldownKey?: string;
+    signal?: AbortSignal;
+  }> = [];
   const service = new AdventureLandSkillService({
     gateway: new ActionGateway({
       logger,
@@ -195,6 +200,7 @@ test("safe no-target skill runs once through gateway and waits for server succes
         name: string;
         targetId?: string;
         cooldownKey?: string;
+        signal?: AbortSignal;
       }) => {
         sent.push(input);
         return {
@@ -217,12 +223,11 @@ test("safe no-target skill runs once through gateway and waits for server succes
   assert.equal(result.action, "character.skill");
   assert.equal(result.origin, "dashboard");
   assert.equal(result.characterId, "CH_1");
-  assert.deepEqual(sent, [{
-    name: "massproduction",
-    targetId: undefined,
-    cooldownKey: "massproduction",
-    signal: sent[0]?.signal,
-  }]);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0]?.name, "massproduction");
+  assert.equal(sent[0]?.targetId, undefined);
+  assert.equal(sent[0]?.cooldownKey, "massproduction");
+  assert.ok(sent[0]?.signal instanceof AbortSignal);
   assert.deepEqual(result.result, {
     skillName: "massproduction",
     displayName: "Mass Production",
@@ -363,7 +368,12 @@ test("skill exposes local and server cooldowns and gateway rate limiting", async
   let now = 30_000;
   let localCooldown = 350;
   let calls = 0;
-  let serverResponse = {
+  let serverResponse: {
+    name: string;
+    success: boolean;
+    reason?: string;
+    cooldownMs?: number;
+  } = {
     name: "massproduction",
     success: false,
     reason: "cooldown",
@@ -411,7 +421,6 @@ test("skill exposes local and server cooldowns and gateway rate limiting", async
   serverResponse = {
     name: "massproduction",
     success: true,
-    reason: undefined as unknown as string,
     cooldownMs: 50,
   };
   result = await service.runDashboardTest({
