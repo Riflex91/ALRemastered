@@ -63,6 +63,8 @@ interface SafeMonsterCandidate {
 const SCRIPT_NAME = "slice-4-2-live-farmer";
 const MAX_ATTACKS = 12;
 const MAX_TEST_MS = 25_000;
+const PREFLIGHT_TARGET_WAIT_MS = 5_000;
+const PREFLIGHT_TARGET_POLL_MS = 125;
 
 export class Slice42LiveTestService {
   readonly #logger: Logger;
@@ -128,19 +130,37 @@ export class Slice42LiveTestService {
         );
       }
 
-      const initial = this.#character.state();
+      let preflightState = this.#character.state();
       const data = this.#gameData();
-      this.#requireReady(initial, data);
-      target = this.#selectSafeInRangeMonster(initial, data!);
+      this.#requireReady(preflightState, data);
+      target = this.#selectSafeInRangeMonster(preflightState, data!);
+      let targetWaitMs = 0;
+      if (!target) {
+        this.#logger.info("Slice 4.2 preflight is waiting for a safe in-range target.", {
+          testId,
+          waitMs: PREFLIGHT_TARGET_WAIT_MS,
+          pollMs: PREFLIGHT_TARGET_POLL_MS,
+        });
+        const waited = await this.#waitForSafeInRangeMonster(data!);
+        target = waited?.target;
+        if (waited) {
+          preflightState = waited.state;
+          targetWaitMs = waited.waitedMs;
+        }
+      }
       if (!target) {
         throw new Slice42LiveTestFailure(
           "LIVE_TEST_NO_SAFE_SCRIPT_TARGET",
-          "No bounded low-risk, untargeted monster is currently visible inside attack range.",
+          "No bounded low-risk, untargeted monster appeared inside attack range during the 5-second preflight window.",
           true,
           "preflight",
+          {
+            waitMs: PREFLIGHT_TARGET_WAIT_MS,
+            visibleMonsters: preflightState.entities?.filter((entity) => entity.kind === "monster").length ?? 0,
+          },
         );
       }
-      const movement = this.#safeRoundTrip(initial, data!);
+      const movement = this.#safeRoundTrip(preflightState, data!);
       if (!movement) {
         throw new Slice42LiveTestFailure(
           "LIVE_TEST_NO_SAFE_SCRIPT_MOVE",
@@ -160,6 +180,7 @@ export class Slice42LiveTestService {
           targetHp: target.hp,
           targetAttack: target.attack,
           targetDistance: roundOne(target.distance),
+          targetWaitMs,
           moveX: movement.x,
           moveY: movement.y,
           returnX: movement.returnX,
@@ -422,6 +443,33 @@ export class Slice42LiveTestService {
         { hp, maxHp },
       );
     }
+  }
+
+  async #waitForSafeInRangeMonster(
+    data: AdventureLandGameData,
+  ): Promise<{
+    readonly target: SafeMonsterCandidate;
+    readonly state: AdventureLandCharacterConnectionState;
+    readonly waitedMs: number;
+  } | undefined> {
+    const started = Date.now();
+    while (Date.now() - started <= PREFLIGHT_TARGET_WAIT_MS) {
+      await this.#delay(PREFLIGHT_TARGET_POLL_MS);
+      const state = this.#character.state();
+      this.#requireReady(state, data);
+      const target = this.#selectSafeInRangeMonster(state, data);
+      if (target) {
+        return Object.freeze({
+          target,
+          state,
+          waitedMs: Math.min(
+            PREFLIGHT_TARGET_WAIT_MS,
+            Math.max(PREFLIGHT_TARGET_POLL_MS, Date.now() - started),
+          ),
+        });
+      }
+    }
+    return undefined;
   }
 
   #selectSafeInRangeMonster(
