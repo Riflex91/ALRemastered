@@ -585,6 +585,20 @@
         </div>
       </div>
 
+      <div class="selection-content">
+        <div>
+          <h3>Slice 5.1 one-click heartbeat test</h3>
+          <div class="server-picker">
+            <button id="start-slice-5-1-live-test" type="button">Start heartbeat test</button>
+            <strong id="slice-5-1-live-test-status" aria-live="polite">Ready</strong>
+            <button id="copy-slice-5-1-live-test-result" type="button" hidden>Copy last test result</button>
+          </div>
+          <small class="selection-note" id="slice-5-1-live-test-note">
+            Verifies passive Core, Character, and isolated Script heartbeats. Character verification uses a read-only state refresh; this slice does not reconnect, restart, or perform gameplay mutations.
+          </small>
+        </div>
+      </div>
+
       <details id="script-runtime-developer-controls">
         <summary>Script runtime developer controls</summary>
         <div class="selection-content">

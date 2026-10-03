@@ -528,6 +528,8 @@ test("character service allows exactly one connection and disconnects controllab
   assert.equal(connected.status, "connected");
   assert.equal(connected.characterName, "RangerOne");
   assert.equal(connected.serverKey, "SR_EUII");
+  assert.equal(connected.heartbeatSequence, 1);
+  assert.equal(connected.lastHeartbeatAt, "2026-10-02T20:05:00.000Z");
   assert.match(connected.message, /no automation is running/i);
   assert.equal(connected.character?.hp, 4000);
   assert.throws(() => service.start("CH_1"), /already active/);
@@ -659,6 +661,8 @@ test("character service allows exactly one connection and disconnects controllab
   assert.equal(live.party?.leader, "RangerOne");
   assert.equal(live.pingMs, 42);
   assert.equal(live.lastLiveUpdateAt, "2026-10-02T20:05:01.000Z");
+  assert.ok((live.heartbeatSequence ?? 0) > 1);
+  assert.equal(live.lastHeartbeatAt, "2026-10-02T20:05:01.000Z");
 
   const stopped = await service.stop("dashboard");
   assert.equal(stopped.status, "disconnected");

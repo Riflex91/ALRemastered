@@ -1786,3 +1786,57 @@ test("dashboard exposes Simple Farmer controls and Slice 4.5 live-test APIs", as
     runtime.stop();
   }
 });
+
+
+test("dashboard exposes Slice 5.1 heartbeat one-click test", async () => {
+  const html = readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
+  const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
+  for (const id of [
+    "start-slice-5-1-live-test",
+    "slice-5-1-live-test-status",
+    "copy-slice-5-1-live-test-result",
+  ]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+  assert.match(html, /Core, Character, and isolated Script heartbeats/);
+  assert.match(script, /\/api\/live-test\/slice-5-1\/start/);
+
+  const runtime = new CoreRuntime({ heartbeatIntervalMs: 25 });
+  runtime.start();
+  const logger = new Logger({ component: "dashboard-slice51-test" });
+  const fakeLiveTest = {
+    state: () => ({ status: "idle", message: "ready" }),
+    run: async () => ({
+      testId: "live51-dashboard",
+      slice: "5.1",
+      outcome: "passed",
+      startedAt: "2026-10-03T18:30:00.000Z",
+      completedAt: "2026-10-03T18:30:01.000Z",
+      message: "Slice 5.1 passed.",
+      steps: [],
+    }),
+  };
+  const dashboard = new DashboardServer({
+    logger,
+    runtime,
+    slice51LiveTestService: fakeLiveTest as any,
+    host: "127.0.0.1",
+    port: 0,
+  });
+  const url = await dashboard.start();
+  try {
+    const current = await fetch(`${url}/api/live-test/slice-5-1`);
+    assert.equal(current.status, 200);
+    assert.equal((await current.json()).status, "idle");
+    const live = await fetch(`${url}/api/live-test/slice-5-1/start`, { method: "POST" });
+    assert.equal(live.status, 200);
+    const payload = await live.json();
+    assert.equal(payload.result.outcome, "passed");
+    assert.equal(payload.result.slice, "5.1");
+    assert.match(payload.reportText, /ALRemastered Slice 5\.1 one-click heartbeat test/);
+    assert.equal(payload.clipboardSuggested, true);
+  } finally {
+    await dashboard.stop();
+    runtime.stop();
+  }
+});

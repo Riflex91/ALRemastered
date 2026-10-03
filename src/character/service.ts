@@ -48,6 +48,8 @@ export interface AdventureLandCharacterConnectionState {
   readonly connectedAt?: string;
   readonly pingMs?: number;
   readonly lastLiveUpdateAt?: string;
+  readonly heartbeatSequence?: number;
+  readonly lastHeartbeatAt?: string;
   readonly message: string;
   readonly errorCode?: string;
 }
@@ -159,6 +161,8 @@ export class AdventureLandCharacterService {
           characterName: liveState.character.name,
           pingMs: liveState.pingMs,
           lastLiveUpdateAt: liveState.updatedAt,
+          heartbeatSequence: (this.#state.heartbeatSequence ?? 0) + 1,
+          lastHeartbeatAt: liveState.updatedAt,
           message: liveState.character.name +
             " is connected headlessly. Live state is updating; no automation is running.",
         });
@@ -197,6 +201,8 @@ export class AdventureLandCharacterService {
           serverKey: server.key,
           serverRegion: server.region,
           serverName: server.name,
+          heartbeatSequence: this.#state.heartbeatSequence,
+          lastHeartbeatAt: this.#state.lastHeartbeatAt,
           message: reason
             ? "Adventure Land closed the character connection (" + reason + ")."
             : "Adventure Land character connection closed unexpectedly.",
@@ -227,6 +233,8 @@ export class AdventureLandCharacterService {
         connectedAt,
         pingMs: initialLiveState.pingMs,
         lastLiveUpdateAt: initialLiveState.updatedAt,
+        heartbeatSequence: 1,
+        lastHeartbeatAt: initialLiveState.updatedAt,
         message: initialLiveState.character.name +
           " is connected headlessly. Live state is updating; no automation is running.",
       });
@@ -719,6 +727,7 @@ function movementProgressedToward(
 function disconnectedState(): AdventureLandCharacterConnectionState {
   return {
     status: "disconnected",
+    heartbeatSequence: 0,
     message: "No headless Adventure Land character is connected.",
   };
 }
