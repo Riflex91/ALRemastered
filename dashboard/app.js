@@ -39,6 +39,7 @@ const state = {
   slice62LastReport: null,
   slice63LiveTest: null,
   slice63LastReport: null,
+  movementDebug: null,
   update: null,
   gameVersion: null,
   gameData: null,
@@ -191,6 +192,13 @@ const elements = {
   slice63LiveTestStatus: document.querySelector("#slice-6-3-live-test-status"),
   slice63LiveTestNote: document.querySelector("#slice-6-3-live-test-note"),
   copySlice63LiveTestResult: document.querySelector("#copy-slice-6-3-live-test-result"),
+  movementDebugStatus: document.querySelector("#movement-debug-status"),
+  movementDebugTrailCount: document.querySelector("#movement-debug-trail-count"),
+  movementDebugMovementCount: document.querySelector("#movement-debug-movement-count"),
+  movementDebugPlanCount: document.querySelector("#movement-debug-plan-count"),
+  movementDebugTrail: document.querySelector("#movement-debug-trail"),
+  movementDebugRoute: document.querySelector("#movement-debug-route"),
+  movementDebugNote: document.querySelector("#movement-debug-note"),
   gameVersion: document.querySelector("#game-version"),
   gameVersionStatus: document.querySelector("#game-version-status"),
   gameLastDeploy: document.querySelector("#game-last-deploy"),
@@ -1446,6 +1454,49 @@ function renderSlice63LiveTest() {
   }
 }
 
+function renderMovementDebug() {
+  const debug = state.movementDebug;
+  if (!debug) {
+    elements.movementDebugStatus.textContent = "Waiting";
+    return;
+  }
+
+  elements.movementDebugStatus.textContent =
+    debug.status === "ready" ? "Ready" : "Unavailable";
+  elements.movementDebugTrailCount.textContent =
+    String(debug.trailPointCount ?? 0);
+  elements.movementDebugMovementCount.textContent =
+    String(debug.movementCount ?? 0);
+  elements.movementDebugPlanCount.textContent =
+    String(debug.plannedRouteCount ?? 0);
+
+  const trail = Array.isArray(debug.trail) ? debug.trail : [];
+  elements.movementDebugTrail.value = trail.length > 0
+    ? trail.slice(-40).map((point) => {
+      const coordinates = `${Number(point.x).toFixed(2)}, ${Number(point.y).toFixed(2)}`;
+      return `#${point.sequence} ${point.recordedAt} [${point.origin}] ${point.map} ${coordinates} ${point.kind}`;
+    }).join("\n")
+    : "No confirmed movement recorded yet.";
+
+  const route = debug.plannedRoute;
+  elements.movementDebugRoute.value = route
+    ? JSON.stringify({
+      status: route.status,
+      message: route.message,
+      reasonCode: route.reasonCode,
+      from: route.from,
+      to: route.to,
+      waypoints: route.waypoints,
+      legs: route.legs,
+      diagnostics: route.diagnostics,
+    }, null, 2)
+    : "No route planned yet.";
+
+  elements.movementDebugNote.textContent =
+    debug.message ??
+    "Read-only movement and route debug telemetry is available.";
+}
+
 function renderGameVersion() {
   const gameVersion = state.gameVersion;
   if (!gameVersion) return;
@@ -2042,6 +2093,35 @@ async function refreshSlice63LiveTest() {
       message: "Slice 6.3 smart_move() compatibility status could not be loaded.",
     };
     renderSlice63LiveTest();
+  }
+}
+
+async function refreshMovementDebug() {
+  try {
+    const response = await fetch("/api/navigation/movement-debug", {
+      cache: "no-store",
+    });
+    state.movementDebug = response.ok
+      ? await response.json()
+      : {
+        status: "unavailable",
+        trailPointCount: 0,
+        movementCount: 0,
+        plannedRouteCount: 0,
+        trail: [],
+        message: "Movement debug telemetry is unavailable.",
+      };
+    renderMovementDebug();
+  } catch {
+    state.movementDebug = {
+      status: "unavailable",
+      trailPointCount: 0,
+      movementCount: 0,
+      plannedRouteCount: 0,
+      trail: [],
+      message: "Movement debug telemetry could not be loaded.",
+    };
+    renderMovementDebug();
   }
 }
 
@@ -4008,6 +4088,7 @@ await refreshSlice54LiveTest();
 await refreshSlice61LiveTest();
 await refreshSlice62LiveTest();
 await refreshSlice63LiveTest();
+await refreshMovementDebug();
 await refreshGameVersion();
 await refreshGameData();
 await refreshUpdate();
@@ -4036,6 +4117,7 @@ setInterval(refreshSlice54LiveTest, 1500);
 setInterval(refreshSlice61LiveTest, 1500);
 setInterval(refreshSlice62LiveTest, 1500);
 setInterval(refreshSlice63LiveTest, 1500);
+setInterval(refreshMovementDebug, 1500);
 setInterval(refreshGameVersion, 2000);
 setInterval(refreshGameData, 2000);
 setInterval(refreshUpdate, 1500);
