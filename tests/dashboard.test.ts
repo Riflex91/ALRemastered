@@ -1709,6 +1709,7 @@ test("dashboard exposes Simple Farmer controls and Slice 4.5 live-test APIs", as
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
   assert.match(html, /automatic navigation remains reserved for Phase 6/);
+  assert.match(html, /walks into attack range through bounded server-confirmed direct movement/);
   assert.match(script, /\/api\/simple-farmer\/start/);
   assert.match(script, /\/api\/live-test\/slice-4-5\/start/);
 
@@ -1738,7 +1739,7 @@ test("dashboard exposes Simple Farmer controls and Slice 4.5 live-test APIs", as
       targetId: "M1",
       targetType: "goo",
       attackCount: 1,
-      lootCount: 0,
+      lootCount: 1,
       message: "Slice 4.5 passed.",
       steps: [],
     }),

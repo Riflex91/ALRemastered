@@ -497,6 +497,7 @@ slice45LiveTestService = new Slice45LiveTestService({
   runtime: scriptRuntime,
   farmer: simpleFarmerService,
   character: characterService!,
+  movement: movementService!,
   gameData: () => gameDataService!.data(),
 });
 diagnostics.registerComponent("script-runtime", () => {
