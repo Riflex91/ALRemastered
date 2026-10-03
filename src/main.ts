@@ -7,6 +7,7 @@ import { ActionGateway } from "./action/gateway.ts";
 import { AdventureLandMovementService } from "./action/movement.ts";
 import { AdventureLandAttackService } from "./action/attack.ts";
 import { AdventureLandSkillService } from "./action/skill.ts";
+import { AdventureLandLootConsumableService } from "./action/loot-consumable.ts";
 import { AdventureLandCharacterService } from "./character/service.ts";
 import { AdventureLandCharacterTransport } from "./character/transport.ts";
 import { CoreRuntime } from "./core/app.ts";
@@ -102,6 +103,7 @@ let actionGateway: ActionGateway | undefined;
 let movementService: AdventureLandMovementService | undefined;
 let attackService: AdventureLandAttackService | undefined;
 let skillService: AdventureLandSkillService | undefined;
+let lootConsumableService: AdventureLandLootConsumableService | undefined;
 let updateService: UpdateService | undefined;
 let gameVersionService: AdventureLandVersionService | undefined;
 let gameDataService: AdventureLandGameDataService | undefined;
@@ -292,6 +294,12 @@ skillService = new AdventureLandSkillService({
   character: characterService!,
   gameData: () => gameDataService!.data(),
 });
+lootConsumableService = new AdventureLandLootConsumableService({
+  gateway: actionGateway!,
+  logger,
+  character: characterService!,
+  gameData: () => gameDataService!.data(),
+});
 
 dashboard = new DashboardServer({
   logger,
@@ -303,6 +311,7 @@ dashboard = new DashboardServer({
   movementService,
   attackService,
   skillService,
+  lootConsumableService,
   updateService,
   diagnostics,
   gameVersionService,

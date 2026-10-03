@@ -11,6 +11,11 @@ import {
   type AdventureLandAttackReceipt,
   type AdventureLandSkillInput,
   type AdventureLandSkillReceipt,
+  type AdventureLandLootInput,
+  type AdventureLandLootReceipt,
+  type AdventureLandLootChestState,
+  type AdventureLandConsumableInput,
+  type AdventureLandConsumableReceipt,
   type AdventureLandCharacterTransport,
   type AdventureLandConnectedCharacter,
 } from "./transport.ts";
@@ -31,6 +36,7 @@ export interface AdventureLandCharacterConnectionState {
   readonly character?: AdventureLandConnectedCharacter;
   readonly entities?: readonly AdventureLandVisibleEntity[];
   readonly party?: AdventureLandPartyState;
+  readonly lootChests?: readonly AdventureLandLootChestState[];
   readonly characterId?: string;
   readonly characterName?: string;
   readonly serverKey?: string;
@@ -133,12 +139,14 @@ export class AdventureLandCharacterService {
         const previous = this.#state.character;
         const previousEntities = this.#state.entities;
         const previousParty = this.#state.party;
+        const previousLootChests = this.#state.lootChests;
         this.#setState({
           ...this.#state,
           status: "connected",
           character: liveState.character,
           entities: liveState.entities,
           party: liveState.party,
+          lootChests: liveState.lootChests,
           characterId: liveState.character.id,
           characterName: liveState.character.name,
           pingMs: liveState.pingMs,
@@ -161,7 +169,9 @@ export class AdventureLandCharacterService {
             conditionSignature(previous.conditions) !==
               conditionSignature(liveState.character.conditions) ||
             entitySignature(previousEntities) !== entitySignature(liveState.entities) ||
-            partySignature(previousParty) !== partySignature(liveState.party)
+            partySignature(previousParty) !== partySignature(liveState.party) ||
+            lootChestSignature(previousLootChests) !==
+              lootChestSignature(liveState.lootChests)
           )
         ) {
           this.#logger.info("Adventure Land character live state changed.", liveStateContext(liveState));
@@ -200,6 +210,7 @@ export class AdventureLandCharacterService {
         character: initialLiveState.character,
         entities: initialLiveState.entities,
         party: initialLiveState.party,
+        lootChests: initialLiveState.lootChests,
         characterId: initialLiveState.character.id,
         characterName: initialLiveState.character.name,
         serverKey: server.key,
@@ -279,6 +290,30 @@ export class AdventureLandCharacterService {
     const connection = this.#connection;
     if (!connection || this.#state.status !== "connected") return 0;
     return connection.skillCooldownRemainingMs(name);
+  }
+
+  sendLoot(input: AdventureLandLootInput): Promise<AdventureLandLootReceipt> {
+    const connection = this.#connection;
+    if (!connection || this.#state.status !== "connected") {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Connect a headless character before looting.",
+        "loot_not_connected",
+      ));
+    }
+    return connection.sendLoot(input);
+  }
+
+  sendConsumable(
+    input: AdventureLandConsumableInput,
+  ): Promise<AdventureLandConsumableReceipt> {
+    const connection = this.#connection;
+    if (!connection || this.#state.status !== "connected") {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Connect a headless character before using a consumable.",
+        "consumable_not_connected",
+      ));
+    }
+    return connection.sendConsumable(input);
   }
 
   sendAttack(input: AdventureLandAttackInput): Promise<AdventureLandAttackReceipt> {
@@ -474,6 +509,9 @@ export class AdventureLandCharacterService {
       character: state.character ? Object.freeze(structuredClone(state.character)) : undefined,
       entities: state.entities ? Object.freeze(structuredClone(state.entities)) : undefined,
       party: state.party ? Object.freeze(structuredClone(state.party)) : undefined,
+      lootChests: state.lootChests
+        ? Object.freeze(structuredClone(state.lootChests))
+        : undefined,
     });
   }
 }
@@ -513,6 +551,8 @@ function liveStateContext(state: AdventureLandCharacterLiveState): Record<string
         .filter((entity) => entity.kind === "monster")
         .map((entity) => entity.type),
     )].sort(),
+    visibleLootChests: state.lootChests.length,
+    visibleLootChestIds: state.lootChests.map((chest) => chest.id).sort(),
     partyMembers: [...state.party.members],
     partyLeader: state.party.leader,
     pingMs: state.pingMs,
@@ -533,6 +573,23 @@ function partySignature(party: AdventureLandPartyState | undefined): string {
   return party
     ? JSON.stringify([party.leader ?? "", [...party.members]])
     : "";
+}
+
+function lootChestSignature(
+  lootChests: readonly AdventureLandLootChestState[] | undefined,
+): string {
+  if (!lootChests) return "";
+  return JSON.stringify(
+    lootChests
+      .map((chest) => [
+        chest.id,
+        chest.map ?? "",
+        chest.x ?? null,
+        chest.y ?? null,
+        chest.items ?? null,
+      ])
+      .sort(),
+  );
 }
 
 function inventorySignature(

@@ -98,10 +98,50 @@ export interface AdventureLandSkillReceipt {
   readonly cooldownMs?: number;
 }
 
+export interface AdventureLandLootChestState {
+  readonly id: string;
+  readonly map?: string;
+  readonly x?: number;
+  readonly y?: number;
+  readonly items?: number;
+  readonly chest?: string;
+}
+
+export interface AdventureLandLootInput {
+  readonly chestId: string;
+  readonly signal?: AbortSignal;
+}
+
+export interface AdventureLandLootReceipt {
+  readonly chestId: string;
+  readonly success: boolean;
+  readonly reason?: string;
+  readonly opener?: string;
+}
+
+export type AdventureLandConsumableKind = "hp" | "mp";
+
+export interface AdventureLandConsumableInput {
+  readonly inventoryIndex: number;
+  readonly itemName: string;
+  readonly kind: AdventureLandConsumableKind;
+  readonly signal?: AbortSignal;
+}
+
+export interface AdventureLandConsumableReceipt {
+  readonly inventoryIndex: number;
+  readonly itemName: string;
+  readonly kind: AdventureLandConsumableKind;
+  readonly success: boolean;
+  readonly reason?: string;
+  readonly cooldownMs?: number;
+}
+
 export interface AdventureLandCharacterLiveState {
   readonly character: AdventureLandConnectedCharacter;
   readonly entities: readonly AdventureLandVisibleEntity[];
   readonly party: AdventureLandPartyState;
+  readonly lootChests: readonly AdventureLandLootChestState[];
   readonly pingMs?: number;
   readonly updatedAt: string;
 }
@@ -118,6 +158,10 @@ export interface AdventureLandCharacterConnection {
   attackCooldownRemainingMs(): number;
   sendSkill(input: AdventureLandSkillInput): Promise<AdventureLandSkillReceipt>;
   skillCooldownRemainingMs(name: string): number;
+  sendLoot(input: AdventureLandLootInput): Promise<AdventureLandLootReceipt>;
+  sendConsumable(
+    input: AdventureLandConsumableInput,
+  ): Promise<AdventureLandConsumableReceipt>;
   close(): Promise<void>;
 }
 
@@ -280,6 +324,14 @@ export class AdventureLandCharacterTransport {
                 liveConnection.applySkillTimeout(data);
                 continue;
               }
+              if (name === "drop" && isRecord(data)) {
+                liveConnection.applyDrop(data);
+                continue;
+              }
+              if (name === "chest_opened" && isRecord(data)) {
+                liveConnection.applyChestOpened(data);
+                continue;
+              }
               if (name === "game_response" && isRecord(data)) {
                 liveConnection.applyGameResponse(data);
                 continue;
@@ -372,6 +424,7 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
   readonly #pingTimer: ReturnType<typeof setInterval>;
   #character: AdventureLandConnectedCharacter;
   #world: AdventureLandWorldState = emptyWorldState();
+  readonly #lootChests = new Map<string, AdventureLandLootChestState>();
   #pingMs?: number;
   #updatedAt: string;
   #attackCooldownUntilMs = 0;
@@ -388,6 +441,22 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
     readonly targetId?: string;
     readonly cooldownKey: string;
     readonly resolve: (receipt: AdventureLandSkillReceipt) => void;
+    readonly reject: (error: AdventureLandCharacterTransportError) => void;
+    readonly signal?: AbortSignal;
+    readonly onAbort?: () => void;
+  };
+  #pendingLoot?: {
+    readonly chestId: string;
+    readonly resolve: (receipt: AdventureLandLootReceipt) => void;
+    readonly reject: (error: AdventureLandCharacterTransportError) => void;
+    readonly signal?: AbortSignal;
+    readonly onAbort?: () => void;
+  };
+  #pendingConsumable?: {
+    readonly inventoryIndex: number;
+    readonly itemName: string;
+    readonly kind: AdventureLandConsumableKind;
+    readonly resolve: (receipt: AdventureLandConsumableReceipt) => void;
     readonly reject: (error: AdventureLandCharacterTransportError) => void;
     readonly signal?: AbortSignal;
     readonly onAbort?: () => void;
@@ -424,6 +493,18 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
           "skill_transport_closed",
         ),
       );
+      this.#rejectPendingLoot(
+        new AdventureLandCharacterTransportError(
+          "Adventure Land character transport closed during loot.",
+          "loot_transport_closed",
+        ),
+      );
+      this.#rejectPendingConsumable(
+        new AdventureLandCharacterTransportError(
+          "Adventure Land character transport closed during consumable use.",
+          "consumable_transport_closed",
+        ),
+      );
       if (this.#intentional) return;
       const reason = this.#disconnectReason();
       for (const listener of this.#listeners) listener(reason);
@@ -446,6 +527,13 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
       character: Object.freeze(structuredClone(this.#character)),
       entities: Object.freeze(structuredClone(this.#world.entities)),
       party: Object.freeze(structuredClone(this.#world.party)),
+      lootChests: Object.freeze(
+        structuredClone(
+          [...this.#lootChests.values()].sort((left, right) =>
+            left.id.localeCompare(right.id)
+          ),
+        ),
+      ),
       pingMs: this.#pingMs,
       updatedAt: this.#updatedAt,
     });
@@ -485,6 +573,7 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
     };
     this.#character = mergeConnectedCharacter(this.#character, patch);
     this.#world = clearVisibleEntities(this.#world);
+    this.#lootChests.clear();
     this.#touch();
   }
 
@@ -544,6 +633,46 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
     this.#skillCooldownUntilMs.set(data.name, until);
   }
 
+  applyDrop(data: Record<string, unknown>): void {
+    if (typeof data.id !== "string" || !data.id) return;
+    this.#lootChests.set(data.id, Object.freeze({
+      id: data.id,
+      map: typeof data.map === "string" ? data.map : this.#character.map,
+      x: finiteNumber(data.x),
+      y: finiteNumber(data.y),
+      items: finiteNumber(data.items),
+      chest: typeof data.chest === "string" ? data.chest : undefined,
+    }));
+    this.#touch();
+  }
+
+  applyChestOpened(data: Record<string, unknown>): void {
+    const chestId = typeof data.id === "string" ? data.id : undefined;
+    if (!chestId) return;
+    this.#lootChests.delete(chestId);
+
+    const pending = this.#pendingLoot;
+    if (pending?.chestId === chestId) {
+      this.#pendingLoot = undefined;
+      if (pending.signal && pending.onAbort) {
+        pending.signal.removeEventListener("abort", pending.onAbort);
+      }
+      const opener = typeof data.opener === "string" ? data.opener : undefined;
+      const ownOpen = opener === this.#character.name;
+      pending.resolve(Object.freeze({
+        chestId,
+        success: ownOpen,
+        reason: ownOpen
+          ? undefined
+          : data.gone === true
+            ? "gone"
+            : "opened_by_other",
+        opener,
+      }));
+    }
+    this.#touch();
+  }
+
   applyGameResponse(data: Record<string, unknown>): void {
     if (data.place === "attack" && this.#pendingAttack) {
       const pending = this.#pendingAttack;
@@ -565,6 +694,38 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
         targetId: pending.targetId,
         success: !failed,
         reason,
+        cooldownMs: cooldownMs > 0 ? cooldownMs : undefined,
+      }));
+      return;
+    }
+
+    if (data.place === "equip" && this.#pendingConsumable) {
+      const pending = this.#pendingConsumable;
+      this.#pendingConsumable = undefined;
+      if (pending.signal && pending.onAbort) {
+        pending.signal.removeEventListener("abort", pending.onAbort);
+      }
+      const failed = data.failed === true || data.success === false;
+      const reason = typeof data.reason === "string"
+        ? data.reason
+        : failed && typeof data.response === "string"
+          ? data.response
+          : undefined;
+      const responseCooldown = finiteNumber(data.ms);
+      const cooldownMs = responseCooldown === undefined
+        ? this.skillCooldownRemainingMs(
+          pending.kind === "hp" ? "use_hp" : "use_mp",
+        )
+        : Math.max(0, responseCooldown);
+      const used = typeof data.used === "string" ? data.used : undefined;
+      pending.resolve(Object.freeze({
+        inventoryIndex: pending.inventoryIndex,
+        itemName: pending.itemName,
+        kind: pending.kind,
+        success: !failed && (!used || used === pending.itemName),
+        reason: !failed && used && used !== pending.itemName
+          ? "unexpected_item"
+          : reason,
         cooldownMs: cooldownMs > 0 ? cooldownMs : undefined,
       }));
       return;
@@ -792,6 +953,151 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
     return Math.max(0, Math.ceil(until - Date.now()));
   }
 
+  sendLoot(input: AdventureLandLootInput): Promise<AdventureLandLootReceipt> {
+    const chestId = input.chestId.trim();
+    if (input.signal?.aborted) {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Adventure Land loot was cancelled before it was sent.",
+        "loot_aborted",
+      ));
+    }
+    if (this.#closed || this.#socket.readyState !== 1) {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Adventure Land character transport is not ready for loot.",
+        "loot_transport_unavailable",
+      ));
+    }
+    if (!chestId || chestId.length > 160) {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Adventure Land loot chest ID is invalid.",
+        "loot_chest_invalid",
+      ));
+    }
+    if (!this.#lootChests.has(chestId)) {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Adventure Land loot chest is no longer visible.",
+        "loot_chest_not_visible",
+      ));
+    }
+    if (this.#pendingLoot) {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Another Adventure Land loot request is still waiting for the server.",
+        "loot_already_pending",
+      ));
+    }
+
+    return new Promise<AdventureLandLootReceipt>((resolve, reject) => {
+      const onAbort = () => {
+        if (!this.#pendingLoot || this.#pendingLoot.chestId !== chestId) return;
+        this.#pendingLoot = undefined;
+        input.signal?.removeEventListener("abort", onAbort);
+        reject(new AdventureLandCharacterTransportError(
+          "Adventure Land loot was cancelled while waiting for the server.",
+          "loot_aborted",
+        ));
+      };
+      this.#pendingLoot = {
+        chestId,
+        resolve,
+        reject,
+        signal: input.signal,
+        onAbort,
+      };
+      input.signal?.addEventListener("abort", onAbort, { once: true });
+      try {
+        this.#socket.send("42" + JSON.stringify(["open_chest", { id: chestId }]));
+      } catch {
+        this.#pendingLoot = undefined;
+        input.signal?.removeEventListener("abort", onAbort);
+        reject(new AdventureLandCharacterTransportError(
+          "Adventure Land loot request could not be sent.",
+          "loot_send_failed",
+        ));
+      }
+    });
+  }
+
+  sendConsumable(
+    input: AdventureLandConsumableInput,
+  ): Promise<AdventureLandConsumableReceipt> {
+    if (input.signal?.aborted) {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Adventure Land consumable use was cancelled before it was sent.",
+        "consumable_aborted",
+      ));
+    }
+    if (this.#closed || this.#socket.readyState !== 1) {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Adventure Land character transport is not ready for consumable use.",
+        "consumable_transport_unavailable",
+      ));
+    }
+    if (
+      !Number.isInteger(input.inventoryIndex) ||
+      input.inventoryIndex < 0 ||
+      !input.itemName.trim() ||
+      (input.kind !== "hp" && input.kind !== "mp")
+    ) {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Adventure Land consumable request is invalid.",
+        "consumable_request_invalid",
+      ));
+    }
+    const item = this.#character.inventory?.[input.inventoryIndex];
+    if (!item || typeof item.name !== "string" || item.name !== input.itemName) {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Adventure Land consumable inventory slot changed.",
+        "consumable_item_changed",
+      ));
+    }
+    if (this.#pendingConsumable) {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Another Adventure Land consumable is still waiting for the server.",
+        "consumable_already_pending",
+      ));
+    }
+
+    return new Promise<AdventureLandConsumableReceipt>((resolve, reject) => {
+      const onAbort = () => {
+        if (
+          !this.#pendingConsumable ||
+          this.#pendingConsumable.inventoryIndex !== input.inventoryIndex
+        ) return;
+        this.#pendingConsumable = undefined;
+        input.signal?.removeEventListener("abort", onAbort);
+        reject(new AdventureLandCharacterTransportError(
+          "Adventure Land consumable use was cancelled while waiting for the server.",
+          "consumable_aborted",
+        ));
+      };
+      this.#pendingConsumable = {
+        inventoryIndex: input.inventoryIndex,
+        itemName: input.itemName,
+        kind: input.kind,
+        resolve,
+        reject,
+        signal: input.signal,
+        onAbort,
+      };
+      input.signal?.addEventListener("abort", onAbort, { once: true });
+      try {
+        this.#socket.send(
+          "42" + JSON.stringify([
+            "equip",
+            { num: input.inventoryIndex, consume: true },
+          ]),
+        );
+      } catch {
+        this.#pendingConsumable = undefined;
+        input.signal?.removeEventListener("abort", onAbort);
+        reject(new AdventureLandCharacterTransportError(
+          "Adventure Land consumable request could not be sent.",
+          "consumable_send_failed",
+        ));
+      }
+    });
+  }
+
   async close(): Promise<void> {
     if (this.#closed || this.#socket.readyState === 3) return;
     this.#intentional = true;
@@ -807,6 +1113,18 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
       new AdventureLandCharacterTransportError(
         "Adventure Land skill was cancelled because the character stopped.",
         "skill_transport_closed",
+      ),
+    );
+    this.#rejectPendingLoot(
+      new AdventureLandCharacterTransportError(
+        "Adventure Land loot was cancelled because the character stopped.",
+        "loot_transport_closed",
+      ),
+    );
+    this.#rejectPendingConsumable(
+      new AdventureLandCharacterTransportError(
+        "Adventure Land consumable use was cancelled because the character stopped.",
+        "consumable_transport_closed",
       ),
     );
 
@@ -842,6 +1160,26 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
     const pending = this.#pendingSkill;
     if (!pending) return;
     this.#pendingSkill = undefined;
+    if (pending.signal && pending.onAbort) {
+      pending.signal.removeEventListener("abort", pending.onAbort);
+    }
+    pending.reject(error);
+  }
+
+  #rejectPendingLoot(error: AdventureLandCharacterTransportError): void {
+    const pending = this.#pendingLoot;
+    if (!pending) return;
+    this.#pendingLoot = undefined;
+    if (pending.signal && pending.onAbort) {
+      pending.signal.removeEventListener("abort", pending.onAbort);
+    }
+    pending.reject(error);
+  }
+
+  #rejectPendingConsumable(error: AdventureLandCharacterTransportError): void {
+    const pending = this.#pendingConsumable;
+    if (!pending) return;
+    this.#pendingConsumable = undefined;
     if (pending.signal && pending.onAbort) {
       pending.signal.removeEventListener("abort", pending.onAbort);
     }

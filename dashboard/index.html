@@ -403,6 +403,32 @@
           </small>
         </div>
       </div>
+      <div class="selection-content">
+        <div>
+          <h3>Loot &amp; consumable test controls</h3>
+          <div class="server-picker">
+            <label>
+              <span class="label">Visible loot chest</span>
+              <select id="loot-chest" aria-label="Loot test chest">
+                <option value="">No visible loot chests</option>
+              </select>
+            </label>
+            <button id="run-loot-test" type="button" disabled>Loot selected chest once</button>
+          </div>
+          <div class="server-picker">
+            <label>
+              <span class="label">HP/MP consumable</span>
+              <select id="consumable-item" aria-label="Consumable test item">
+                <option value="">No supported consumables</option>
+              </select>
+            </label>
+            <button id="run-consumable-test" type="button" disabled>Use selected HP/MP item once</button>
+          </div>
+          <small class="selection-note" id="loot-consumable-test-note">
+            Slice 3.5 exposes only currently visible loot chests and exact inventory slots whose current G.items data grants one positive HP or MP resource. Each click performs exactly one validated Action Gateway request and waits for Adventure Land server confirmation. No auto-loot, auto-potion loop, free-form item ID, socket payload, or farming loop is exposed.
+          </small>
+        </div>
+      </div>
     </section>
 
     <section class="game-data-panel">

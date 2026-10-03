@@ -11,6 +11,7 @@ import type {
 } from "../action/movement.ts";
 import type { AdventureLandAttackService } from "../action/attack.ts";
 import type { AdventureLandSkillService } from "../action/skill.ts";
+import type { AdventureLandLootConsumableService } from "../action/loot-consumable.ts";
 import type { AdventureLandSelectionService } from "../account/selection-service.ts";
 import type { AdventureLandCharacterService } from "../character/service.ts";
 import type { CoreRuntime, HealthSnapshot } from "../core/app.ts";
@@ -32,6 +33,7 @@ export interface DashboardServerOptions {
   readonly movementService?: AdventureLandMovementService;
   readonly attackService?: AdventureLandAttackService;
   readonly skillService?: AdventureLandSkillService;
+  readonly lootConsumableService?: AdventureLandLootConsumableService;
   readonly updateService?: UpdateService;
   readonly diagnostics?: DiagnosticsService;
   readonly gameVersionService?: AdventureLandVersionService;
@@ -50,6 +52,7 @@ export class DashboardServer {
   readonly #movementService?: AdventureLandMovementService;
   readonly #attackService?: AdventureLandAttackService;
   readonly #skillService?: AdventureLandSkillService;
+  readonly #lootConsumableService?: AdventureLandLootConsumableService;
   readonly #updateService?: UpdateService;
   readonly #diagnostics?: DiagnosticsService;
   readonly #gameVersionService?: AdventureLandVersionService;
@@ -71,6 +74,7 @@ export class DashboardServer {
     this.#movementService = options.movementService;
     this.#attackService = options.attackService;
     this.#skillService = options.skillService;
+    this.#lootConsumableService = options.lootConsumableService;
     this.#updateService = options.updateService;
     this.#diagnostics = options.diagnostics;
     this.#gameVersionService = options.gameVersionService;
@@ -359,6 +363,79 @@ export class DashboardServer {
         targetId: typeof body.targetId === "string"
           ? body.targetId
           : undefined,
+      });
+      return this.#json(response, result, gatewayStatusCode(result));
+    }
+
+    if (method === "GET" && path === "/api/action-gateway/loot-consumable-options") {
+      if (!this.#lootConsumableService) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Loot and consumable test service is unavailable.",
+          lootChests: [],
+          consumables: [],
+        }, 503);
+      }
+      return this.#json(response, this.#lootConsumableService.dashboardOptions());
+    }
+
+    if (method === "POST" && path === "/api/action-gateway/loot-test") {
+      if (!this.#lootConsumableService) {
+        return this.#json(response, { error: "Loot test service is unavailable." }, 503);
+      }
+
+      let body: Record<string, unknown>;
+      try {
+        body = await this.#readJsonObject(request);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Invalid request body.";
+        return this.#json(response, { error: message }, 400);
+      }
+      if (typeof body.chestId !== "string" || !body.chestId.trim()) {
+        return this.#json(
+          response,
+          { error: "Loot test requires one visible loot chest ID." },
+          400,
+        );
+      }
+
+      const result = await this.#lootConsumableService.runDashboardLoot({
+        chestId: body.chestId,
+      });
+      return this.#json(response, result, gatewayStatusCode(result));
+    }
+
+    if (method === "POST" && path === "/api/action-gateway/consumable-test") {
+      if (!this.#lootConsumableService) {
+        return this.#json(response, { error: "Consumable test service is unavailable." }, 503);
+      }
+
+      let body: Record<string, unknown>;
+      try {
+        body = await this.#readJsonObject(request);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Invalid request body.";
+        return this.#json(response, { error: message }, 400);
+      }
+      if (
+        typeof body.inventoryIndex !== "number" ||
+        !Number.isInteger(body.inventoryIndex) ||
+        body.inventoryIndex < 0 ||
+        typeof body.itemName !== "string" ||
+        !body.itemName.trim() ||
+        (body.kind !== "hp" && body.kind !== "mp")
+      ) {
+        return this.#json(
+          response,
+          { error: "Consumable test requires one validated HP/MP inventory item." },
+          400,
+        );
+      }
+
+      const result = await this.#lootConsumableService.runDashboardConsumable({
+        inventoryIndex: body.inventoryIndex,
+        itemName: body.itemName,
+        kind: body.kind,
       });
       return this.#json(response, result, gatewayStatusCode(result));
     }

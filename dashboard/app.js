@@ -9,6 +9,7 @@ const state = {
   character: null,
   actionGateway: null,
   skillOptions: null,
+  lootConsumableOptions: null,
   update: null,
   gameVersion: null,
   gameData: null,
@@ -85,6 +86,11 @@ const elements = {
   skillTarget: document.querySelector("#skill-target"),
   runSkillTest: document.querySelector("#run-skill-test"),
   skillTestNote: document.querySelector("#skill-test-note"),
+  lootChest: document.querySelector("#loot-chest"),
+  runLootTest: document.querySelector("#run-loot-test"),
+  consumableItem: document.querySelector("#consumable-item"),
+  runConsumableTest: document.querySelector("#run-consumable-test"),
+  lootConsumableTestNote: document.querySelector("#loot-consumable-test-note"),
   gameVersion: document.querySelector("#game-version"),
   gameVersionStatus: document.querySelector("#game-version-status"),
   gameLastDeploy: document.querySelector("#game-last-deploy"),
@@ -624,6 +630,89 @@ function renderSkillTargets(previousTarget = elements.skillTarget.value) {
     `Slice 3.4 safe skill: ${skill.displayName}. Target mode: ${skill.targetMode}. MP cost: ${skill.mpCost}.${range} One click sends at most one validated skill and waits for the Adventure Land server result; special, hostile, movement, item-consuming and multi-target payloads remain excluded.`;
 }
 
+function renderLootConsumableControls() {
+  const payload = state.lootConsumableOptions;
+  const previousChest = elements.lootChest.value;
+  const previousConsumable = elements.consumableItem.value;
+
+  elements.lootChest.replaceChildren();
+  const chests = payload?.lootChests ?? [];
+  if (payload?.status !== "ready" || chests.length === 0) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = payload?.status !== "ready"
+      ? payload?.message ?? "Loot options unavailable"
+      : "No visible loot chests";
+    elements.lootChest.append(option);
+    elements.lootChest.disabled = true;
+    elements.runLootTest.disabled = true;
+  } else {
+    for (const chest of chests) {
+      const option = document.createElement("option");
+      option.value = chest.id;
+      const details = [`Chest ${chest.id}`];
+      if (typeof chest.distance === "number") {
+        details.push(`Distance ${chest.distance.toFixed(1)}`);
+      }
+      if (typeof chest.itemCount === "number") {
+        details.push(`${chest.itemCount} item${chest.itemCount === 1 ? "" : "s"}`);
+      }
+      option.textContent = details.join(" · ");
+      elements.lootChest.append(option);
+    }
+    elements.lootChest.disabled = false;
+    elements.lootChest.value = chests.some((chest) => chest.id === previousChest)
+      ? previousChest
+      : chests[0].id;
+    elements.runLootTest.disabled = !elements.lootChest.value;
+  }
+
+  elements.consumableItem.replaceChildren();
+  const consumables = payload?.consumables ?? [];
+  if (payload?.status !== "ready" || consumables.length === 0) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = payload?.status !== "ready"
+      ? payload?.message ?? "Consumable options unavailable"
+      : "No supported HP/MP consumables";
+    elements.consumableItem.append(option);
+    elements.consumableItem.disabled = true;
+    elements.runConsumableTest.disabled = true;
+  } else {
+    for (const item of consumables) {
+      const option = document.createElement("option");
+      option.value = String(item.inventoryIndex);
+      const details = [
+        item.displayName,
+        item.kind.toUpperCase(),
+        `+${item.restoreAmount}`,
+        `Qty ${item.quantity}`,
+        `Slot ${item.inventoryIndex}`,
+      ];
+      if (typeof item.cooldownMs === "number") {
+        details.push(`${item.cooldownMs} ms cooldown`);
+      }
+      option.textContent = details.join(" · ");
+      elements.consumableItem.append(option);
+    }
+    elements.consumableItem.disabled = false;
+    elements.consumableItem.value = consumables.some((item) =>
+      String(item.inventoryIndex) === previousConsumable
+    )
+      ? previousConsumable
+      : String(consumables[0].inventoryIndex);
+    elements.runConsumableTest.disabled = !elements.consumableItem.value;
+  }
+
+  if (payload?.status === "ready") {
+    elements.lootConsumableTestNote.textContent =
+      `Slice 3.5 currently exposes ${chests.length} visible loot chest(s) and ${consumables.length} validated HP/MP inventory item(s). Each click sends exactly one bounded request and waits for Adventure Land server confirmation; no automatic loop or free-form payload is available.`;
+  } else {
+    elements.lootConsumableTestNote.textContent =
+      payload?.message ?? "Slice 3.5 loot and consumable options are unavailable.";
+  }
+}
+
 function renderPartyState(party) {
   elements.characterParty.replaceChildren();
   if (!party) {
@@ -1153,6 +1242,24 @@ async function refreshSkillOptions() {
   }
 }
 
+async function refreshLootConsumableOptions() {
+  try {
+    const response = await fetch("/api/action-gateway/loot-consumable-options", {
+      cache: "no-store",
+    });
+    state.lootConsumableOptions = await response.json();
+    renderLootConsumableControls();
+  } catch {
+    state.lootConsumableOptions = {
+      status: "unavailable",
+      message: "Loot and consumable options could not be loaded.",
+      lootChests: [],
+      consumables: [],
+    };
+    renderLootConsumableControls();
+  }
+}
+
 async function refreshGameData() {
   try {
     const response = await fetch("/api/game-data", { cache: "no-store" });
@@ -1392,6 +1499,67 @@ async function skillTest() {
       (payload.error?.message ??
         payload.error ??
         `Skill test failed with HTTP ${response.status}`) + retry,
+    );
+  }
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  await refreshCharacterConnection();
+  return payload;
+}
+
+async function lootTest() {
+  const chestId = elements.lootChest.value;
+  if (!chestId) throw new Error("Select a visible loot chest first.");
+
+  const response = await fetch("/api/action-gateway/loot-test", {
+    method: "POST",
+    headers: { "Content-Type": "application/json; charset=utf-8" },
+    body: JSON.stringify({ chestId }),
+  });
+  const payload = await response.json();
+  await refreshActionGateway();
+  await refreshLootConsumableOptions();
+  if (!response.ok) {
+    const retry = typeof payload.retryAfterMs === "number"
+      ? ` Retry after ${payload.retryAfterMs} ms.`
+      : "";
+    throw new Error(
+      (payload.error?.message ??
+        payload.error ??
+        `Loot test failed with HTTP ${response.status}`) + retry,
+    );
+  }
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  await refreshCharacterConnection();
+  return payload;
+}
+
+async function consumableTest() {
+  const inventoryIndex = Number(elements.consumableItem.value);
+  const option = (state.lootConsumableOptions?.consumables ?? []).find(
+    (item) => item.inventoryIndex === inventoryIndex,
+  );
+  if (!option) throw new Error("Select a validated HP/MP consumable first.");
+
+  const response = await fetch("/api/action-gateway/consumable-test", {
+    method: "POST",
+    headers: { "Content-Type": "application/json; charset=utf-8" },
+    body: JSON.stringify({
+      inventoryIndex: option.inventoryIndex,
+      itemName: option.itemName,
+      kind: option.kind,
+    }),
+  });
+  const payload = await response.json();
+  await refreshActionGateway();
+  await refreshLootConsumableOptions();
+  if (!response.ok) {
+    const retry = typeof payload.retryAfterMs === "number"
+      ? ` Retry after ${payload.retryAfterMs} ms.`
+      : "";
+    throw new Error(
+      (payload.error?.message ??
+        payload.error ??
+        `Consumable test failed with HTTP ${response.status}`) + retry,
     );
   }
   await new Promise((resolve) => setTimeout(resolve, 250));
@@ -1779,6 +1947,56 @@ elements.runSkillTest.addEventListener("click", async () => {
   }
 });
 
+elements.lootChest.addEventListener("change", () => {
+  elements.runLootTest.disabled = !elements.lootChest.value;
+});
+
+elements.runLootTest.addEventListener("click", async () => {
+  const chestId = elements.lootChest.value;
+  if (!chestId) return;
+  elements.runLootTest.disabled = true;
+  setFeedback("Looting selected visible chest once…");
+  try {
+    const result = await lootTest();
+    setFeedback(
+      `Loot confirmed by server. Request ID: ${result.requestId}. Outcome: ${result.outcome}. Chest: ${result.result?.chestId ?? chestId}.`,
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Loot test failed: ${error.message}`, "error");
+  } finally {
+    await refreshLootConsumableOptions();
+  }
+});
+
+elements.consumableItem.addEventListener("change", () => {
+  elements.runConsumableTest.disabled = !elements.consumableItem.value;
+});
+
+elements.runConsumableTest.addEventListener("click", async () => {
+  const inventoryIndex = Number(elements.consumableItem.value);
+  const option = (state.lootConsumableOptions?.consumables ?? []).find(
+    (item) => item.inventoryIndex === inventoryIndex,
+  );
+  if (!option) return;
+  elements.runConsumableTest.disabled = true;
+  setFeedback(`Using ${option.displayName} once…`);
+  try {
+    const result = await consumableTest();
+    const cooldown = typeof result.result?.cooldownMs === "number"
+      ? ` Cooldown: ${result.result.cooldownMs} ms.`
+      : "";
+    setFeedback(
+      `Consumable confirmed by server. Request ID: ${result.requestId}. Outcome: ${result.outcome}. Item: ${result.result?.displayName ?? option.displayName}. Resource: ${option.kind.toUpperCase()}.${cooldown}`,
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Consumable test failed: ${error.message}`, "error");
+  } finally {
+    await refreshLootConsumableOptions();
+  }
+});
+
 elements.reloadGameData.addEventListener("click", async () => {
   elements.reloadGameData.disabled = true;
   setFeedback("Reloading Adventure Land game data…");
@@ -1886,6 +2104,7 @@ await refreshSelection();
 await refreshCharacterConnection();
 await refreshActionGateway();
 await refreshSkillOptions();
+await refreshLootConsumableOptions();
 await refreshGameVersion();
 await refreshGameData();
 await refreshUpdate();
@@ -1898,6 +2117,7 @@ setInterval(refreshSelection, 2000);
 setInterval(refreshCharacterConnection, 1500);
 setInterval(refreshActionGateway, 2000);
 setInterval(refreshSkillOptions, 1500);
+setInterval(refreshLootConsumableOptions, 1500);
 setInterval(refreshGameVersion, 2000);
 setInterval(refreshGameData, 2000);
 setInterval(refreshUpdate, 1500);
