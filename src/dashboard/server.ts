@@ -20,6 +20,8 @@ import type { AdventureLandGameDataService } from "../game/data-service.ts";
 import type { AdventureLandVersionService } from "../game/version-service.ts";
 import type { Logger, LogRecord } from "../logging/logger.ts";
 import type { Slice35LiveTestService } from "../live-test/slice-3-5.ts";
+import type { Slice41LiveTestService } from "../live-test/slice-4-1.ts";
+import type { ScriptRuntimeService } from "../script/runtime.ts";
 import type { UpdateService } from "../update/service.ts";
 
 export interface DashboardServerOptions {
@@ -36,6 +38,8 @@ export interface DashboardServerOptions {
   readonly skillService?: AdventureLandSkillService;
   readonly lootConsumableService?: AdventureLandLootConsumableService;
   readonly slice35LiveTestService?: Slice35LiveTestService;
+  readonly scriptRuntime?: ScriptRuntimeService;
+  readonly slice41LiveTestService?: Slice41LiveTestService;
   readonly updateService?: UpdateService;
   readonly diagnostics?: DiagnosticsService;
   readonly gameVersionService?: AdventureLandVersionService;
@@ -56,6 +60,8 @@ export class DashboardServer {
   readonly #skillService?: AdventureLandSkillService;
   readonly #lootConsumableService?: AdventureLandLootConsumableService;
   readonly #slice35LiveTestService?: Slice35LiveTestService;
+  readonly #scriptRuntime?: ScriptRuntimeService;
+  readonly #slice41LiveTestService?: Slice41LiveTestService;
   readonly #updateService?: UpdateService;
   readonly #diagnostics?: DiagnosticsService;
   readonly #gameVersionService?: AdventureLandVersionService;
@@ -79,6 +85,8 @@ export class DashboardServer {
     this.#skillService = options.skillService;
     this.#lootConsumableService = options.lootConsumableService;
     this.#slice35LiveTestService = options.slice35LiveTestService;
+    this.#scriptRuntime = options.scriptRuntime;
+    this.#slice41LiveTestService = options.slice41LiveTestService;
     this.#updateService = options.updateService;
     this.#diagnostics = options.diagnostics;
     this.#gameVersionService = options.gameVersionService;
@@ -466,6 +474,92 @@ export class DashboardServer {
         schemaVersion: 1,
         kind: "ALRemastered Slice 3.5 one-click live test",
         result,
+        diagnostic,
+      };
+      return this.#json(response, {
+        result,
+        reportText: JSON.stringify(report, null, 2),
+        clipboardSuggested: true,
+      });
+    }
+
+    if (method === "GET" && path === "/api/script-runtime") {
+      if (!this.#scriptRuntime) {
+        return this.#json(response, { status: "unavailable", message: "Script runtime is unavailable." }, 503);
+      }
+      return this.#json(response, this.#scriptRuntime.state());
+    }
+
+    if (method === "POST" && path === "/api/script-runtime/load") {
+      if (!this.#scriptRuntime) {
+        return this.#json(response, { error: "Script runtime is unavailable." }, 503);
+      }
+      let body: Record<string, unknown>;
+      try {
+        body = await this.#readJsonObject(request);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Invalid request body.";
+        return this.#json(response, { error: message }, 400);
+      }
+      if (typeof body.name !== "string" || typeof body.source !== "string") {
+        return this.#json(response, { error: "Script name and source are required." }, 400);
+      }
+      try {
+        return this.#json(response, await this.#scriptRuntime.load({
+          name: body.name,
+          source: body.source,
+        }));
+      } catch (error) {
+        return this.#json(response, {
+          error: error instanceof Error ? error.message : "Script could not be loaded.",
+        }, 400);
+      }
+    }
+
+    if (method === "POST" && path === "/api/script-runtime/start") {
+      if (!this.#scriptRuntime) return this.#json(response, { error: "Script runtime is unavailable." }, 503);
+      try {
+        return this.#json(response, await this.#scriptRuntime.start());
+      } catch (error) {
+        return this.#json(response, {
+          error: error instanceof Error ? error.message : "Script could not be started.",
+        }, 400);
+      }
+    }
+
+    if (method === "POST" && path === "/api/script-runtime/pause") {
+      if (!this.#scriptRuntime) return this.#json(response, { error: "Script runtime is unavailable." }, 503);
+      return this.#json(response, await this.#scriptRuntime.pause());
+    }
+
+    if (method === "POST" && path === "/api/script-runtime/stop") {
+      if (!this.#scriptRuntime) return this.#json(response, { error: "Script runtime is unavailable." }, 503);
+      return this.#json(response, await this.#scriptRuntime.stop());
+    }
+
+    if (method === "GET" && path === "/api/live-test/slice-4-1") {
+      if (!this.#slice41LiveTestService) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Slice 4.1 one-click live-test service is unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#slice41LiveTestService.state());
+    }
+
+    if (method === "POST" && path === "/api/live-test/slice-4-1/start") {
+      if (!this.#slice41LiveTestService) {
+        return this.#json(response, {
+          error: "Slice 4.1 one-click live-test service is unavailable.",
+        }, 503);
+      }
+      const result = await this.#slice41LiveTestService.run();
+      const diagnostic = this.#exportPayload();
+      const report = {
+        schemaVersion: 1,
+        kind: "ALRemastered Slice 4.1 one-click live test",
+        result,
+        scriptRuntime: this.#scriptRuntime?.state(),
         diagnostic,
       };
       return this.#json(response, {
