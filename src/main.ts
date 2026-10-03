@@ -34,6 +34,7 @@ import { Slice53LiveTestService } from "./live-test/slice-5-3.ts";
 import { Slice54LiveTestService } from "./live-test/slice-5-4.ts";
 import { Slice61LiveTestService } from "./live-test/slice-6-1.ts";
 import { Slice62LiveTestService } from "./live-test/slice-6-2.ts";
+import { Slice63LiveTestService } from "./live-test/slice-6-3.ts";
 import { getUserPaths } from "./platform/paths.ts";
 import { AdventureLandScriptApiBridge } from "./script/adventure-api.ts";
 import { ScriptRuntimeService } from "./script/runtime.ts";
@@ -42,6 +43,7 @@ import { ScriptStorageStore } from "./script/storage.ts";
 import { getReleaseMetadata } from "./release/version-model.ts";
 import { AdventureLandMapModelService } from "./navigation/map-model.ts";
 import { SimplePathPlannerService } from "./navigation/path-planner.ts";
+import { SmartMoveService } from "./navigation/smart-move.ts";
 import { WatchdogService } from "./recovery/watchdog.ts";
 import {
   dashboardUpdateInstallerArguments,
@@ -163,8 +165,10 @@ let slice53LiveTestService: Slice53LiveTestService | undefined;
 let slice54LiveTestService: Slice54LiveTestService | undefined;
 let slice61LiveTestService: Slice61LiveTestService | undefined;
 let slice62LiveTestService: Slice62LiveTestService | undefined;
+let slice63LiveTestService: Slice63LiveTestService | undefined;
 let mapModelService: AdventureLandMapModelService | undefined;
 let pathPlannerService: SimplePathPlannerService | undefined;
+let smartMoveService: SmartMoveService | undefined;
 let watchdogService: WatchdogService | undefined;
 let updateService: UpdateService | undefined;
 let gameVersionService: AdventureLandVersionService | undefined;
@@ -469,6 +473,21 @@ movementService = new AdventureLandMovementService({
   character: characterService!,
   gameData: () => gameDataService!.data(),
 });
+smartMoveService = new SmartMoveService({
+  logger,
+  character: characterService!,
+  mapModel: mapModelService!,
+  planner: pathPlannerService!,
+  movement: movementService!,
+});
+diagnostics.registerComponent("smart-move", () => {
+  const state = smartMoveService!.state();
+  return {
+    name: "smart-move",
+    status: state.status === "ready" ? "healthy" : "healthy",
+    message: state.message,
+  };
+});
 attackService = new AdventureLandAttackService({
   gateway: actionGateway!,
   logger,
@@ -504,6 +523,7 @@ slice35LiveTestService = new Slice35LiveTestService({
 const scriptApiBridge = new AdventureLandScriptApiBridge({
   character: characterService!,
   movement: movementService!,
+  smartMove: smartMoveService!,
   attack: attackService!,
   lootConsumable: lootConsumableService,
   respawn: respawnService,
@@ -591,6 +611,12 @@ slice62LiveTestService = new Slice62LiveTestService({
   planner: pathPlannerService!,
   character: characterService!,
 });
+slice63LiveTestService = new Slice63LiveTestService({
+  logger,
+  runtime: scriptRuntime!,
+  character: characterService!,
+  smartMove: smartMoveService!,
+});
 watchdogService.start();
 diagnostics.registerComponent("watchdog", () => {
   const state = watchdogService!.state();
@@ -636,8 +662,10 @@ dashboard = new DashboardServer({
   slice54LiveTestService,
   slice61LiveTestService,
   slice62LiveTestService,
+  slice63LiveTestService,
   mapModelService,
   pathPlannerService,
+  smartMoveService,
   watchdogService,
   simpleFarmerService,
   updateService,
