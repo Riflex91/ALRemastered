@@ -345,3 +345,23 @@ Preserve the full log and the skill request ID. Slice 3.4 remains AWAITING USER 
 
 **Gate result: Slice 3.3 VERIFIED. Slice 3.4 Skills remains blocked pending merge of this documentation and green post-merge main CI.**
 
+
+---
+
+## Append-only result — Slice 3.4 Skills — 2026-10-03
+
+**Status: VERIFIED on Windows with installed `0.1.0-alpha.28`.**
+
+- Character: `My_Ranger1` / `CH_denPIHA05KxLLQqVOad9h9vr9KPrL`, EU II.
+- Diagnostic export: `Secrets sanitized: yes`.
+- User selected the bounded Safe skill `Track` / `track`, displayed as `80 MP` with `1600 ms` cooldown.
+- PASS request: `act-b17ad8fc-b150-403d-b0f8-48e3161b1708`.
+- Action: `character.skill`; origin: `dashboard`.
+- Live MP changed `868 → 788`, matching `mpCost:80` exactly.
+- Adventure Land server confirmation: `skillName:"track"`, `mpCost:80`, `cooldownMs:1541`, `serverAccepted:true`.
+- Gateway completion: `outcome:"success"`, duration `88 ms`.
+- Exactly one skill request was produced by the successful manual click; only its start/server-confirmation/completion records occur in the complete diagnostic log.
+- No hidden repeat skill, crash, disconnect, or secret exposure was observed through log end `2026-10-03T09:34:51.660Z`.
+
+**Gate result: Slice 3.4 VERIFIED.**
+
