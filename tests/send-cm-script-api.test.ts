@@ -62,12 +62,12 @@ test("script send_cm returns Adventure Land-compatible local results and charact
       name: "slice72-send-cm-api",
       source: [
         "character.on('cm', (data) => {",
-        "  if (data.name === 'Secondary' && data.message?.token === 'reply-token') {",
+        "  if (data.name === 'Secondary' && data.message?.marker === 'reply-marker') {",
         "    console.info('slice72-character-cm-received');",
         "  }",
         "});",
         "(async () => {",
-        "  const result = await send_cm(['Secondary', 'Missing'], {kind:'probe', token:'send-token'});",
+        "  const result = await send_cm(['Secondary', 'Missing'], {kind:'probe', marker:'send-marker'});",
         "  if (result.receivers.length !== 1 || result.receivers[0] !== 'Secondary') throw new Error('receivers mismatch');",
         "  if (result.locals.length !== 1 || result.locals[0] !== 'Secondary') throw new Error('locals mismatch');",
         "  console.info('slice72-send-cm-result');",
@@ -85,7 +85,7 @@ test("script send_cm returns Adventure Land-compatible local results and charact
     for (const listener of listeners) {
       listener(createAdventureLandGameEvent("cm", {
         name: "Secondary",
-        message: { kind: "reply", token: "reply-token" },
+        message: { kind: "reply", marker: "reply-marker" },
       }));
     }
 
@@ -107,7 +107,7 @@ test("script send_cm returns Adventure Land-compatible local results and charact
     assert.equal(calls[0]?.method, "send_cm");
     assert.deepEqual(calls[0]?.input, {
       to: ["Secondary", "Missing"],
-      message: { kind: "probe", token: "send-token" },
+      message: { kind: "probe", marker: "send-marker" },
     });
   } finally {
     await runtime.dispose();
