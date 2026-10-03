@@ -32,12 +32,14 @@ import { Slice51LiveTestService } from "./live-test/slice-5-1.ts";
 import { Slice52LiveTestService } from "./live-test/slice-5-2.ts";
 import { Slice53LiveTestService } from "./live-test/slice-5-3.ts";
 import { Slice54LiveTestService } from "./live-test/slice-5-4.ts";
+import { Slice61LiveTestService } from "./live-test/slice-6-1.ts";
 import { getUserPaths } from "./platform/paths.ts";
 import { AdventureLandScriptApiBridge } from "./script/adventure-api.ts";
 import { ScriptRuntimeService } from "./script/runtime.ts";
 import { SimpleFarmerTemplateService } from "./script/simple-farmer.ts";
 import { ScriptStorageStore } from "./script/storage.ts";
 import { getReleaseMetadata } from "./release/version-model.ts";
+import { AdventureLandMapModelService } from "./navigation/map-model.ts";
 import { WatchdogService } from "./recovery/watchdog.ts";
 import {
   dashboardUpdateInstallerArguments,
@@ -157,6 +159,8 @@ let slice51LiveTestService: Slice51LiveTestService | undefined;
 let slice52LiveTestService: Slice52LiveTestService | undefined;
 let slice53LiveTestService: Slice53LiveTestService | undefined;
 let slice54LiveTestService: Slice54LiveTestService | undefined;
+let slice61LiveTestService: Slice61LiveTestService | undefined;
+let mapModelService: AdventureLandMapModelService | undefined;
 let watchdogService: WatchdogService | undefined;
 let updateService: UpdateService | undefined;
 let gameVersionService: AdventureLandVersionService | undefined;
@@ -403,6 +407,23 @@ gameDataService = new AdventureLandGameDataService({
   cache: new AdventureLandGameDataCache(join(userPaths.dataDir, "game", "cache")),
   expectedVersion: () => gameVersionStore.load()?.version,
 });
+mapModelService = new AdventureLandMapModelService({
+  logger,
+  gameData: () => gameDataService!.data(),
+});
+
+diagnostics.registerComponent("map-model", () => {
+  const state = mapModelService!.state();
+  return {
+    name: "map-model",
+    status: state.status === "ready" && state.invalidTransitionCount === 0
+      ? "healthy"
+      : state.status === "unavailable"
+        ? "healthy"
+        : "degraded",
+    message: state.message,
+  };
+});
 
 diagnostics.registerComponent("game-data", () => {
   const state = gameDataService!.state();
@@ -539,6 +560,12 @@ slice54LiveTestService = new Slice54LiveTestService({
   character: characterService!,
   script: scriptRuntime,
 });
+slice61LiveTestService = new Slice61LiveTestService({
+  logger,
+  gameData: gameDataService!,
+  mapModel: mapModelService!,
+  character: characterService!,
+});
 watchdogService.start();
 diagnostics.registerComponent("watchdog", () => {
   const state = watchdogService!.state();
@@ -582,6 +609,8 @@ dashboard = new DashboardServer({
   slice52LiveTestService,
   slice53LiveTestService,
   slice54LiveTestService,
+  slice61LiveTestService,
+  mapModelService,
   watchdogService,
   simpleFarmerService,
   updateService,

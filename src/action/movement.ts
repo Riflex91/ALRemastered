@@ -7,6 +7,7 @@ import {
 import type { AdventureLandCharacterService } from "../character/service.ts";
 import { AdventureLandCharacterTransportError } from "../character/transport.ts";
 import type { AdventureLandGameData } from "../game/data-source.ts";
+import { mapCollisionGeometry, type CollisionLine } from "../navigation/map-model.ts";
 
 export type MovementMode = "move" | "xmove";
 export type MovementDirection = "left" | "right" | "up" | "down";
@@ -252,7 +253,7 @@ export interface AdventureLandMovementGeometry {
   readonly yLines: readonly MovementLine[];
 }
 
-export type MovementLine = readonly [number, number, number];
+export type MovementLine = CollisionLine;
 
 export function canMoveDirect(
   geometry: AdventureLandMovementGeometry,
@@ -379,33 +380,12 @@ export function movementGeometry(
   data: AdventureLandGameData | undefined,
   map: string,
 ): AdventureLandMovementGeometry | undefined {
-  if (!data) return undefined;
-  const raw = data.geometry[map];
-  if (!isRecord(raw)) return undefined;
+  const geometry = mapCollisionGeometry(data, map);
+  if (!geometry) return undefined;
   return {
-    xLines: parseLines(raw.x_lines),
-    yLines: parseLines(raw.y_lines),
+    xLines: geometry.xLines,
+    yLines: geometry.yLines,
   };
-}
-
-function parseLines(value: unknown): readonly MovementLine[] {
-  if (!Array.isArray(value)) return [];
-  const lines: MovementLine[] = [];
-  for (const line of value) {
-    if (
-      Array.isArray(line) &&
-      line.length >= 3 &&
-      line.slice(0, 3).every((entry) =>
-        typeof entry === "number" && Number.isFinite(entry)
-      )
-    ) {
-      const a = line[0] as number;
-      const b = line[1] as number;
-      const c = line[2] as number;
-      lines.push([a, Math.min(b, c), Math.max(b, c)]);
-    }
-  }
-  return lines;
 }
 
 function movementTarget(
@@ -465,6 +445,3 @@ function nearlyEqual(a: number, b: number, epsilon: number): boolean {
   return Math.abs(a - b) <= epsilon;
 }
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
