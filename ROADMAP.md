@@ -630,6 +630,16 @@ Ein ausgewähltes Monster manuell über Testaktion angreifen.
 
 ## Slice 3.4 – Skills
 
+**Status: MERGED – AWAITING USER TEST**
+
+> 2026-10-03: Slice 3.4 merged via PR #50 for release target `0.1.0-alpha.24`. The dashboard now exposes a bounded manual skill test sourced from the currently loaded Adventure Land `G.skills` data. Only simple non-hostile skill payloads with official `{name}` or `{name,id}` shapes are allowed. Hostile, movement, item-consuming, multi-target, passive, special-argument, global, unsupported target-shape, and other risky skill forms are excluded from the Slice 3.4 dashboard surface.
+>
+> The action layer validates connected/dead state, character class and level, MP, visible target type/range when required, local skill cooldown, and the central Action Gateway rate guard before mutation. The transport emits the official `skill` socket event, tracks matching `skill_timeout` cooldowns, permits only one pending skill request at a time, and completes only after the matching Adventure Land `game_response`.
+>
+> Automated evidence on the exact PR #50 head `ee5be11d64b65ff9f6ed16c88ab63c97ef9a9da7`: Ubuntu verify success, Windows verify success, Linux alpha.23 → alpha.24 installer upgrade smoke success, and Windows alpha.23 → alpha.24 installer upgrade smoke success (CI run `37103723486`). Tests cover safe skill discovery, class filtering, no-target and targeted skill payloads, visible-target/range checks, MP/dead-state rejection, local/server cooldown retry hints, gateway rate limiting, correlated transport completion, and the fixed dashboard skill routes.
+>
+> Real-account skill execution through the installed dashboard is still required. Do not mark this slice VERIFIED until the user supplies the live evidence recorded in `LIVE_TEST_QUEUE.md`.
+
 - Skill-Aufruf
 - Target
 - Cooldowns

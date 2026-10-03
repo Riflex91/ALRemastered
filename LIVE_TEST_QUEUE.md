@@ -6,6 +6,7 @@ This queue is append-only evidence planning for merged slices that still require
 
 1. Slice 3.2 – Move / XMove – `v0.1.0-alpha.22`
 2. Slice 3.3 – Attack – `v0.1.0-alpha.23`
+3. Slice 3.4 – Skills – `v0.1.0-alpha.24`
 
 ---
 
@@ -146,3 +147,74 @@ Treat the live test as failed and stop further combat testing if any of these oc
 ### After this test
 
 Preserve the full log and the attack request ID. Then proceed to later queued releases if available; Slice 3.3 remains AWAITING USER TEST until this evidence is reviewed.
+
+
+---
+
+## Slice 3.4 – Skills
+
+**Status: MERGED – AWAITING USER TEST**
+
+- Release version: `v0.1.0-alpha.24`
+- Update from: `v0.1.0-alpha.23`
+- Character/class: use a connected character for which the dashboard exposes at least one simple non-hostile supported skill
+- Server: the user's normal selected Adventure Land server
+- Safety boundary: select only a skill offered by the dashboard and click **Use selected skill once** exactly once for the success case
+- Expected mutation path: Dashboard → central Action Gateway → `G.skills`/class/level/MP/target/range/cooldown validation → official `skill` socket event → correlated Adventure Land `game_response`
+- Excluded by design: hostile, movement, special-argument, item-consuming, multi-target, passive, global, unsupported-target-shape, and arbitrary skill payloads
+
+### Dashboard steps
+
+1. Start from installed `0.1.0-alpha.23`, choose **Install update**, and confirm the client restarts into `0.1.0-alpha.24`.
+2. Connect the account, select the intended server, and start exactly one headless character.
+3. Open **Action Gateway → Skill test controls**.
+4. Confirm **Safe skill** lists only skills valid for the connected character and that no free-form skill-name or payload field is present.
+5. Select one low-risk non-hostile skill offered by the dashboard. Prefer a no-target self/buff/utility skill where available; otherwise use only a visible in-range target offered by **Skill target**.
+6. Note the selected skill name, displayed MP cost, target mode, range (if shown), and target ID/name (if required).
+7. Click **Use selected skill once** exactly once.
+8. Record the request ID, outcome, skill, target (if any), cooldown result, and server-accepted result.
+9. Confirm the real Adventure Land character performs that same skill once and no hidden repeat action starts.
+10. Use **Copy full log** and preserve the complete sanitized diagnostic log.
+
+### Expected visible behavior
+
+- Only backend-approved simple non-hostile skills derived from loaded `G.skills` are selectable.
+- The UI does not expose arbitrary JSON, free-form socket payloads, or a generic action endpoint.
+- Targeted skills only offer currently visible in-range targets of the required kind.
+- A successful request reports action `character.skill`, `origin:"dashboard"`, the current canonical character ID, and a unique `act-…` request ID.
+- The gateway request remains pending until Adventure Land returns the matching skill `game_response`.
+- A successful response ends with `outcome:"success"` and `serverAccepted:true`.
+- If cooldown is active, the request fails as `SKILL_COOLDOWN`; when remaining cooldown is available, `retryAfterMs` is surfaced.
+- MP, level, dead-state, target, and range validation failures must reject before mutation.
+- The diagnostic export still reports `Secrets sanitized: yes`.
+
+### PASS
+
+Slice 3.4 can later be marked VERIFIED only when the supplied live evidence shows all of the following:
+
+- installed client is `0.1.0-alpha.24`
+- automatic restart after the explicit alpha.23 → alpha.24 update succeeds
+- one real supported skill is selected from the bounded dashboard list and executes exactly once
+- the real Adventure Land character performs that same skill
+- request ID, `origin:"dashboard"`, character ID, skill name, target details when applicable, outcome/result, and correlated gateway logs are present
+- the successful gateway request completes from the matching Adventure Land server response, not merely from sending the socket packet
+- no excluded or arbitrary skill payload is exposed through the dashboard
+- full diagnostic log is sanitized
+
+### FAIL / stop conditions
+
+Treat the live test as failed and stop further skill testing if any of these occur:
+
+- a success outcome is reported but the real skill does not execute
+- the wrong skill or wrong target is used
+- a targeted skill can select an invalid, invisible, or clearly out-of-range target
+- the dashboard exposes free-form arbitrary skill/socket payload controls
+- one click causes multiple skill uses or a hidden skill loop
+- a cooldown/MP/level/target rejection is hidden or misreported as success
+- the request completes before any matching server acceptance/rejection is observed
+- the client crashes/disconnects because of the skill action
+- any secret, auth token, or password appears in copied logs
+
+### After this test
+
+Preserve the full log and the skill request ID. Slice 3.4 remains AWAITING USER TEST until this evidence is reviewed.
