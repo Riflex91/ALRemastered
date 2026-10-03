@@ -81,6 +81,21 @@ export interface AdventureLandAttackReceipt {
   readonly cooldownMs?: number;
 }
 
+export interface AdventureLandSkillInput {
+  readonly name: string;
+  readonly targetId?: string;
+  readonly cooldownKey?: string;
+  readonly signal?: AbortSignal;
+}
+
+export interface AdventureLandSkillReceipt {
+  readonly name: string;
+  readonly targetId?: string;
+  readonly success: boolean;
+  readonly reason?: string;
+  readonly cooldownMs?: number;
+}
+
 export interface AdventureLandCharacterLiveState {
   readonly character: AdventureLandConnectedCharacter;
   readonly entities: readonly AdventureLandVisibleEntity[];
@@ -98,6 +113,8 @@ export interface AdventureLandCharacterConnection {
   sendMove(input: AdventureLandDirectMovementInput): AdventureLandDirectMovementReceipt;
   sendAttack(input: AdventureLandAttackInput): Promise<AdventureLandAttackReceipt>;
   attackCooldownRemainingMs(): number;
+  sendSkill(input: AdventureLandSkillInput): Promise<AdventureLandSkillReceipt>;
+  skillCooldownRemainingMs(name: string): number;
   close(): Promise<void>;
 }
 
@@ -355,9 +372,19 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
   #pingMs?: number;
   #updatedAt: string;
   #attackCooldownUntilMs = 0;
+  readonly #skillCooldownUntilMs = new Map<string, number>();
   #pendingAttack?: {
     readonly targetId: string;
     readonly resolve: (receipt: AdventureLandAttackReceipt) => void;
+    readonly reject: (error: AdventureLandCharacterTransportError) => void;
+    readonly signal?: AbortSignal;
+    readonly onAbort?: () => void;
+  };
+  #pendingSkill?: {
+    readonly name: string;
+    readonly targetId?: string;
+    readonly cooldownKey: string;
+    readonly resolve: (receipt: AdventureLandSkillReceipt) => void;
     readonly reject: (error: AdventureLandCharacterTransportError) => void;
     readonly signal?: AbortSignal;
     readonly onAbort?: () => void;
@@ -386,6 +413,12 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
         new AdventureLandCharacterTransportError(
           "Adventure Land character transport closed during attack.",
           "attack_transport_closed",
+        ),
+      );
+      this.#rejectPendingSkill(
+        new AdventureLandCharacterTransportError(
+          "Adventure Land character transport closed during skill execution.",
+          "skill_transport_closed",
         ),
       );
       if (this.#intentional) return;
@@ -467,35 +500,68 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
   }
 
   applySkillTimeout(data: Record<string, unknown>): void {
-    if (data.name !== "attack") return;
+    if (typeof data.name !== "string") return;
     const ms = finiteNumber(data.ms);
     if (ms === undefined) return;
-    this.#attackCooldownUntilMs = Date.now() + Math.max(0, ms);
+    const until = Date.now() + Math.max(0, ms);
+    if (data.name === "attack") this.#attackCooldownUntilMs = until;
+    this.#skillCooldownUntilMs.set(data.name, until);
   }
 
   applyGameResponse(data: Record<string, unknown>): void {
-    if (data.place !== "attack" || !this.#pendingAttack) return;
-    const pending = this.#pendingAttack;
-    this.#pendingAttack = undefined;
-    if (pending.signal && pending.onAbort) {
-      pending.signal.removeEventListener("abort", pending.onAbort);
+    if (data.place === "attack" && this.#pendingAttack) {
+      const pending = this.#pendingAttack;
+      this.#pendingAttack = undefined;
+      if (pending.signal && pending.onAbort) {
+        pending.signal.removeEventListener("abort", pending.onAbort);
+      }
+      const failed = data.failed === true || data.success === false;
+      const reason = typeof data.reason === "string"
+        ? data.reason
+        : failed && typeof data.response === "string"
+          ? data.response
+          : undefined;
+      const responseCooldown = finiteNumber(data.ms);
+      const cooldownMs = responseCooldown === undefined
+        ? this.attackCooldownRemainingMs()
+        : Math.max(0, responseCooldown);
+      pending.resolve(Object.freeze({
+        targetId: pending.targetId,
+        success: !failed,
+        reason,
+        cooldownMs: cooldownMs > 0 ? cooldownMs : undefined,
+      }));
+      return;
     }
-    const failed = data.failed === true || data.success === false;
-    const reason = typeof data.reason === "string"
-      ? data.reason
-      : failed && typeof data.response === "string"
-        ? data.response
-        : undefined;
-    const responseCooldown = finiteNumber(data.ms);
-    const cooldownMs = responseCooldown === undefined
-      ? this.attackCooldownRemainingMs()
-      : Math.max(0, responseCooldown);
-    pending.resolve(Object.freeze({
-      targetId: pending.targetId,
-      success: !failed,
-      reason,
-      cooldownMs: cooldownMs > 0 ? cooldownMs : undefined,
-    }));
+
+    if (
+      this.#pendingSkill &&
+      typeof data.place === "string" &&
+      data.place === this.#pendingSkill.name
+    ) {
+      const pending = this.#pendingSkill;
+      this.#pendingSkill = undefined;
+      if (pending.signal && pending.onAbort) {
+        pending.signal.removeEventListener("abort", pending.onAbort);
+      }
+      const failed = data.failed === true || data.success === false;
+      const reason = typeof data.reason === "string"
+        ? data.reason
+        : failed && typeof data.response === "string"
+          ? data.response
+          : undefined;
+      const responseCooldown = finiteNumber(data.ms);
+      const cooldownMs = responseCooldown === undefined
+        ? this.skillCooldownRemainingMs(pending.cooldownKey)
+        : Math.max(0, responseCooldown);
+      pending.resolve(Object.freeze({
+        name: pending.name,
+        targetId: pending.targetId,
+        success: !failed,
+        reason,
+        cooldownMs: cooldownMs > 0 ? cooldownMs : undefined,
+      }));
+    }
   }
 
   sendMove(
@@ -621,6 +687,75 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
     return Math.max(0, Math.ceil(this.#attackCooldownUntilMs - Date.now()));
   }
 
+  sendSkill(input: AdventureLandSkillInput): Promise<AdventureLandSkillReceipt> {
+    const name = input.name.trim();
+    const targetId = input.targetId?.trim() || undefined;
+    const cooldownKey = input.cooldownKey?.trim() || name;
+    if (input.signal?.aborted) {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Adventure Land skill was cancelled before it was sent.",
+        "skill_aborted",
+      ));
+    }
+    if (this.#closed || this.#socket.readyState !== 1) {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Adventure Land character transport is not ready for skill execution.",
+        "skill_transport_unavailable",
+      ));
+    }
+    if (!name || name.length > 80 || (targetId && targetId.length > 160)) {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Adventure Land skill request is invalid.",
+        "skill_request_invalid",
+      ));
+    }
+    if (this.#pendingSkill) {
+      return Promise.reject(new AdventureLandCharacterTransportError(
+        "Another Adventure Land skill is still waiting for a server response.",
+        "skill_already_pending",
+      ));
+    }
+
+    return new Promise<AdventureLandSkillReceipt>((resolve, reject) => {
+      const onAbort = () => {
+        if (!this.#pendingSkill || this.#pendingSkill.name !== name) return;
+        this.#pendingSkill = undefined;
+        input.signal?.removeEventListener("abort", onAbort);
+        reject(new AdventureLandCharacterTransportError(
+          "Adventure Land skill was cancelled while waiting for the server.",
+          "skill_aborted",
+        ));
+      };
+      this.#pendingSkill = {
+        name,
+        targetId,
+        cooldownKey,
+        resolve,
+        reject,
+        signal: input.signal,
+        onAbort,
+      };
+      input.signal?.addEventListener("abort", onAbort, { once: true });
+      try {
+        const payload: Record<string, unknown> = { name };
+        if (targetId) payload.id = targetId;
+        this.#socket.send("42" + JSON.stringify(["skill", payload]));
+      } catch {
+        this.#pendingSkill = undefined;
+        input.signal?.removeEventListener("abort", onAbort);
+        reject(new AdventureLandCharacterTransportError(
+          "Adventure Land skill could not be sent.",
+          "skill_send_failed",
+        ));
+      }
+    });
+  }
+
+  skillCooldownRemainingMs(name: string): number {
+    const until = this.#skillCooldownUntilMs.get(name.trim()) ?? 0;
+    return Math.max(0, Math.ceil(until - Date.now()));
+  }
+
   async close(): Promise<void> {
     if (this.#closed || this.#socket.readyState === 3) return;
     this.#intentional = true;
@@ -630,6 +765,12 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
       new AdventureLandCharacterTransportError(
         "Adventure Land attack was cancelled because the character stopped.",
         "attack_transport_closed",
+      ),
+    );
+    this.#rejectPendingSkill(
+      new AdventureLandCharacterTransportError(
+        "Adventure Land skill was cancelled because the character stopped.",
+        "skill_transport_closed",
       ),
     );
 
@@ -655,6 +796,16 @@ class LiveAdventureLandCharacterConnection implements AdventureLandCharacterConn
     const pending = this.#pendingAttack;
     if (!pending) return;
     this.#pendingAttack = undefined;
+    if (pending.signal && pending.onAbort) {
+      pending.signal.removeEventListener("abort", pending.onAbort);
+    }
+    pending.reject(error);
+  }
+
+  #rejectPendingSkill(error: AdventureLandCharacterTransportError): void {
+    const pending = this.#pendingSkill;
+    if (!pending) return;
+    this.#pendingSkill = undefined;
     if (pending.signal && pending.onAbort) {
       pending.signal.removeEventListener("abort", pending.onAbort);
     }
