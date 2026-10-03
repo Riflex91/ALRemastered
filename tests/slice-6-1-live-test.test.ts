@@ -74,26 +74,9 @@ test("Slice 6.1 verifies live map bounds transitions and collision geometry pass
     state: () => {
       characterReads += 1;
       return {
-        status: "connected" as const,
-        characterId: "CH_MAP",
-        characterName: "MapRanger",
-        serverKey: "SR_EUII",
-        serverRegion: "EU",
-        serverName: "II",
-        heartbeatSequence: 77 + characterReads,
-        pingMs: 14,
-        message: "Connected.",
-        character: {
-          id: "CH_MAP",
-          name: "MapRanger",
-          type: "ranger",
-          level: 60,
-          map: "main",
-          x: 10,
-          y: 20,
-          dead: false,
-          movementSequence: 0,
-        },
+        status: "disconnected" as const,
+        heartbeatSequence: 0,
+        message: "No headless Adventure Land character is connected.",
       };
     },
   };
@@ -122,13 +105,17 @@ test("Slice 6.1 verifies live map bounds transitions and collision geometry pass
   ]);
   assert.equal(result.steps[0]?.evidence.mapCount, 2);
   assert.equal(result.steps[1]?.evidence.map, "main");
-  assert.equal(result.steps[1]?.evidence.representsCurrentCharacterMap, true);
+  assert.equal(result.steps[1]?.evidence.currentCharacterMap, undefined);
+  assert.equal(result.steps[1]?.evidence.representsCurrentCharacterMap, false);
   assert.equal(result.steps[2]?.evidence.lineCount, 2);
   const transition = result.steps[3]?.evidence.sampleTransition as any;
   assert.equal(transition.target.map, "cave");
   assert.equal(transition.target.spawnIndex, 0);
   assert.equal(transition.target.x, 100);
   assert.equal(transition.target.y, 200);
+  assert.equal(result.steps[4]?.evidence.characterRequired, false);
+  assert.equal(result.steps[4]?.evidence.characterStatusBefore, "disconnected");
+  assert.equal(result.steps[4]?.evidence.characterStatusAfter, "disconnected");
   assert.equal(result.steps[4]?.evidence.gameplayMutation, false);
   assert.equal(result.steps[4]?.evidence.rawSocketAccess, false);
   assert.equal(result.steps[4]?.evidence.pathfinding, false);
@@ -136,17 +123,15 @@ test("Slice 6.1 verifies live map bounds transitions and collision geometry pass
   assert.match(logger.exportText(), /"gameplayMutation":false/);
 });
 
-test("Slice 6.1 blocks before reading map data when no Character is connected", async () => {
+test("Slice 6.1 blocks only when live Adventure Land game data cannot be loaded", async () => {
   const logger = new Logger({ component: "slice-6-1-blocked-test" });
-  let dataReads = 0;
+  let loadCalls = 0;
   const gameData = {
-    state: () => ({ status: "idle" as const }),
-    data: () => {
-      dataReads += 1;
-      return undefined;
-    },
+    state: () => ({ status: "error" as const }),
+    data: () => undefined,
     loadNow: async () => {
-      throw new Error("must not load");
+      loadCalls += 1;
+      return gameData.state();
     },
   };
   const mapModel = new AdventureLandMapModelService({
@@ -160,6 +145,7 @@ test("Slice 6.1 blocks before reading map data when no Character is connected", 
     character: {
       state: () => ({
         status: "disconnected" as const,
+        heartbeatSequence: 0,
         message: "Disconnected.",
       }),
     } as any,
@@ -168,6 +154,6 @@ test("Slice 6.1 blocks before reading map data when no Character is connected", 
 
   const result = await service.run();
   assert.equal(result.outcome, "blocked");
-  assert.equal(result.error?.code, "LIVE_TEST_CHARACTER_NOT_CONNECTED");
-  assert.equal(dataReads, 0);
+  assert.equal(result.error?.code, "LIVE_TEST_GAME_DATA_UNAVAILABLE");
+  assert.equal(loadCalls, 1);
 });
