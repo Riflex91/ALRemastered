@@ -1,6 +1,6 @@
 {
   "name": "alremastered",
-  "version": "0.1.0-alpha.39",
+  "version": "0.1.0-alpha.40",
   "private": true,
   "description": "A resource-efficient Adventure Land client with headless and browser modes.",
   "type": "module",
