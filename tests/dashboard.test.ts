@@ -903,6 +903,72 @@ test("dashboard exposes a fixed local-only Action Gateway probe", async () => {
     }),
   };
 
+  const lootConsumableService = {
+    dashboardOptions: () => ({
+      status: "ready",
+      message: "Bounded loot and consumable options are available.",
+      characterId: "CH_probe",
+      lootChests: [{
+        id: "chest-probe",
+        map: "main",
+        x: 110,
+        y: 100,
+        itemCount: 1,
+        distance: 10,
+      }],
+      consumables: [{
+        inventoryIndex: 0,
+        itemName: "hpot0",
+        displayName: "HP Potion",
+        kind: "hp",
+        quantity: 5,
+        restoreAmount: 200,
+        cooldownMs: 2000,
+      }],
+    }),
+    runDashboardLoot: async (request: { chestId: string }) => ({
+      requestId: "act-loot-test",
+      action: "character.loot",
+      origin: "dashboard",
+      characterId: "CH_probe",
+      startedAt: "2026-10-03T00:00:00.000Z",
+      completedAt: "2026-10-03T00:00:00.010Z",
+      durationMs: 10,
+      outcome: "success",
+      result: {
+        chestId: request.chestId,
+        map: "main",
+        distance: 10,
+        itemCount: 1,
+        serverAccepted: true,
+      },
+    }),
+    runDashboardConsumable: async (request: {
+      inventoryIndex: number;
+      itemName: string;
+      kind: "hp" | "mp";
+    }) => ({
+      requestId: "act-consumable-test",
+      action: "character.consume",
+      origin: "dashboard",
+      characterId: "CH_probe",
+      startedAt: "2026-10-03T00:00:00.000Z",
+      completedAt: "2026-10-03T00:00:00.010Z",
+      durationMs: 10,
+      outcome: "success",
+      result: {
+        inventoryIndex: request.inventoryIndex,
+        itemName: request.itemName,
+        displayName: "HP Potion",
+        kind: request.kind,
+        quantityBefore: 5,
+        restoreAmount: 200,
+        serverAccepted: true,
+        cooldownMs: 2000,
+      },
+    }),
+  };
+
   const dashboard = new DashboardServer({
     logger,
     runtime,
@@ -911,6 +977,7 @@ test("dashboard exposes a fixed local-only Action Gateway probe", async () => {
     movementService: movementService as any,
     attackService: attackService as any,
     skillService: skillService as any,
+    lootConsumableService: lootConsumableService as any,
     host: "127.0.0.1",
     port: 0,
   });
@@ -1030,6 +1097,73 @@ test("dashboard exposes a fixed local-only Action Gateway probe", async () => {
     );
     assert.equal(invalidSkill.status, 400);
 
+    const lootConsumableOptions = await fetch(
+      `${url}/api/action-gateway/loot-consumable-options`,
+    );
+    assert.equal(lootConsumableOptions.status, 200);
+    const lootConsumablePayload = await lootConsumableOptions.json();
+    assert.equal(lootConsumablePayload.status, "ready");
+    assert.equal(lootConsumablePayload.lootChests[0].id, "chest-probe");
+    assert.equal(lootConsumablePayload.consumables[0].itemName, "hpot0");
+
+    const loot = await fetch(
+      `${url}/api/action-gateway/loot-test`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chestId: "chest-probe" }),
+      },
+    );
+    assert.equal(loot.status, 200);
+    const lootPayload = await loot.json();
+    assert.equal(lootPayload.requestId, "act-loot-test");
+    assert.equal(lootPayload.action, "character.loot");
+    assert.equal(lootPayload.result.chestId, "chest-probe");
+    assert.equal(lootPayload.result.serverAccepted, true);
+
+    const invalidLoot = await fetch(
+      `${url}/api/action-gateway/loot-test`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chestId: "" }),
+      },
+    );
+    assert.equal(invalidLoot.status, 400);
+
+    const consumable = await fetch(
+      `${url}/api/action-gateway/consumable-test`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          inventoryIndex: 0,
+          itemName: "hpot0",
+          kind: "hp",
+        }),
+      },
+    );
+    assert.equal(consumable.status, 200);
+    const consumablePayload = await consumable.json();
+    assert.equal(consumablePayload.requestId, "act-consumable-test");
+    assert.equal(consumablePayload.action, "character.consume");
+    assert.equal(consumablePayload.result.itemName, "hpot0");
+    assert.equal(consumablePayload.result.serverAccepted, true);
+
+    const invalidConsumable = await fetch(
+      `${url}/api/action-gateway/consumable-test`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          inventoryIndex: 0,
+          itemName: "hpot0",
+          kind: "gold",
+        }),
+      },
+    );
+    assert.equal(invalidConsumable.status, 400);
+
     const arbitrary = await fetch(
       `${url}/api/action-gateway/action`,
       {
@@ -1050,7 +1184,7 @@ test("dashboard exposes a fixed local-only Action Gateway probe", async () => {
   }
 });
 
-test("dashboard renders fixed Phase 3 probe, movement, attack, and bounded skill controls", () => {
+test("dashboard renders fixed Phase 3 bounded action controls through Slice 3.5", () => {
   const html = readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
   const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
 
@@ -1067,6 +1201,10 @@ test("dashboard renders fixed Phase 3 probe, movement, attack, and bounded skill
     "skill-name",
     "skill-target",
     "run-skill-test",
+    "loot-chest",
+    "run-loot-test",
+    "consumable-item",
+    "run-consumable-test",
   ]) {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
@@ -1090,9 +1228,16 @@ test("dashboard renders fixed Phase 3 probe, movement, attack, and bounded skill
   assert.match(html, /Use selected skill once/);
   assert.match(html, /simple non-hostile skills/);
   assert.match(html, /Special-argument, movement, item-consuming, multi-target, hostile/);
+  assert.match(script, /\/api\/action-gateway\/loot-consumable-options/);
+  assert.match(script, /\/api\/action-gateway\/loot-test/);
+  assert.match(script, /\/api\/action-gateway\/consumable-test/);
+  assert.match(html, /Loot &amp; consumable test controls/);
+  assert.match(html, /Loot selected chest once/);
+  assert.match(html, /Use selected HP\/MP item once/);
+  assert.match(html, /No auto-loot, auto-potion loop, free-form item ID/);
   assert.doesNotMatch(script, /\/api\/action-gateway\/action/);
   assert.doesNotMatch(
     script,
-    /\/api\/action-gateway\/(loot|use|buy|sell|party)(?:["'/?])/,
+    /\/api\/action-gateway\/(use|buy|sell|party)(?:["'/?])/,
   );
 });
