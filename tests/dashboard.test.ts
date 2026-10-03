@@ -1298,3 +1298,140 @@ test("dashboard renders fixed Phase 3 bounded action controls through Slice 3.5"
     /\/api\/action-gateway\/(use|buy|sell|party)(?:["'/?])/,
   );
 });
+
+
+test("dashboard exposes isolated Script Runtime controls and Slice 4.1 one-click API", async () => {
+  const html = readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
+  const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
+  for (const id of [
+    "script-runtime-status",
+    "script-runtime-name",
+    "script-runtime-timers",
+    "script-runtime-log-records",
+    "script-runtime-script-name",
+    "script-runtime-source",
+    "script-runtime-load",
+    "script-runtime-start",
+    "script-runtime-pause",
+    "script-runtime-stop",
+    "start-slice-4-1-live-test",
+    "slice-4-1-live-test-status",
+    "copy-slice-4-1-live-test-result",
+  ]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+  assert.match(html, /Script runtime/);
+  assert.match(html, /Slice 4\.1 one-click live test/);
+  assert.match(html, /No Adventure Land gameplay preparation is required/);
+  assert.match(html, /Adventure Land character APIs are intentionally added later in Slice 4\.2/);
+  assert.match(script, /\/api\/script-runtime\/load/);
+  assert.match(script, /\/api\/script-runtime\/start/);
+  assert.match(script, /\/api\/script-runtime\/pause/);
+  assert.match(script, /\/api\/script-runtime\/stop/);
+  assert.match(script, /\/api\/live-test\/slice-4-1\/start/);
+  assert.match(script, /Complete result and sanitized diagnostic log copied to clipboard/);
+
+  const runtime = new CoreRuntime();
+  runtime.start();
+  const logger = new Logger({ component: "dashboard-script-runtime-test" });
+  let runtimeState = {
+    status: "unloaded",
+    activeTimers: 0,
+    logRecords: 0,
+    message: "No script loaded.",
+  };
+  const fakeScriptRuntime = {
+    state: () => ({ ...runtimeState }),
+    load: async ({ name }: { name: string; source: string }) => {
+      runtimeState = {
+        status: "loaded",
+        scriptName: name,
+        activeTimers: 0,
+        logRecords: 0,
+        message: "Script loaded and ready to start.",
+      } as any;
+      return { ...runtimeState };
+    },
+    start: async () => {
+      runtimeState = {
+        ...runtimeState,
+        status: "running",
+        activeTimers: 1,
+        message: "Script is running in an isolated worker.",
+      } as any;
+      return { ...runtimeState };
+    },
+    pause: async () => {
+      runtimeState = {
+        ...runtimeState,
+        status: "paused",
+        activeTimers: 0,
+        message: "Script paused. All registered timers were cleared.",
+      } as any;
+      return { ...runtimeState };
+    },
+    stop: async () => {
+      runtimeState = {
+        ...runtimeState,
+        status: "stopped",
+        activeTimers: 0,
+        message: "Script stopped. Timers and worker resources were released.",
+      } as any;
+      return { ...runtimeState };
+    },
+  };
+  const fakeLiveTest = {
+    state: () => ({
+      status: "idle",
+      message: "Slice 4.1 one-click live test is ready.",
+    }),
+    run: async () => ({
+      testId: "live41-dashboard",
+      outcome: "passed",
+      startedAt: "2026-10-03T12:00:00.000Z",
+      completedAt: "2026-10-03T12:00:01.000Z",
+      message: "Slice 4.1 one-click live test passed.",
+      steps: [],
+    }),
+  };
+
+  const dashboard = new DashboardServer({
+    logger,
+    runtime,
+    scriptRuntime: fakeScriptRuntime as any,
+    slice41LiveTestService: fakeLiveTest as any,
+    host: "127.0.0.1",
+    port: 0,
+  });
+  const url = await dashboard.start();
+  try {
+    const initial = await fetch(`${url}/api/script-runtime`);
+    assert.equal(initial.status, 200);
+    assert.equal((await initial.json()).status, "unloaded");
+
+    const loaded = await fetch(`${url}/api/script-runtime/load`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "dashboard-test", source: 'console.info("ok");' }),
+    });
+    assert.equal(loaded.status, 200);
+    assert.equal((await loaded.json()).status, "loaded");
+
+    const started = await fetch(`${url}/api/script-runtime/start`, { method: "POST" });
+    assert.equal((await started.json()).status, "running");
+    const paused = await fetch(`${url}/api/script-runtime/pause`, { method: "POST" });
+    assert.equal((await paused.json()).activeTimers, 0);
+    const stopped = await fetch(`${url}/api/script-runtime/stop`, { method: "POST" });
+    assert.equal((await stopped.json()).status, "stopped");
+
+    const live = await fetch(`${url}/api/live-test/slice-4-1/start`, { method: "POST" });
+    assert.equal(live.status, 200);
+    const livePayload = await live.json();
+    assert.equal(livePayload.result.outcome, "passed");
+    assert.match(livePayload.reportText, /ALRemastered Slice 4\.1 one-click live test/);
+    assert.equal(livePayload.clipboardSuggested, true);
+  } finally {
+    await dashboard.stop();
+    runtime.stop();
+  }
+});

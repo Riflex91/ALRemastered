@@ -20,7 +20,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -39,7 +40,8 @@ button:hover {
 
 button:focus-visible,
 input:focus-visible,
-select:focus-visible {
+select:focus-visible,
+textarea:focus-visible {
   outline: 2px solid #7da2ff;
   outline-offset: 2px;
 }
@@ -292,6 +294,33 @@ h2 {
 .account-form small {
   grid-column: 1 / -1;
   color: #8f9baa;
+}
+
+.script-runtime-editor {
+  display: grid;
+  gap: 0.8rem;
+  margin-bottom: 0.8rem;
+}
+
+.script-runtime-editor label {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.script-runtime-editor input,
+.script-runtime-editor textarea {
+  width: 100%;
+  border: 1px solid #343a46;
+  border-radius: 8px;
+  padding: 0.62rem 0.7rem;
+  background: #0f1318;
+  color: #f5f7fa;
+}
+
+.script-runtime-editor textarea {
+  min-height: 10rem;
+  resize: vertical;
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
 }
 
 .component-health {

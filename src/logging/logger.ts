@@ -24,6 +24,7 @@ export interface LogMeta {
   readonly characterId?: string;
   readonly sessionId?: string;
   readonly requestId?: string;
+  readonly component?: string;
 }
 
 export interface LogRecord {
@@ -108,7 +109,7 @@ export class Logger {
       id: this.#nextId,
       timestamp: this.#clock().toISOString(),
       level,
-      component: this.#component,
+      component: meta?.component ?? this.#component,
       message: sanitizeString(message),
       characterId: meta?.characterId,
       sessionId: meta?.sessionId,
