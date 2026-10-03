@@ -631,3 +631,40 @@ Historical alpha.33 through alpha.36 reports remain append-only evidence of earl
 
 Do not repeat Slice 4.2 merely because earlier failure reports remain as historical evidence. Slice 4.3 may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
 
+---
+
+### Alpha.39 real one-click result: PASSED — Slice 4.3 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.39`
+- release target / tested implementation main: `e4c2ef7a2b894325f169baa6bcf1c1dee5913c5f`
+- client: `0.1.0-alpha.39` / Windows
+- platform: `win32`
+- test ID: `live43-de9d8881-ebbc-4226-bfcb-f21cf811ac2c`
+- character: `My_Ranger2`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- observed event: `entities`
+- test window: `2026-10-03T16:44:22.546Z → 2026-10-03T16:44:24.632Z`
+- diagnostic export: 51 log lines, `Secrets sanitized: yes`
+
+The one-click harness completed the full Slice 4.3 chain:
+
+- fresh server `entities` event reached the isolated worker as a safe snapshot;
+- `off()` reduced active listeners to zero;
+- read-only refreshes caused no callback after `off()` or stop;
+- pause cleared listeners and the paused worker stayed silent;
+- restart created a fresh run/listener and received fresh events;
+- the intentional handler crash remained isolated from the connected core;
+- final runtime: `stopped`, `activeEventListeners:0`, `activeTimers:0`;
+- all five terminal steps passed.
+
+The intentional `Slice 4.3 handler crash probe` ERROR is expected positive crash-isolation evidence.
+
+Historical alpha.38 `BLOCKED` evidence remains valid and must not be rewritten: the old harness waited for `player` after `send_updates`, while the real server supplied refresh-backed `entities` events. Alpha.39 corrected the harness to observe the event actually produced by the read-only refresh.
+
+**Canonical queue status: Slice 4.3 = VERIFIED.**
+
+Do not repeat Slice 4.3 merely because the alpha.38 blocked report remains as historical evidence. Slice 4.4 may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
+
