@@ -957,3 +957,61 @@ Repository/release evidence:
 
 Do not repeat Slice 6.1 merely because the historical alpha.47 blocked result or original planning text remains elsewhere. Slice 6.2 – einfacher Path Planner may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
 
+---
+
+### Alpha.49 real one-click result: PASSED — Slice 6.2 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.49`
+- release target / tested implementation main: `c99b4e9f05431813b9fbc7d6d37a2ff1b99dc402`
+- client: `0.1.0-alpha.49` / Windows
+- platform: `win32`
+- test ID: `live62-2a6c8bd1-3f5b-40e6-ab71-c1fe207ea77d`
+- outcome: `passed`
+- test window: `2026-10-03T21:28:21.705Z → 2026-10-03T21:28:22.060Z`
+- Character connection: not required; remained disconnected
+- diagnostic export: 25 log lines, `Secrets sanitized: yes`
+
+The one-click harness completed the full Slice 6.2 path-planner validation:
+
+- fresh live Adventure Land game data version `17397` was reloaded during the test;
+- the planner consumed the verified navigation model with `54` maps, `98` transitions, and `13342` collision lines;
+- blocking invalid transition count was `0`;
+- several real candidate routes were correctly rejected as `PATH_NO_ROUTE` before one reachable route was accepted;
+- selected transition: `main:door:7`;
+- source spawn: `main` index `11` at `1937,-12`;
+- door waypoint: `main:door:7` at `1936,-23`;
+- arrival: `level1` spawn `1` at `0,9`;
+- route status: `reachable`;
+- ordered waypoint count: `3`;
+- route leg count: `2`;
+- independently validated walk legs: `1`;
+- independently validated transition legs: `1`;
+- walk distance: `11.045361017187261`;
+- transition metadata was empty, so the selected transition was unconditional;
+- planner diagnostics: `226` candidate nodes, `68` directed walk edges, `82` transition edges, `1145` direct collision checks, `4` expanded nodes, `1` map hop;
+- total route cost: `59.04536101718726`;
+- skipped ignored maps: `5`;
+- skipped invalid transitions: `0`;
+- skipped conditional transitions: `9`;
+- visited maps: `main → level1`;
+- Character stayed `disconnected → disconnected`;
+- `movementExecution:false`;
+- `gameplayMutation:false`;
+- `rawSocketAccess:false`.
+
+Repository/release evidence:
+
+- implementation PR #96 merged at exact main `c99b4e9f05431813b9fbc7d6d37a2ff1b99dc402`;
+- PR CI run `37154637884` completed with all four required jobs successful;
+- exact post-implementation-main CI `37154817728` completed with all four required jobs successful;
+- release publish run `37154978975` completed successfully;
+- `v0.1.0-alpha.49` targets exact commit `c99b4e9f05431813b9fbc7d6d37a2ff1b99dc402`;
+- release branch, release tag, and implementation `main` were verified commit-identical;
+- published Windows installer, Linux installer, and updater manifest were present.
+
+**Canonical queue status: Slice 6.2 = VERIFIED.**
+
+Do not repeat Slice 6.2 merely because earlier planning text or rejected probe candidates remain in logs. Slice 6.3 – Smart-Move-Kompatibilität may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
+
