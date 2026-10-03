@@ -31,12 +31,14 @@ import { Slice45LiveTestService } from "./live-test/slice-4-5.ts";
 import { Slice51LiveTestService } from "./live-test/slice-5-1.ts";
 import { Slice52LiveTestService } from "./live-test/slice-5-2.ts";
 import { Slice53LiveTestService } from "./live-test/slice-5-3.ts";
+import { Slice54LiveTestService } from "./live-test/slice-5-4.ts";
 import { getUserPaths } from "./platform/paths.ts";
 import { AdventureLandScriptApiBridge } from "./script/adventure-api.ts";
 import { ScriptRuntimeService } from "./script/runtime.ts";
 import { SimpleFarmerTemplateService } from "./script/simple-farmer.ts";
 import { ScriptStorageStore } from "./script/storage.ts";
 import { getReleaseMetadata } from "./release/version-model.ts";
+import { WatchdogService } from "./recovery/watchdog.ts";
 import {
   dashboardUpdateInstallerArguments,
   scheduleInstallerAfterCurrentProcess,
@@ -154,6 +156,8 @@ let slice45LiveTestService: Slice45LiveTestService | undefined;
 let slice51LiveTestService: Slice51LiveTestService | undefined;
 let slice52LiveTestService: Slice52LiveTestService | undefined;
 let slice53LiveTestService: Slice53LiveTestService | undefined;
+let slice54LiveTestService: Slice54LiveTestService | undefined;
+let watchdogService: WatchdogService | undefined;
 let updateService: UpdateService | undefined;
 let gameVersionService: AdventureLandVersionService | undefined;
 let gameDataService: AdventureLandGameDataService | undefined;
@@ -167,6 +171,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   process.stdout.write(`Received ${signal}. Stopping ALRemastered.\n`);
   logger.info("Shutdown requested.", { signal });
 
+  watchdogService?.stop();
   updateService?.stop();
   gameVersionService?.stop();
   gameDataService?.stop();
@@ -522,6 +527,30 @@ slice53LiveTestService = new Slice53LiveTestService({
   character: characterService!,
   script: scriptRuntime,
 });
+watchdogService = new WatchdogService({
+  logger,
+  core: runtime,
+  character: characterService!,
+  script: scriptRuntime,
+});
+slice54LiveTestService = new Slice54LiveTestService({
+  logger,
+  watchdog: watchdogService,
+  character: characterService!,
+  script: scriptRuntime,
+});
+watchdogService.start();
+diagnostics.registerComponent("watchdog", () => {
+  const state = watchdogService!.state();
+  const blocked = Object.entries(state.components)
+    .filter(([, component]) => component.blocked)
+    .map(([name]) => name);
+  return {
+    name: "watchdog",
+    status: blocked.length > 0 ? "degraded" : "healthy",
+    message: state.message,
+  };
+});
 diagnostics.registerComponent("script-runtime", () => {
   const state = scriptRuntime!.state();
   return {
@@ -552,6 +581,8 @@ dashboard = new DashboardServer({
   slice51LiveTestService,
   slice52LiveTestService,
   slice53LiveTestService,
+  slice54LiveTestService,
+  watchdogService,
   simpleFarmerService,
   updateService,
   diagnostics,
