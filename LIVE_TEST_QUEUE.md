@@ -323,3 +323,25 @@ Treat the live test as failed and stop further skill testing if any of these occ
 ### After this test
 
 Preserve the full log and the skill request ID. Slice 3.4 remains AWAITING USER TEST until this evidence is reviewed.
+
+---
+
+## Append-only result — Slice 3.3 Attack — 2026-10-03
+
+**Status: VERIFIED on Windows with installed `0.1.0-alpha.28`. Do not begin Slice 3.4 until this docs PR is merged and the exact post-merge main CI is green.**
+
+- Character: `My_Ranger1` / `CH_denPIHA05KxLLQqVOad9h9vr9KPrL`, EU II.
+- Diagnostic export: `Secrets sanitized: yes`.
+- Historical guard attempt: `act-4762192d-52bb-4b30-bf3d-6b4207200b0b` correctly failed `ATTACK_OUT_OF_RANGE` at `576.4 > 142.0`; no false success.
+- PASS request: `act-ab766aa5-32fb-46b2-b0c0-ffeccfe4e628`.
+- Action: `character.attack`; origin: `dashboard`.
+- Selected monster: ID `4990598`, type `goo`.
+- Distance/range: `119.7 / 142`.
+- Adventure Land server confirmation: `serverAccepted:true`; cooldown `1045 ms`.
+- Gateway completion: `outcome:"success"`, duration `15 ms`.
+- Live target switched to `4990598`; XP increased `20310734 → 20311229` after the attack.
+- Exactly one attack request was produced by the successful manual click; no follow-up `character.attack` request appeared through log end `2026-10-03T09:21:10.153Z`.
+- No automatic combat loop, crash, disconnect, or secret exposure was observed.
+
+**Gate result: Slice 3.3 VERIFIED. Slice 3.4 Skills remains blocked pending merge of this documentation and green post-merge main CI.**
+
