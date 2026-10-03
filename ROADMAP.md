@@ -1962,3 +1962,64 @@ Result: the real Windows alpha.44 run proves unexpected Character transport disc
 
 Slice 5.3 may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
 
+---
+
+## Append-only verification record — Slice 5.3 Character Death / Respawn — 2026-10-03
+
+**Canonical status update: Slice 5.3 = VERIFIED.**
+
+Release/live environment:
+
+- release: `v0.1.0-alpha.45`
+- release branch / tested implementation main: `4369e661692f0ffc6926eb38bebf115d2978aeac`
+- Windows client: `0.1.0-alpha.45`
+- platform: `win32`
+- one-click test ID: `live53-e366a683-1782-4765-94df-89d98e339db9`
+- character: `My_Rogue` / `CH_TQTrIfkU6DEnJBl0kXUArLVTw1ht6`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-03T19:51:17.664Z → 2026-10-03T19:51:18.063Z`
+- diagnostic export: 74 log lines, `Secrets sanitized: yes`
+
+Death-state evidence:
+
+- the Character connected while genuinely dead with `dead:true`, `hp:0`, and `deathCount:1`;
+- `lastDeathAt` was `2026-10-03T19:51:10.444Z`;
+- structured log record 15 was `Adventure Land headless character death state observed.`;
+- the bounded recovery worker observed `character.rip` itself via log record 48 `slice53:death-observed`;
+- the script had no direct transport/raw-socket access.
+
+Respawn and Action Gateway evidence:
+
+- the isolated script requested `character.respawn` through the script bridge and central Action Gateway;
+- Action Gateway request ID: `act-b04923c7-2a16-4a9f-8407-80196e8c3fbb`;
+- action origin: `script`;
+- Action Gateway outcome: `success`;
+- server confirmation was logged before completion;
+- `respawnCount` increased to `1`;
+- `lastRespawnAt` was `2026-10-03T19:51:17.948Z`;
+- final Character state was alive with `dead:false`, `hp:1101/1101`, heartbeat sequence `91`, and `pingMs:20`.
+
+Controlled script-continuation evidence:
+
+- recovery script run ID before respawn: `script-f1e730bb-a079-440e-87c8-1991f5098cc1`;
+- recovery script run ID after respawn: `script-f1e730bb-a079-440e-87c8-1991f5098cc1`;
+- the unchanged run ID proves the same isolated worker continued after the Character returned alive;
+- continuation log record 72 was `slice53:continued-after-respawn`;
+- final runtime state: `stopped`;
+- final `activeTimers:0`;
+- final `activeEventListeners:0`;
+- completion evidence explicitly recorded `gameplayMutation:"character.respawn"` and `rawSocketAccess:false`.
+
+Repository/release gate evidence before this verification write:
+
+- implementation PR #89 was merged into exact main `4369e661692f0ffc6926eb38bebf115d2978aeac`;
+- exact post-merge main CI run `37148900780` completed with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- release publish run `37149125597` completed successfully;
+- GitHub release `v0.1.0-alpha.45` targets exact commit `4369e661692f0ffc6926eb38bebf115d2978aeac`;
+- published release assets include the Windows x64 installer, Linux x64 installer, and `ALRemastered-update.json`.
+
+Result: the real Windows alpha.45 run proves a genuine server-observed Character death state, server-confirmed respawn through the script bridge and central Action Gateway, and controlled continuation of the same isolated script worker after respawn, followed by clean worker resource release. **Slice 5.3 is VERIFIED.**
+
+Slice 5.4 may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
+
