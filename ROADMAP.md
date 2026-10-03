@@ -1803,3 +1803,60 @@ Result: the real Windows alpha.40 run proves local per-script state, safe namesp
 
 Slice 4.5 may begin only after this append-only verification record is merged and the resulting exact `main` CI is fully green.
 
+---
+
+## Append-only verification record — Slice 4.5 Simple Farmer Template — 2026-10-03
+
+**Canonical status update: Slice 4.5 = VERIFIED.**
+
+Release/live environment:
+
+- release: `v0.1.0-alpha.42`
+- release target / tested implementation main: `c40b811658d83c05bdc8a9d4edbbe43253f2eb1f`
+- Windows client: `0.1.0-alpha.42`
+- platform: `win32`
+- one-click test ID: `live45-dcfdcaea-dd09-4875-b642-75193c2b9284`
+- character: `My_Ranger2`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-03T18:22:54.058Z → 2026-10-03T18:22:55.333Z`
+- diagnostic export: 82 log lines, `Secrets sanitized: yes`
+
+No-code template evidence:
+
+- the harness automatically selected low-risk visible monster type `crab`;
+- selected target `5330035` reported HP `400`, attack `24`, distance `22.3`;
+- the target was already inside attack range, so the bounded preflight approach capability was not required in this specific live run: `approachMoveCount:0`;
+- template configuration used only bounded no-code settings:
+  - monster: `crab`
+  - HP threshold: `1%`
+  - MP threshold: `1%`
+  - Loot: `true`
+  - Respawn: `false`
+- the normal Simple Farmer performed no navigation; bounded direct preflight navigation remained available only to the live-test harness.
+
+Real farm evidence:
+
+- one server-confirmed script-origin `character.attack` completed through the central Action Gateway:
+  - `act-8a1035d5-5906-4d6e-add8-8c2e9689e962`
+- one server-confirmed script-origin `character.loot` completed through the central Action Gateway:
+  - `act-fdcb5c96-8873-47ac-a1f3-c2cb9d0f6779`
+- the structured result reported `attackCount:1` and `lootCount:1`;
+- the worker finished `stopped` with `activeTimers:0` and `activeEventListeners:0`;
+- all five terminal steps passed:
+  - `preflight`
+  - `no-code-template-config`
+  - `automated-farm-action`
+  - `automated-loot`
+  - `bounded-stop-cleanup`
+
+Historical evidence is preserved append-only:
+
+- alpha.41 produced a real `BLOCKED` result because the previous harness required a safe untargeted monster to already be in attack range;
+- alpha.42 added bounded direct preflight approach through the existing MovementService / central Action Gateway and removed that harness-only prerequisite;
+- the successful alpha.42 live run did not need an approach move because its selected crab was already at distance `22.3`; this record does not rewrite the earlier blocked run.
+
+Result: the real Windows alpha.42 run proves the official no-code Simple Farmer Template can automatically select a suitable visible monster, execute a bounded real script-origin attack + loot cycle through the central Action Gateway, and release worker resources cleanly. **Slice 4.5 is VERIFIED.**
+
+Phase 5 / Slice 5.1 may begin only after this append-only verification record is merged and the resulting exact `main` CI is fully green.
+
