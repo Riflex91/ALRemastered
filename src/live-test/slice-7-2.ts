@@ -106,7 +106,7 @@ export class Slice72LiveTestService {
 
   async #runInternal(): Promise<Slice72LiveTestResult> {
     const testId = this.#idFactory();
-    const token = `slice72-${randomUUID()}`;
+    const marker = `slice72-${randomUUID()}`;
     const startedAt = this.#clock().toISOString();
     const steps: Slice72LiveTestStep[] = [];
     const userRuntimeBefore = this.#userRuntime.state();
@@ -272,13 +272,13 @@ export class Slice72LiveTestService {
         if (
           envelope.senderName === primaryBefore.characterName &&
           envelope.receiverName === candidate.name &&
-          isMessageKind(envelope.message, "slice72-probe", token)
+          isMessageKind(envelope.message, "slice72-probe", marker)
         ) {
           outboundEnvelope = envelope;
           void this.#messaging.send(
             candidate.name,
             primaryBefore.characterName!,
-            { kind: "slice72-reply", token },
+            { kind: "slice72-reply", marker },
           ).then(() => undefined).catch((error) => {
             replyError = error;
           });
@@ -287,7 +287,7 @@ export class Slice72LiveTestService {
         if (
           envelope.senderName === candidate.name &&
           envelope.receiverName === primaryBefore.characterName &&
-          isMessageKind(envelope.message, "slice72-reply", token)
+          isMessageKind(envelope.message, "slice72-reply", marker)
         ) {
           replyEnvelope = envelope;
         }
@@ -296,7 +296,7 @@ export class Slice72LiveTestService {
       probeRuntime = this.#createProbeRuntime();
       await probeRuntime.load({
         name: "slice72-local-cm-probe",
-        source: probeSource(candidate.name, token),
+        source: probeSource(candidate.name, marker),
       });
       const probeStart = await probeRuntime.start();
       if (probeStart.status !== "running") {
@@ -333,7 +333,7 @@ export class Slice72LiveTestService {
           senderName: outboundEnvelope.senderName,
           receiverName: outboundEnvelope.receiverName,
           sequence: outboundEnvelope.sequence,
-          token,
+          marker,
           compatibleResult: {
             receivers: [candidate.name],
             locals: [candidate.name],
@@ -381,7 +381,7 @@ export class Slice72LiveTestService {
           sequence: replyEnvelope.sequence,
           eventPayload: {
             name: candidate.name,
-            message: { kind: "slice72-reply", token },
+            message: { kind: "slice72-reply", marker },
           },
           characterOnCm: true,
           globalServerRoutingUsed: false,
@@ -591,20 +591,20 @@ class Slice72Failure extends Error {
   }
 }
 
-function probeSource(managedName: string, token: string): string {
+function probeSource(managedName: string, marker: string): string {
   return [
-    `const slice72Token = ${JSON.stringify(token)};`,
+    `const slice72Marker = ${JSON.stringify(marker)};`,
     `const slice72Managed = ${JSON.stringify(managedName)};`,
     "character.on('cm', (data) => {",
-    "  if (data?.name === slice72Managed && data?.message?.kind === 'slice72-reply' && data?.message?.token === slice72Token) {",
-    "    console.info('slice72-cm-received:' + slice72Token);",
+    "  if (data?.name === slice72Managed && data?.message?.kind === 'slice72-reply' && data?.message?.marker === slice72Marker) {",
+    "    console.info('slice72-cm-received:' + slice72Marker);",
     "  }",
     "});",
     "(async () => {",
-    "  const result = await send_cm([slice72Managed, '__slice72_missing__'], {kind:'slice72-probe', token:slice72Token});",
+    "  const result = await send_cm([slice72Managed, '__slice72_missing__'], {kind:'slice72-probe', marker:slice72Marker});",
     "  if (!result || result.receivers.length !== 1 || result.receivers[0] !== slice72Managed) throw new Error('send_cm receivers mismatch');",
     "  if (result.locals.length !== 1 || result.locals[0] !== slice72Managed) throw new Error('send_cm locals mismatch');",
-    "  console.info('slice72-send-result:' + slice72Token);",
+    "  console.info('slice72-send-result:' + slice72Marker);",
     "})()",
   ].join("\n");
 }
@@ -612,13 +612,13 @@ function probeSource(managedName: string, token: string): string {
 function isMessageKind(
   message: unknown,
   kind: string,
-  token: string,
+  marker: string,
 ): boolean {
   return Boolean(
     message &&
     typeof message === "object" &&
     (message as Record<string, unknown>).kind === kind &&
-    (message as Record<string, unknown>).token === token
+    (message as Record<string, unknown>).marker === marker
   );
 }
 
