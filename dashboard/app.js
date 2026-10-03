@@ -37,6 +37,8 @@ const state = {
   slice61LastReport: null,
   slice62LiveTest: null,
   slice62LastReport: null,
+  slice63LiveTest: null,
+  slice63LastReport: null,
   update: null,
   gameVersion: null,
   gameData: null,
@@ -185,6 +187,10 @@ const elements = {
   slice62LiveTestStatus: document.querySelector("#slice-6-2-live-test-status"),
   slice62LiveTestNote: document.querySelector("#slice-6-2-live-test-note"),
   copySlice62LiveTestResult: document.querySelector("#copy-slice-6-2-live-test-result"),
+  startSlice63LiveTest: document.querySelector("#start-slice-6-3-live-test"),
+  slice63LiveTestStatus: document.querySelector("#slice-6-3-live-test-status"),
+  slice63LiveTestNote: document.querySelector("#slice-6-3-live-test-note"),
+  copySlice63LiveTestResult: document.querySelector("#copy-slice-6-3-live-test-result"),
   gameVersion: document.querySelector("#game-version"),
   gameVersionStatus: document.querySelector("#game-version-status"),
   gameLastDeploy: document.querySelector("#game-last-deploy"),
@@ -1414,6 +1420,32 @@ function renderSlice62LiveTest() {
   }
 }
 
+function renderSlice63LiveTest() {
+  const test = state.slice63LiveTest;
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    blocked: "BLOCKED",
+    failed: "FAILED",
+    unavailable: "Unavailable",
+  };
+  const status = test?.status ?? "idle";
+  elements.slice63LiveTestStatus.textContent = labels[status] ?? status;
+  elements.startSlice63LiveTest.disabled = status === "running";
+  elements.copySlice63LiveTestResult.hidden = !state.slice63LastReport;
+  if (status === "running") {
+    elements.slice63LiveTestNote.textContent =
+      "Exercising smart_move() inside the isolated script worker. The probe verifies an already-at-target destination plus a stable unsupported-target error without executing movement.";
+  } else if (test?.message) {
+    elements.slice63LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  } else {
+    elements.slice63LiveTestNote.textContent =
+      "Requires one connected headless Character. The probe performs no movement execution, gameplay mutation, or raw socket access.";
+  }
+}
+
 function renderGameVersion() {
   const gameVersion = state.gameVersion;
   if (!gameVersion) return;
@@ -1994,6 +2026,22 @@ async function refreshSlice62LiveTest() {
       message: "Slice 6.2 simple path-planner status could not be loaded.",
     };
     renderSlice62LiveTest();
+  }
+}
+
+async function refreshSlice63LiveTest() {
+  try {
+    const response = await fetch("/api/live-test/slice-6-3", { cache: "no-store" });
+    state.slice63LiveTest = response.ok
+      ? await response.json()
+      : { status: "unavailable", message: "Slice 6.3 smart_move() compatibility test is unavailable." };
+    renderSlice63LiveTest();
+  } catch {
+    state.slice63LiveTest = {
+      status: "unavailable",
+      message: "Slice 6.3 smart_move() compatibility status could not be loaded.",
+    };
+    renderSlice63LiveTest();
   }
 }
 
@@ -2766,6 +2814,37 @@ async function startSlice62LiveTest(clipboardWrite) {
   renderSlice62LiveTest();
   await refreshCharacterConnection();
   await refreshGameData();
+  await refreshDiagnostics();
+  return { payload, copied };
+}
+
+async function startSlice63LiveTest(clipboardWrite) {
+  state.slice63LiveTest = {
+    status: "running",
+    message: "Slice 6.3 smart_move() compatibility test is running.",
+  };
+  renderSlice63LiveTest();
+  const response = await fetch("/api/live-test/slice-6-3/start", { method: "POST" });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      payload.error ??
+        payload.message ??
+        `Slice 6.3 smart_move() compatibility test failed with HTTP ${response.status}`,
+    );
+  }
+  if (!payload.reportText || typeof payload.reportText !== "string") {
+    throw new Error("Slice 6.3 smart_move() compatibility test returned no copyable report.");
+  }
+  state.slice63LastReport = payload.reportText;
+  state.slice63LiveTest = {
+    status: payload.result?.outcome ?? "failed",
+    message: payload.result?.message ?? "Slice 6.3 smart_move() compatibility test finished.",
+    lastResult: payload.result,
+  };
+  const copied = await clipboardWrite.finish(payload.reportText);
+  renderSlice63LiveTest();
+  await refreshCharacterConnection();
   await refreshDiagnostics();
   return { payload, copied };
 }
@@ -3767,6 +3846,45 @@ elements.copySlice62LiveTestResult.addEventListener("click", async () => {
   }
 });
 
+elements.startSlice63LiveTest.addEventListener("click", async () => {
+  if (state.slice63LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice63LastReport = null;
+  elements.copySlice63LiveTestResult.hidden = true;
+  setFeedback(
+    "Slice 6.3 smart_move() test started. The isolated worker will validate compatibility and stable error reasons without moving the Character.",
+  );
+  try {
+    const { payload, copied } = await startSlice63LiveTest(clipboardWrite);
+    const outcome = payload.result?.outcome ?? "failed";
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 6.3 test ${String(outcome).toUpperCase()}. ${copyMessage}`,
+      outcome === "passed" && copied ? "success" : outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    await refreshSlice63LiveTest();
+    setFeedback(`Slice 6.3 smart_move() compatibility test could not finish: ${error.message}`, "error");
+  } finally {
+    renderSlice63LiveTest();
+  }
+});
+
+elements.copySlice63LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice63LastReport) return;
+  try {
+    await writeClipboard(state.slice63LastReport);
+    setFeedback(
+      "Complete Slice 6.3 smart_move() result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`smart_move() result copy failed: ${error.message}`, "error");
+  }
+});
+
 elements.reloadGameData.addEventListener("click", async () => {
   elements.reloadGameData.disabled = true;
   setFeedback("Reloading Adventure Land game data…");
@@ -3889,6 +4007,7 @@ await refreshSlice53LiveTest();
 await refreshSlice54LiveTest();
 await refreshSlice61LiveTest();
 await refreshSlice62LiveTest();
+await refreshSlice63LiveTest();
 await refreshGameVersion();
 await refreshGameData();
 await refreshUpdate();
@@ -3916,6 +4035,7 @@ setInterval(refreshSlice53LiveTest, 1500);
 setInterval(refreshSlice54LiveTest, 1500);
 setInterval(refreshSlice61LiveTest, 1500);
 setInterval(refreshSlice62LiveTest, 1500);
+setInterval(refreshSlice63LiveTest, 1500);
 setInterval(refreshGameVersion, 2000);
 setInterval(refreshGameData, 2000);
 setInterval(refreshUpdate, 1500);
