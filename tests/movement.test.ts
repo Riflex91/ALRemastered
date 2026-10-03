@@ -7,6 +7,7 @@ import {
 } from "../src/action/movement.ts";
 import type { AdventureLandGameData } from "../src/game/data-source.ts";
 import { Logger } from "../src/logging/logger.ts";
+import { AdventureLandCharacterTransportError } from "../src/character/transport.ts";
 
 function gameData(
   xLines: readonly (readonly [number, number, number])[] = [],
@@ -55,13 +56,15 @@ function connectedCharacter(
         movementSequence: 7,
       },
     }),
-    sendDirectMovement(input: { x: number; y: number }) {
+    async sendDirectMovement(input: { x: number; y: number }) {
       sent.push({ x: input.x, y: input.y });
       return {
         fromX: x,
         fromY: y,
         targetX: input.x,
         targetY: input.y,
+        confirmedX: input.x,
+        confirmedY: input.y,
       };
     },
   };
@@ -117,10 +120,59 @@ test("dashboard Move uses the Action Gateway and emits one bounded direct step",
     targetY: 100,
     transport: "move",
     path: "direct",
+    confirmedX: 132,
+    confirmedY: 100,
+    serverConfirmed: true,
   });
   assert.match(logger.exportText(), /Action gateway request started/);
   assert.match(logger.exportText(), /"action":"character.move"/);
   assert.doesNotMatch(logger.exportText(), /"targetX":132/);
+});
+
+test("movement sent without server position confirmation is not reported as success", async () => {
+  const logger = new Logger({ component: "movement-confirmation-test" });
+  const service = new AdventureLandMovementService({
+    gateway: new ActionGateway({
+      logger,
+      idFactory: () => "act-move-unconfirmed",
+    }),
+    character: {
+      state: () => ({
+        status: "connected" as const,
+        characterId: "CH_1",
+        characterName: "RangerOne",
+        message: "Connected.",
+        character: {
+          id: "CH_1",
+          name: "RangerOne",
+          type: "ranger",
+          level: 45,
+          map: "main",
+          x: 100,
+          y: 100,
+          dead: false,
+          movementSequence: 7,
+        },
+      }),
+      sendDirectMovement: async () => {
+        throw new AdventureLandCharacterTransportError(
+          "Adventure Land did not confirm the requested movement.",
+          "movement_not_confirmed",
+        );
+      },
+    } as any,
+    gameData: () => gameData(),
+  });
+
+  const result = await service.runDashboardTest({
+    mode: "move",
+    direction: "right",
+  });
+
+  assert.equal(result.outcome, "error");
+  assert.equal(result.requestId, "act-move-unconfirmed");
+  assert.equal(result.error?.code, "MOVE_NOT_CONFIRMED");
+  assert.match(result.error?.message ?? "", /did not confirm/i);
 });
 
 test("blocked Move and pathfinding XMove are rejected before socket mutation", async () => {
