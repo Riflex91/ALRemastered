@@ -2023,3 +2023,74 @@ Result: the real Windows alpha.45 run proves a genuine server-observed Character
 
 Slice 5.4 may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
 
+---
+
+## Append-only verification record — Slice 5.4 Watchdog und Restart-Schutz — 2026-10-03
+
+**Canonical status update: Slice 5.4 = VERIFIED.**
+
+Release/live environment:
+
+- release: `v0.1.0-alpha.46`
+- release branch / tested implementation main: `6fe751cf94bd8e69f4726b85c7a35563658f8940`
+- Windows client: `0.1.0-alpha.46`
+- platform: `win32`
+- one-click test ID: `live54-49181429-0f48-4118-b04d-fbdb8be54555`
+- character: `My_Ranger1` / `CH_denPIHA05KxLLQqVOad9h9vr9KPrL`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-03T20:16:50.727Z → 2026-10-03T20:16:55.471Z`
+- diagnostic export: 144 log lines, `Secrets sanitized: yes`
+
+Healthy-heartbeat and stall evidence:
+
+- the isolated Script probe established heartbeat sequence `3` before fault injection;
+- initial Script run ID: `script-c7b87ec5-7a3d-47bb-8cd0-4cc7c9c75402`;
+- host-observed Script heartbeat suppression was enabled through the bounded test-only hook;
+- diagnostic log record 96 reported `Watchdog detected a stale component heartbeat.`;
+- the first stale observation measured `heartbeatAgeMs:1792` against `staleAfterMs:1500`;
+- the live-test start record explicitly reported `gameplayMutation:false`, `rawSocketAccess:false`, and stall injection `host-observed-script-heartbeat-suppression`.
+
+Controlled restart evidence:
+
+- diagnostic log record 97: first `Watchdog controlled restart started.`;
+- diagnostic log record 102: first `Watchdog controlled restart completed.`;
+- first restart moved the Script from run ID `script-c7b87ec5-7a3d-47bb-8cd0-4cc7c9c75402` to `script-5eeb3182-8f3e-4b6a-8a34-f62556157289`;
+- restart count became `1`, budget usage `1/2`;
+- diagnostic log record 109: second controlled restart started;
+- diagnostic log record 116: second controlled restart completed;
+- restart count became `2`, budget usage `2/2`.
+
+Restart-budget and no-loop evidence:
+
+- diagnostic log record 121 was `Watchdog restart budget exhausted.`;
+- exhaustion context recorded `budgetUsed:2`, `budgetLimit:2`, `restartWindowMs:30000`, and `noRestartLoop:true`;
+- the structured result entered `blocked:true` after the second restart;
+- during the explicit `1200 ms` confirmation window, `restartCount` stayed exactly `2 → 2`;
+- restart-start log count stayed exactly `2 → 2`;
+- this proves the watchdog stopped restarting after the budget was exhausted instead of entering a restart loop.
+
+Final recovery and cleanup evidence:
+
+- heartbeat observation was restored after the no-loop confirmation;
+- the Script restart budget was reset;
+- final watchdog state remained `running`;
+- final Script component state was `blocked:false`, `budgetUsed:0`, total restart count `2`;
+- Core remained monitored, non-stale, non-blocked, with restart count `0`;
+- Character remained monitored, non-stale, non-blocked, with restart count `0`;
+- final Character remained connected and alive with heartbeat sequence `172` and `pingMs:18`;
+- final Script runtime was `stopped` with `activeTimers:0` and `activeEventListeners:0`;
+- diagnostic completion record 144 reported `scriptRestarts:2`, `budgetLimit:2`, `restartLoopPrevented:true`, `gameplayMutation:false`, and `rawSocketAccess:false`.
+
+Repository/release gate evidence before this verification write:
+
+- implementation PR #91 was merged into exact main `6fe751cf94bd8e69f4726b85c7a35563658f8940`;
+- exact post-merge main CI run `37150612046` completed with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- release publish run `37150759804` completed successfully;
+- GitHub release `v0.1.0-alpha.46` targets exact commit `6fe751cf94bd8e69f4726b85c7a35563658f8940`;
+- published release assets include the Windows x64 installer, Linux x64 installer, and `ALRemastered-update.json`.
+
+Result: the real Windows alpha.46 run proves production watchdog stall detection, component-local controlled Script restart, bounded rolling restart budget, explicit budget exhaustion, and protection against endless restart loops, followed by clean recovery and worker resource release without gameplay mutation or raw socket access. **Slice 5.4 is VERIFIED.**
+
+Phase 6 / Slice 6.1 may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
+
