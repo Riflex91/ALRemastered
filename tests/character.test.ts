@@ -215,6 +215,51 @@ test("headless transport follows welcome-loaded-auth-start without automation ev
   assert.equal(targetedSkillReceipt.reason, "cooldown");
   assert.equal(targetedSkillReceipt.cooldownMs, 90);
 
+  assert.deepEqual(connection.snapshot().lootChests, []);
+  socket.message('42["drop",{"id":"chest-live","map":"main","x":15,"y":35,"items":1,"chest":"chest1"}]');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(connection.snapshot().lootChests, [{
+    id: "chest-live",
+    map: "main",
+    x: 15,
+    y: 35,
+    items: 1,
+    chest: "chest1",
+  }]);
+
+  const lootPromise = connection.sendLoot({ chestId: "chest-live" });
+  assert.deepEqual(JSON.parse(socket.sent.at(-1)!.slice(2)), [
+    "open_chest",
+    { id: "chest-live" },
+  ]);
+  socket.message('42["chest_opened",{"id":"chest-live","opener":"RangerOne"}]');
+  const lootReceipt = await lootPromise;
+  assert.deepEqual(lootReceipt, {
+    chestId: "chest-live",
+    success: true,
+    reason: undefined,
+    opener: "RangerOne",
+  });
+  assert.deepEqual(connection.snapshot().lootChests, []);
+
+  const consumablePromise = connection.sendConsumable({
+    inventoryIndex: 0,
+    itemName: "hpot0",
+    kind: "hp",
+  });
+  assert.deepEqual(JSON.parse(socket.sent.at(-1)!.slice(2)), [
+    "equip",
+    { num: 0, consume: true },
+  ]);
+  socket.message('42["skill_timeout",{"name":"use_hp","ms":2000}]');
+  socket.message('42["game_response",{"response":"data","place":"equip","used":"hpot0","success":true}]');
+  const consumableReceipt = await consumablePromise;
+  assert.equal(consumableReceipt.inventoryIndex, 0);
+  assert.equal(consumableReceipt.itemName, "hpot0");
+  assert.equal(consumableReceipt.kind, "hp");
+  assert.equal(consumableReceipt.success, true);
+  assert.ok((consumableReceipt.cooldownMs ?? 0) > 0);
+
   let liveState = connection.snapshot();
   assert.equal(liveState.entities.length, 2);
   assert.equal(liveState.entities.find((entity) => entity.id === "MageStart")?.type, "mage");
@@ -375,6 +420,13 @@ test("character service allows exactly one connection and disconnects controllab
             MageOne: { name: "MageOne", type: "mage", level: 50 },
           },
         },
+        lootChests: [{
+          id: "chest-service",
+          map: "main",
+          x: 14,
+          y: 35,
+          items: 1,
+        }],
         pingMs: this.pingMs,
         updatedAt: "2026-10-02T20:05:00.000Z",
       };
@@ -417,6 +469,22 @@ test("character service allows exactly one connection and disconnects controllab
     },
     skillCooldownRemainingMs() {
       return 0;
+    },
+    async sendLoot(input) {
+      return {
+        chestId: input.chestId,
+        success: true,
+        opener: "RangerOne",
+      };
+    },
+    async sendConsumable(input) {
+      return {
+        inventoryIndex: input.inventoryIndex,
+        itemName: input.itemName,
+        kind: input.kind,
+        success: true,
+        cooldownMs: 2000,
+      };
     },
     async close() {
       closeCalls += 1;
@@ -475,6 +543,13 @@ test("character service allows exactly one connection and disconnects controllab
         members: ["RangerOne", "MageOne"],
         details: {},
       },
+      lootChests: [{
+        id: "chest-service",
+        map: "main",
+        x: 14,
+        y: 35,
+        items: 1,
+      }],
       pingMs: undefined,
       updatedAt: "2026-10-02T20:05:00.100Z",
     });
@@ -501,6 +576,22 @@ test("character service allows exactly one connection and disconnects controllab
     cooldownMs: 600,
   });
   assert.equal(service.skillCooldownRemainingMs("warcry"), 0);
+  assert.deepEqual(await service.sendLoot({ chestId: "chest-service" }), {
+    chestId: "chest-service",
+    success: true,
+    opener: "RangerOne",
+  });
+  assert.deepEqual(await service.sendConsumable({
+    inventoryIndex: 0,
+    itemName: "hpot0",
+    kind: "hp",
+  }), {
+    inventoryIndex: 0,
+    itemName: "hpot0",
+    kind: "hp",
+    success: true,
+    cooldownMs: 2000,
+  });
 
   for (const listener of [...liveListeners]) listener({
     character: {
@@ -530,6 +621,13 @@ test("character service allows exactly one connection and disconnects controllab
         MageOne: { name: "MageOne", type: "mage", level: 50 },
       },
     },
+    lootChests: [{
+      id: "chest-new",
+      map: "main",
+      x: 31,
+      y: 51,
+      items: 2,
+    }],
     pingMs: 42,
     updatedAt: "2026-10-02T20:05:01.000Z",
   });
@@ -539,6 +637,7 @@ test("character service allows exactly one connection and disconnects controllab
   assert.equal(live.character?.inventory?.[0]?.q, 19);
   assert.equal(live.character?.equipment?.mainhand?.level, 4);
   assert.equal(live.character?.gold, 123000);
+  assert.equal(live.lootChests?.[0]?.id, "chest-new");
   assert.deepEqual(Object.keys(live.character?.conditions ?? {}), ["energized"]);
   assert.equal(live.entities?.length, 2);
   assert.equal(live.entities?.find((entity) => entity.id === "MageOne")?.kind, "player");
