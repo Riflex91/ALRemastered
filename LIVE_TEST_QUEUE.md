@@ -1015,3 +1015,49 @@ Repository/release evidence:
 
 Do not repeat Slice 6.2 merely because earlier planning text or rejected probe candidates remain in logs. Slice 6.3 – Smart-Move-Kompatibilität may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
 
+---
+
+### Alpha.50 real one-click result: PASSED — Slice 6.3 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.50`
+- release target / tested implementation main: `14b80c34b3803b46fd2ff4bce70026b2eef68aac`
+- client: `0.1.0-alpha.50` / Windows
+- platform: `win32`
+- test ID: `live63-ba01676e-106d-4eb1-8b01-96663b19c3bf`
+- outcome: `passed`
+- test window: `2026-10-03T22:06:35.139Z → 2026-10-03T22:06:35.388Z`
+- live Character: `My_Merchant` on `EU II`, map `main`, position `-25,-478`
+- diagnostic export: 32 log lines, `Secrets sanitized: yes`
+
+The one-click harness completed the full Slice 6.3 smart-move compatibility validation:
+
+- the isolated worker exposed `smart_move()`;
+- an Adventure Land-style coordinate destination at the current Character position returned `already_there`;
+- the resulting planner route was `reachable` with zero legs, zero map hops, and zero walk distance;
+- request counters changed by exactly `2`, with exactly `1` successful completion;
+- an intentionally unsupported string selector returned stable explicit error code `SMART_MOVE_TARGET_UNSUPPORTED`;
+- the final SmartMove diagnostic state retained that exact error code;
+- Character remained connected at exactly `main -25,-478`;
+- `movementExecution:false`;
+- `gameplayMutation:false`;
+- `rawSocketAccess:false`;
+- action-gateway records during the passive probe: `0`;
+- script runtime finished `stopped` with zero active timers and zero active event listeners;
+- live navigation model remained `ready` on game-data version `17397`, with `54` maps, `98` transitions, `13342` collision lines, and `0` blocking invalid transitions.
+
+Repository/release evidence:
+
+- implementation PR #98 merged at exact main `14b80c34b3803b46fd2ff4bce70026b2eef68aac`;
+- final PR CI run `37156623042` completed with all four required jobs successful;
+- exact post-implementation-main CI `37156789360` completed with all four required jobs successful;
+- release publish run `37156936073` completed successfully;
+- `v0.1.0-alpha.50` targets exact commit `14b80c34b3803b46fd2ff4bce70026b2eef68aac`;
+- release branch, release tag, and implementation `main` were verified commit-identical;
+- published Windows installer, Linux installer, and updater manifest were present with recorded SHA-256 digests.
+
+**Canonical queue status: Slice 6.3 = VERIFIED.**
+
+Do not repeat Slice 6.3 merely because implementation planning text remains elsewhere. Slice 6.4 – Movement Trail und geplante Route im Dashboard may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
+
