@@ -768,3 +768,47 @@ The one-click harness completed the full Slice 5.1 heartbeat chain:
 
 Do not repeat Slice 5.1 merely because the planning text remains above. Slice 5.2 may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
 
+---
+
+### Alpha.44 real one-click result: PASSED — Slice 5.2 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.44`
+- release target / tested implementation main: `6f87ccaab851c1a8d134b9f0d7dc69c1808c10be`
+- client: `0.1.0-alpha.44` / Windows
+- platform: `win32`
+- test ID: `live52-862cca46-3984-40fc-843b-8787b0e715ce`
+- character: `My_Merchant` / `CH_wHJMcgKCsCoQxQbkCHx5rWQB3o3O7`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-03T19:16:39.025Z → 2026-10-03T19:16:39.875Z`
+- diagnostic export: 295 log lines, `Secrets sanitized: yes`
+
+The one-click harness completed the full Slice 5.2 recovery chain:
+
+- preflight confirmed a connected character and no active script automation;
+- unexpected close was detected as `socket_closed` with `reconnectAttempt:1`;
+- first deterministic reconnect delay was `500 ms`;
+- ordered recovery logs were confirmed:
+  1. connection closed unexpectedly
+  2. reconnect scheduled
+  3. reconnect attempt started
+  4. headless character reconnected
+- `reconnectCount` increased `2 → 3`;
+- `lastDisconnectAt` and `lastReconnectAt` were both populated;
+- post-reconnect heartbeat advanced `708 → 709`;
+- final character state was connected with a fresh heartbeat and `pingMs:12`;
+- diagnostic completion evidence reported `gameplayMutation:false`;
+- no gameplay mutation was performed.
+
+Repository/release evidence:
+
+- implementation PR #87 is merged at exact main `6f87ccaab851c1a8d134b9f0d7dc69c1808c10be`;
+- post-merge CI run `37146892506` completed with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- `release/v0.1.0-alpha.44` was verified commit-identical to the tested implementation main.
+
+**Canonical queue status: Slice 5.2 = VERIFIED.**
+
+Do not repeat Slice 5.2 merely because implementation/planning text remains elsewhere. Slice 5.3 may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
+
