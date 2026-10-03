@@ -672,6 +672,18 @@ Unkritische Skills kontrolliert testen.
 
 ## Slice 3.5 – Loot und Consumables
 
+**Status: MERGED – AWAITING USER TEST**
+
+> 2026-10-03: Slice 3.5 merged via PR #63 and is published as prerelease `v0.1.0-alpha.29`. The installed dashboard surface is intentionally bounded: it exposes only currently visible loot chests and exact inventory slots validated from current Adventure Land game data as single-resource HP or MP consumables. There is no auto-loot loop, auto-potion loop, free-form item ID, arbitrary socket payload, or generic action endpoint.
+>
+> The loot path tracks real `drop` events, emits the official `open_chest {id}` request for the selected currently visible chest, and completes only from the matching `chest_opened` server event. The consumable path re-validates the selected inventory slot immediately before mutation, emits the official `equip {num, consume:true}` request, and completes only from Adventure Land `game_response` with `place:"equip"`. Connected/dead state, resource-full state, item identity/type, potion cooldown, and the central Action Gateway rate guard are checked before mutation.
+>
+> Automated feature evidence: PR #63 head `9f759f89f819c5c0438986854e534c19b514456c` passed Ubuntu verify, Windows verify, Linux alpha.28 → alpha.29 installer upgrade smoke, and Windows alpha.28 → alpha.29 installer upgrade smoke in CI run `37114998556`. Exact post-merge main `cc662cc205349f6ece311bfa8bd0d61b89b7148b` also passed 4/4 in run `37115143310`.
+>
+> Release infrastructure was separately corrected in PR #64 so the publish workflow uses `ubuntu-24.04` instead of the obsolete `ubuntu-22.04` runner. PR #64 and exact post-merge main `bfdfa7cd48eeaccf2a2901990476064777c35d3b` both passed 4/4 CI. Publish run `37115894376` completed Linux, Windows, and release jobs successfully; `v0.1.0-alpha.29` targets that exact main SHA and contains the Linux installer, Windows installer, and update manifest.
+>
+> Real installed-client evidence for both one consumable use and one visible-chest loot remains required. Do not mark Slice 3.5 VERIFIED until the user supplies the complete sanitized diagnostic evidence defined in `LIVE_TEST_QUEUE.md`.
+
 - Loot
 - HP-/MP-Items
 - sichere Actions
