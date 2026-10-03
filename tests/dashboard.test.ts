@@ -1323,7 +1323,8 @@ test("dashboard exposes isolated Script Runtime controls and Slice 4.1 one-click
   assert.match(html, /Script runtime/);
   assert.match(html, /Slice 4\.1 one-click live test/);
   assert.match(html, /No Adventure Land gameplay preparation is required/);
-  assert.match(html, /Adventure Land character APIs are intentionally added later in Slice 4\.2/);
+  assert.match(html, /Slice 4\.2 exposes character, G, Entities/);
+  assert.match(html, /Script event listeners are added later in Slice 4\.3/);
   assert.match(script, /\/api\/script-runtime\/load/);
   assert.match(script, /\/api\/script-runtime\/start/);
   assert.match(script, /\/api\/script-runtime\/pause/);
@@ -1430,6 +1431,90 @@ test("dashboard exposes isolated Script Runtime controls and Slice 4.1 one-click
     assert.equal(livePayload.result.outcome, "passed");
     assert.match(livePayload.reportText, /ALRemastered Slice 4\.1 one-click live test/);
     assert.equal(livePayload.clipboardSuggested, true);
+  } finally {
+    await dashboard.stop();
+    runtime.stop();
+  }
+});
+
+
+test("dashboard exposes Slice 4.2 compatible API one-click test", async () => {
+  const html = readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
+  const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
+
+  for (const id of [
+    "start-slice-4-2-live-test",
+    "slice-4-2-live-test-status",
+    "slice-4-2-live-test-note",
+    "copy-slice-4-2-live-test-result",
+  ]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+  assert.match(html, /Slice 4\.2 one-click live test/);
+  assert.match(html, /get_nearest_monster\(\)/);
+  assert.match(html, /is_in_range\(\)/);
+  assert.match(html, /can_attack\(\)/);
+  assert.match(html, /validated move\(\), xmove\(\), attack\(\), and loot\(\)/);
+  assert.match(html, /No manual target or developer controls are required/);
+  assert.match(script, /\/api\/live-test\/slice-4-2\/start/);
+  assert.match(script, /bounded isolated script farmer/);
+  assert.match(script, /Complete result and sanitized diagnostic log copied to clipboard/);
+
+  const runtime = new CoreRuntime();
+  runtime.start();
+  const logger = new Logger({ component: "dashboard-slice-4-2-test" });
+  const fakeRuntime = {
+    state: () => ({
+      status: "stopped",
+      scriptName: "slice-4-2-live-farmer",
+      activeTimers: 0,
+      logRecords: 10,
+      message: "Script stopped.",
+    }),
+  };
+  const fakeLiveTest = {
+    state: () => ({
+      status: "idle",
+      message: "Slice 4.2 one-click live test is ready.",
+    }),
+    run: async () => ({
+      testId: "live42-dashboard",
+      slice: "4.2",
+      outcome: "passed",
+      startedAt: "2026-10-03T14:00:00.000Z",
+      completedAt: "2026-10-03T14:00:05.000Z",
+      characterId: "CH_1",
+      targetId: "monster-1",
+      targetType: "crab",
+      message: "Slice 4.2 one-click live test passed.",
+      steps: [],
+    }),
+  };
+
+  const dashboard = new DashboardServer({
+    logger,
+    runtime,
+    scriptRuntime: fakeRuntime as any,
+    slice42LiveTestService: fakeLiveTest as any,
+    host: "127.0.0.1",
+    port: 0,
+  });
+  const url = await dashboard.start();
+  try {
+    const current = await fetch(`${url}/api/live-test/slice-4-2`);
+    assert.equal(current.status, 200);
+    assert.equal((await current.json()).status, "idle");
+
+    const live = await fetch(`${url}/api/live-test/slice-4-2/start`, {
+      method: "POST",
+    });
+    assert.equal(live.status, 200);
+    const payload = await live.json();
+    assert.equal(payload.result.outcome, "passed");
+    assert.equal(payload.result.slice, "4.2");
+    assert.equal(payload.clipboardSuggested, true);
+    assert.match(payload.reportText, /ALRemastered Slice 4\.2 one-click live test/);
+    assert.match(payload.reportText, /slice-4-2-live-farmer/);
   } finally {
     await dashboard.stop();
     runtime.stop();
