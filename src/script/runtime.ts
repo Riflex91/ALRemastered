@@ -408,6 +408,7 @@ export class ScriptRuntimeService {
       "loot",
       "consume",
       "respawn",
+      "send_cm",
     ];
     if (!this.#api || !supported.includes(method as ScriptAdventureApiMethod)) {
       worker.postMessage({
