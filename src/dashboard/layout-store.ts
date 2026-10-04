@@ -71,6 +71,11 @@ export class DashboardLayoutStore {
     return cloneState(this.#state);
   }
 
+  reload(): DashboardLayoutStoreState {
+    this.#state = this.#load();
+    return this.state();
+  }
+
   createProfile(name: string): DashboardLayoutStoreState {
     const normalizedName = normalizeProfileName(name);
     if (this.#state.profiles.length >= MAX_PROFILES) {
