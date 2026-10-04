@@ -3024,3 +3024,28 @@ Repository/release evidence:
 
 Slice 9.2 – Widget-Konfiguration may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
 
+---
+
+## Verification Evidence — Slice 9.2 Widget Configuration
+
+**Status: VERIFIED**
+
+> 2026-10-04: VERIFIED on Windows with `0.1.0-alpha.62`. The real installed one-click test `live92-8a073263-f52e-4ccb-afcb-f2308e63c1b3` passed Character selection, field visibility, display options, widget duplication, independent duplicate configuration, and return to normal mode. Configuration persistence remained intentionally disabled for Slice 9.2 (`Configuration persistence: false`), the test made no gameplay mutation, issued zero Action Gateway requests, used no raw socket access, and did not touch the user Script runtime. The sanitized diagnostic export contained 11 lines and reported `Secrets sanitized: yes`.
+
+Repository/release evidence:
+
+- implementation PR #122 final feature head: `818d1991f35c7197395c2f160b5146cf7a69a2c8`;
+- final implementation PR CI run `37195674745` completed on that exact head with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #122 merged with method `merge` into exact implementation main `cf6770f10758638dcc5a6fc8f55549b4f9f7c2c8`;
+- exact post-implementation-main CI run `37195822122` completed with all four required jobs successful;
+- release publish run `37195955048` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.62`, tag `v0.1.0-alpha.62`, GitHub release target, publish-run head, and tested implementation `main` were verified commit-identical at `cf6770f10758638dcc5a6fc8f55549b4f9f7c2c8`;
+- published assets:
+  - Windows x64 installer SHA-256 `6062c13ca9a198447792872a04e5ecf46dc45bb61a13fbf621e6597cf32c1469`
+  - Linux x64 installer SHA-256 `660829fd2c014914cf5989088cacb57d349ea854406e6376d257cb74041c6fbb`
+  - updater manifest SHA-256 `b241d85b38c06016bf440e3d4a949a4febac240abf6d394196a924c239d5f60c`.
+
+**Canonical roadmap status: Slice 9.2 = VERIFIED.**
+
+Slice 9.3 may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green. Persistence/restart/undo-redo/profiles remain reserved for Slice 9.4.
+

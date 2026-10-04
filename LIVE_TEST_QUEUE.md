@@ -1692,3 +1692,50 @@ Repository/release evidence:
 
 Slice 9.2 – Widget-Konfiguration may begin only after this verification documentation is merged and the exact post-merge `main` CI is fully green. Persistence/restart/undo-redo/profiles remain reserved for Slice 9.4 and were not part of this verification.
 
+---
+
+### Alpha.62 real one-click result: PASSED — Slice 9.2 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.62`
+- release target / tested implementation main: `cf6770f10758638dcc5a6fc8f55549b4f9f7c2c8`
+- client: `0.1.0-alpha.62` / Windows
+- platform: `win32`
+- test ID: `live92-8a073263-f52e-4ccb-afcb-f2308e63c1b3`
+- outcome: `passed`
+- test window: `2026-10-04T10:40:26.609Z → 2026-10-04T10:40:26.621Z`
+- diagnostic export: 11 log lines, `Secrets sanitized: yes`.
+
+The one-click harness completed the full Slice 9.2 Widget Configuration validation:
+
+- `character-selection: PASSED`;
+- `field-visibility: PASSED`;
+- `display-options: PASSED`;
+- `duplicate-widget: PASSED`;
+- `independent-configuration: PASSED`;
+- `normal-mode: PASSED`;
+- configuration persistence remained intentionally disabled for Slice 9.2: `Configuration persistence:false`;
+- `gameplayMutation:false`;
+- Action Gateway requests: `0`;
+- `rawSocketAccess:false`;
+- user Script runtime was not touched;
+- the diagnostic export was sanitized and contained no reported secret exposure.
+
+Repository/release evidence:
+
+- implementation PR #122 final feature head: `818d1991f35c7197395c2f160b5146cf7a69a2c8`;
+- final implementation PR CI run `37195674745` completed on that exact head with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #122 merged with method `merge` into exact implementation main `cf6770f10758638dcc5a6fc8f55549b4f9f7c2c8`;
+- exact post-implementation-main CI run `37195822122` completed with all four required jobs successful;
+- release publish run `37195955048` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.62`, tag `v0.1.0-alpha.62`, GitHub release target, publish-run head, and tested implementation `main` were verified commit-identical at `cf6770f10758638dcc5a6fc8f55549b4f9f7c2c8`;
+- published assets:
+  - Windows x64 installer SHA-256 `6062c13ca9a198447792872a04e5ecf46dc45bb61a13fbf621e6597cf32c1469`
+  - Linux x64 installer SHA-256 `660829fd2c014914cf5989088cacb57d349ea854406e6376d257cb74041c6fbb`
+  - updater manifest SHA-256 `b241d85b38c06016bf440e3d4a949a4febac240abf6d394196a924c239d5f60c`.
+
+**Canonical queue status: Slice 9.2 = VERIFIED.**
+
+Slice 9.3 may begin only after this verification documentation is merged and the exact post-merge `main` CI is fully green. Persistence/restart/undo-redo/profiles remain reserved for Slice 9.4 and were not part of this verification.
+
