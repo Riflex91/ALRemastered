@@ -6,7 +6,7 @@
   <title>ALRemastered</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body data-current-verification-slice="12.5">
+<body data-current-verification-slice="12.6">
   <main class="shell">
     <header class="topbar">
       <div>
@@ -441,7 +441,7 @@
         </article>
       </div>
       <small class="selection-note" id="package-library-note">
-        Active / inactive is persistent library metadata only. Activating an imported package in Slice 12.5 does not load or execute package code. Updates and rollback belong to Slice 12.6.
+        Active / inactive, updates, and rollback only change persisted package-library state. Package code is not executed by these controls. Every permission newly requested by an update must be explicitly confirmed.
       </small>
     </section>
 
@@ -483,6 +483,20 @@
         </div>
         <small class="selection-note" id="slice-12-5-live-test-note">
           Verifies My Scripts, imported packages, multiple versions, persistent Active / Inactive state, package configuration, cleanup, and uninterrupted runtime. Library activation never executes imported package code.
+        </small>
+      </div>
+    </div>
+
+    <div class="selection-content" data-verification-test="12.6" hidden>
+      <div>
+        <h3>Slice 12.6 one-click Updates / Rollback test</h3>
+        <div class="server-picker">
+          <button id="start-slice-12-6-live-test" type="button">Start test</button>
+          <strong id="slice-12-6-live-test-status" aria-live="polite">Ready</strong>
+          <button id="copy-slice-12-6-live-test-result" type="button" hidden>Copy last test result</button>
+        </div>
+        <small class="selection-note" id="slice-12-6-live-test-note">
+          Verifies available-version detection, Changelog display, confirmation of every newly requested permission, update persistence, previous-version rollback, stale-preview protection, cleanup, and uninterrupted runtime. Package code is never executed.
         </small>
       </div>
     </div>
