@@ -1328,3 +1328,67 @@ Repository/release evidence:
 **Canonical queue status: Slice 7.3 = VERIFIED.**
 
 Do not repeat Slice 7.3 merely because implementation planning text remains elsewhere. Slice 7.4 – Party Templates may begin only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
+
+
+---
+
+### Alpha.56 real one-click result: PASSED — Slice 7.4 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.56`
+- release target / tested implementation main: `95cdc12d7948322585dd71c2e14d32329278016b`
+- client: `0.1.0-alpha.56` / Windows
+- platform: `win32`
+- test ID: `live74-7c8190e0-ca2c-4d1a-bb29-302f478ad7a4`
+- primary Character: `My_Merchant`
+- temporary managed template Characters: `My_Warrior` and `My_Priest`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-04T07:21:15.300Z → 2026-10-04T07:21:15.726Z`
+- diagnostic export: 68 log lines, `Secrets sanitized: yes`.
+
+The one-click harness completed the full Slice 7.4 Party Templates validation:
+
+- preflight began with exactly one active primary Character session, three free managed-session slots, an unloaded user Script runtime, and zero local messaging requests/deliveries;
+- primary `My_Merchant` was a Merchant and correctly received the DPS recommendation;
+- temporary `My_Warrior` was selected for Warrior Tank and expected role `tank`;
+- temporary `My_Priest` was selected for Priest Healer and expected role `healer`;
+- applying recommended roles produced three matched assignments:
+  - `My_Merchant → dps`
+  - `My_Priest → healer`
+  - `My_Warrior → tank`;
+- Coordinator role aggregates for Tank, Healer, and DPS all reached `ready` with exactly one assigned/ready member each;
+- Party Template state reported `templateLayerActive:true`;
+- the template layer reused `coordinationTransport:"party-coordinator"`;
+- `localMessagingRequired:false`;
+- `gameplayMutation:false`;
+- `rawSocketAccess:false`;
+- simple manual assignment was validated by overriding the DPS member to Healer, observing `override`, clearing the role to `needs-assignment`, and restoring the recommended DPS role to `matched`;
+- removing the two temporary managed sessions pruned their template assignments with no stale managed-member state;
+- after managed-member removal, exactly one local member remained;
+- final active session state returned to `activeSessionCount:1`, `managedSessionCount:0`;
+- primary `My_Merchant` remained connected;
+- the user Script runtime was not interrupted: `userScriptInterrupted:false`;
+- local Character messaging remained untouched: request delta `0`, delivery delta `0`;
+- messaging remained `localOnly:true`;
+- final safety flags remained `gameplayMutation:false`, `rawSocketAccess:false`, and `localMessagingRequired:false`;
+- `coordinatorConfigurationRestored:true`;
+- post-test Coordinator state returned to its pre-test no-role/no-target configuration rather than retaining temporary template assignments.
+
+Repository/release evidence:
+
+- implementation PR #109 final feature head: `12ac5449f52455c2eb3aed211fe5fe3c4488a0d8`;
+- final implementation PR CI run `37185032816` completed with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #109 merged with method `merge` into exact implementation main `95cdc12d7948322585dd71c2e14d32329278016b`;
+- exact post-implementation-main CI run `37185171997` completed with all four required jobs successful;
+- release publish run `37185333404` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.56`, tag `v0.1.0-alpha.56`, GitHub release target, and tested implementation `main` were verified commit-identical at `95cdc12d7948322585dd71c2e14d32329278016b`;
+- published assets:
+  - Windows x64 installer SHA-256 `b0ef6102db5a7b7919f5cfaf8d972f91587119a7741951fe8767d6aa63121c79`
+  - Linux x64 installer SHA-256 `3dc247e5f8c31c8a41fc860f4a861fdce75c92a5d4729f354807fbfdb6dae038`
+  - updater manifest SHA-256 `0499650cfc42da2a75089686c6563944b0be8a5257f4963c88a084d408ea18f4`.
+
+**Canonical queue status: Slice 7.4 = VERIFIED.**
+
+Do not repeat Slice 7.4 merely because implementation planning text remains elsewhere. The next roadmap slice may begin only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
