@@ -30,6 +30,7 @@ import {
   runScriptPackagePermissionSelfTest,
   scriptPackagePermissionDescriptor,
 } from "../packages/permissions.ts";
+import type { ScriptPackageImporter } from "../packages/importer.ts";
 import type { CharacterCardsService } from "./character-cards.ts";
 import type { SetupWizardService, SetupWizardStartInput } from "./setup-wizard.ts";
 import type { TemplateConfigurationService } from "./template-config.ts";
@@ -99,6 +100,7 @@ export interface DashboardServerOptions {
   readonly templateConfigurationService?: TemplateConfigurationService;
   readonly explainabilityService?: ExplainabilityService;
   readonly dashboardLayoutStore?: DashboardLayoutStore;
+  readonly scriptPackageImporter?: ScriptPackageImporter;
   readonly rendererBridge?: RendererBridge;
   readonly rendererHandoffService?: RendererHandoffService;
   readonly alhdAssetProvider?: AlhdAssetProvider;
@@ -160,6 +162,7 @@ export class DashboardServer {
   readonly #templateConfigurationService?: TemplateConfigurationService;
   readonly #explainabilityService?: ExplainabilityService;
   readonly #dashboardLayoutStore?: DashboardLayoutStore;
+  readonly #scriptPackageImporter?: ScriptPackageImporter;
   readonly #rendererBridge?: RendererBridge;
   readonly #rendererHandoffService?: RendererHandoffService;
   readonly #alhdAssetProvider?: AlhdAssetProvider;
@@ -225,6 +228,7 @@ export class DashboardServer {
     this.#templateConfigurationService = options.templateConfigurationService;
     this.#explainabilityService = options.explainabilityService;
     this.#dashboardLayoutStore = options.dashboardLayoutStore;
+    this.#scriptPackageImporter = options.scriptPackageImporter;
     this.#rendererBridge = options.rendererBridge;
     this.#rendererHandoffService = options.rendererHandoffService;
     this.#alhdAssetProvider = options.alhdAssetProvider;
@@ -341,6 +345,55 @@ export class DashboardServer {
     }
     if (method === "GET" && path === "/api/packages/permissions/self-test") {
       return this.#json(response, runScriptPackagePermissionSelfTest());
+    }
+    if (method === "GET" && path === "/api/packages/import") {
+      if (!this.#scriptPackageImporter) {
+        return this.#json(response, { status: "unavailable" }, 503);
+      }
+      return this.#json(response, this.#scriptPackageImporter.descriptor());
+    }
+    if (method === "GET" && path === "/api/packages/import/self-test") {
+      if (!this.#scriptPackageImporter) {
+        return this.#json(response, { error: "Package importer is unavailable." }, 503);
+      }
+      return this.#runPackageImportAction(
+        response,
+        () => this.#scriptPackageImporter!.runSelfTest(),
+      );
+    }
+    if (method === "POST" && path === "/api/packages/import/preview") {
+      if (!this.#scriptPackageImporter) {
+        return this.#json(response, { error: "Package importer is unavailable." }, 503);
+      }
+      return this.#runPackageImportAction(response, async () => {
+        const body = await this.#readJsonObject(request, 3 * 1024 * 1024);
+        if (!("package" in body)) throw new Error("Request body must include package.");
+        return this.#scriptPackageImporter!.preview(body.package);
+      });
+    }
+    if (method === "POST" && path === "/api/packages/import/confirm") {
+      if (!this.#scriptPackageImporter) {
+        return this.#json(response, { error: "Package importer is unavailable." }, 503);
+      }
+      return this.#runPackageImportAction(response, async () => {
+        const body = await this.#readJsonObject(request, 3 * 1024 * 1024);
+        if (!("package" in body)) throw new Error("Request body must include package.");
+        if (typeof body.previewToken !== "string" || !body.previewToken) {
+          throw new Error("Request body must include previewToken.");
+        }
+        if (
+          body.approvedDangerous !== undefined &&
+          (!Array.isArray(body.approvedDangerous) ||
+            body.approvedDangerous.some((value) => typeof value !== "string"))
+        ) {
+          throw new Error("approvedDangerous must be an array of permission strings.");
+        }
+        return this.#scriptPackageImporter!.importPackage({
+          packageDocument: body.package,
+          previewToken: body.previewToken,
+          approvedDangerous: body.approvedDangerous as readonly string[] | undefined,
+        });
+      });
     }
 
     if (method === "GET" && path === "/api/hd/assets") {
@@ -2356,13 +2409,28 @@ export class DashboardServer {
     }
   }
 
-  async #readJsonObject(request: IncomingMessage): Promise<Record<string, unknown>> {
+  async #runPackageImportAction(
+    response: ServerResponse,
+    action: () => unknown | Promise<unknown>,
+  ): Promise<void> {
+    try {
+      this.#json(response, await action());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const errorCode = error && typeof error === "object" && "code" in error
+        ? String((error as { code?: unknown }).code ?? "")
+        : undefined;
+      this.#json(response, { error: message, errorCode }, 400);
+    }
+  }
+
+  async #readJsonObject(request: IncomingMessage, maxBytes = 16 * 1024): Promise<Record<string, unknown>> {
     const chunks: Buffer[] = [];
     let bytes = 0;
     for await (const chunk of request) {
       const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
       bytes += buffer.length;
-      if (bytes > 16 * 1024) {
+      if (bytes > maxBytes) {
         throw new Error("Request body is too large.");
       }
       chunks.push(buffer);
