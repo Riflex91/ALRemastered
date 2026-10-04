@@ -59,6 +59,9 @@ const state = {
   setupWizard: null,
   slice82LiveTest: null,
   slice82LastReport: null,
+  templateConfig: null,
+  slice83LiveTest: null,
+  slice83LastReport: null,
   movementDebug: null,
   update: null,
   gameVersion: null,
@@ -297,6 +300,18 @@ const elements = {
   slice82LiveTestStatus: document.querySelector("#slice-8-2-live-test-status"),
   slice82LiveTestNote: document.querySelector("#slice-8-2-live-test-note"),
   copySlice82LiveTestResult: document.querySelector("#copy-slice-8-2-live-test-result"),
+  templateConfigTemplate: document.querySelector("#template-config-template"),
+  templateConfigStatus: document.querySelector("#template-config-status"),
+  templateConfigFields: document.querySelector("#template-config-fields"),
+  templateConfigSave: document.querySelector("#template-config-save"),
+  templateConfigReset: document.querySelector("#template-config-reset"),
+  templateConfigStart: document.querySelector("#template-config-start"),
+  templateConfigStop: document.querySelector("#template-config-stop"),
+  templateConfigNote: document.querySelector("#template-config-note"),
+  startSlice83LiveTest: document.querySelector("#start-slice-8-3-live-test"),
+  slice83LiveTestStatus: document.querySelector("#slice-8-3-live-test-status"),
+  slice83LiveTestNote: document.querySelector("#slice-8-3-live-test-note"),
+  copySlice83LiveTestResult: document.querySelector("#copy-slice-8-3-live-test-result"),
   movementDebugStatus: document.querySelector("#movement-debug-status"),
   movementDebugTrailCount: document.querySelector("#movement-debug-trail-count"),
   movementDebugMovementCount: document.querySelector("#movement-debug-movement-count"),
@@ -2284,6 +2299,304 @@ elements.copySlice82LiveTestResult.addEventListener("click", async () => {
     setFeedback("Complete Slice 8.2 Setup Wizard result and sanitized diagnostic log copied.", "success");
   } catch (error) {
     setFeedback(`Setup Wizard result copy failed: ${error.message}`, "error");
+  }
+});
+
+
+let templateConfigDirty = false;
+
+function selectedTemplateConfig() {
+  const templates = Array.isArray(state.templateConfig?.templates)
+    ? state.templateConfig.templates
+    : [];
+  return templates.find((item) => item.id === elements.templateConfigTemplate.value) ??
+    templates[0];
+}
+
+function buildTemplateConfigFields(template) {
+  elements.templateConfigFields.replaceChildren();
+  for (const field of template?.fields ?? []) {
+    const label = document.createElement("label");
+    label.className = "template-config-field";
+    const title = document.createElement("span");
+    title.className = "label";
+    title.textContent = field.label;
+    label.append(title);
+
+    let input;
+    if (field.type === "select") {
+      input = document.createElement("select");
+      for (const optionData of field.options ?? []) {
+        const option = document.createElement("option");
+        option.value = optionData.value;
+        option.textContent = optionData.label;
+        input.append(option);
+      }
+    } else if (field.type === "boolean") {
+      input = document.createElement("input");
+      input.type = "checkbox";
+    } else {
+      input = document.createElement("input");
+      input.type = "number";
+      if (typeof field.min === "number") input.min = String(field.min);
+      if (typeof field.max === "number") input.max = String(field.max);
+      if (typeof field.step === "number") input.step = String(field.step);
+    }
+    input.dataset.templateConfigKey = field.key;
+    input.dataset.templateConfigType = field.type;
+    input.setAttribute("aria-label", field.label);
+    label.append(input);
+
+    const help = document.createElement("small");
+    help.textContent = field.description;
+    label.append(help);
+    elements.templateConfigFields.append(label);
+  }
+  elements.templateConfigFields.dataset.templateId = template?.id ?? "";
+}
+
+function writeTemplateConfigValues(template) {
+  if (!template) return;
+  for (const input of elements.templateConfigFields.querySelectorAll("[data-template-config-key]")) {
+    const key = input.dataset.templateConfigKey;
+    const value = template.values?.[key];
+    if (input.dataset.templateConfigType === "boolean") input.checked = Boolean(value);
+    else input.value = value ?? "";
+  }
+}
+
+function readTemplateConfigValues() {
+  const values = {};
+  for (const input of elements.templateConfigFields.querySelectorAll("[data-template-config-key]")) {
+    const key = input.dataset.templateConfigKey;
+    if (!key) continue;
+    if (input.dataset.templateConfigType === "boolean") values[key] = input.checked;
+    else if (input.dataset.templateConfigType === "number") values[key] = Number(input.value);
+    else values[key] = input.value;
+  }
+  return values;
+}
+
+function renderTemplateConfig() {
+  const config = state.templateConfig;
+  const templates = Array.isArray(config?.templates) ? config.templates : [];
+  const currentId = elements.templateConfigTemplate.value || config?.selectedTemplateId || "";
+  elements.templateConfigTemplate.replaceChildren();
+  for (const template of templates) {
+    const option = document.createElement("option");
+    option.value = template.id;
+    option.textContent = template.label;
+    elements.templateConfigTemplate.append(option);
+  }
+  if (templates.some((item) => item.id === currentId)) {
+    elements.templateConfigTemplate.value = currentId;
+  }
+  const template = selectedTemplateConfig();
+  if (template && elements.templateConfigFields.dataset.templateId !== template.id) {
+    buildTemplateConfigFields(template);
+    templateConfigDirty = false;
+  }
+  if (!templateConfigDirty) writeTemplateConfigValues(template);
+
+  elements.templateConfigStatus.textContent = template?.status === "ready"
+    ? template.configured ? "Saved" : "Ready"
+    : "Unavailable";
+  elements.templateConfigNote.textContent = template?.message ??
+    config?.message ??
+    "Normal template settings can be changed without editing script code.";
+  const ready = template?.status === "ready";
+  elements.templateConfigSave.disabled = !ready;
+  elements.templateConfigReset.disabled = !template;
+  elements.templateConfigStart.disabled = !ready;
+  elements.templateConfigStop.disabled = !template;
+}
+
+function renderSlice83LiveTest() {
+  const test = state.slice83LiveTest;
+  const labels = {
+    idle: "Ready", running: "Running…", passed: "PASSED",
+    blocked: "BLOCKED", failed: "FAILED", unavailable: "Unavailable",
+  };
+  const status = test?.status ?? "idle";
+  elements.slice83LiveTestStatus.textContent = labels[status] ?? status;
+  elements.startSlice83LiveTest.disabled = status === "running";
+  elements.copySlice83LiveTestResult.hidden = !state.slice83LastReport;
+  if (status === "running") {
+    elements.slice83LiveTestNote.textContent =
+      "Changing and restoring normal template settings without starting gameplay automation.";
+  } else if (test?.message) {
+    elements.slice83LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function refreshTemplateConfig() {
+  try {
+    const response = await fetch("/api/template-config", { cache: "no-store" });
+    state.templateConfig = await response.json();
+  } catch {
+    state.templateConfig = {
+      status: "unavailable",
+      selectedTemplateId: "simple-farmer",
+      templates: [],
+      message: "Template Configuration status could not be loaded.",
+    };
+  }
+  renderTemplateConfig();
+}
+
+async function templateConfigAction(action, body) {
+  const response = await fetch(`/api/template-config/${action}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error ?? payload.message ?? `HTTP ${response.status}`);
+  state.templateConfig = payload;
+  renderTemplateConfig();
+  return payload;
+}
+
+async function refreshSlice83LiveTest() {
+  try {
+    const response = await fetch("/api/live-test/slice-8-3", { cache: "no-store" });
+    state.slice83LiveTest = response.ok
+      ? await response.json()
+      : { status: "unavailable", message: "Slice 8.3 Template Configuration test is unavailable." };
+  } catch {
+    state.slice83LiveTest = {
+      status: "unavailable",
+      message: "Slice 8.3 Template Configuration test status could not be loaded.",
+    };
+  }
+  renderSlice83LiveTest();
+}
+
+async function startSlice83LiveTest(clipboardWrite) {
+  state.slice83LiveTest = { status: "running", message: "Slice 8.3 Template Configuration test is running." };
+  renderSlice83LiveTest();
+  const response = await fetch("/api/live-test/slice-8-3/start", { method: "POST" });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error ?? payload.message ?? `HTTP ${response.status}`);
+  if (!payload.reportText || typeof payload.reportText !== "string") {
+    throw new Error("Slice 8.3 Template Configuration test returned no copyable report.");
+  }
+  state.slice83LastReport = payload.reportText;
+  state.slice83LiveTest = {
+    status: payload.result?.outcome ?? "failed",
+    message: payload.result?.message ?? "Slice 8.3 Template Configuration test finished.",
+    lastResult: payload.result,
+  };
+  const copied = await clipboardWrite.finish(payload.reportText);
+  renderSlice83LiveTest();
+  return { payload, copied };
+}
+
+elements.templateConfigTemplate.addEventListener("change", () => {
+  templateConfigDirty = false;
+  const template = selectedTemplateConfig();
+  buildTemplateConfigFields(template);
+  writeTemplateConfigValues(template);
+  renderTemplateConfig();
+});
+elements.templateConfigFields.addEventListener("input", () => {
+  templateConfigDirty = true;
+});
+elements.templateConfigFields.addEventListener("change", () => {
+  templateConfigDirty = true;
+});
+
+elements.templateConfigSave.addEventListener("click", async () => {
+  const templateId = elements.templateConfigTemplate.value;
+  setFeedback("Saving normal Template Configuration settings…");
+  try {
+    const payload = await templateConfigAction("save", {
+      templateId,
+      values: readTemplateConfigValues(),
+    });
+    templateConfigDirty = false;
+    renderTemplateConfig();
+    setFeedback(payload.message ?? "Template Configuration settings saved.", "success");
+  } catch (error) {
+    setFeedback(`Template Configuration save failed: ${error.message}`, "error");
+  }
+});
+
+elements.templateConfigReset.addEventListener("click", async () => {
+  const templateId = elements.templateConfigTemplate.value;
+  setFeedback("Resetting Template Configuration settings…");
+  try {
+    await templateConfigAction("reset", { templateId });
+    templateConfigDirty = false;
+    renderTemplateConfig();
+    setFeedback("Template Configuration settings reset.", "success");
+  } catch (error) {
+    setFeedback(`Template Configuration reset failed: ${error.message}`, "error");
+  }
+});
+
+elements.templateConfigStart.addEventListener("click", async () => {
+  const templateId = elements.templateConfigTemplate.value;
+  setFeedback("Saving settings and starting the existing template…");
+  try {
+    await templateConfigAction("save", {
+      templateId,
+      values: readTemplateConfigValues(),
+    });
+    templateConfigDirty = false;
+    const payload = await templateConfigAction("start", { templateId });
+    setFeedback(payload.message ?? "Template started.", "success");
+    await refreshSimpleFarmer();
+  } catch (error) {
+    setFeedback(`Template start failed: ${error.message}`, "error");
+  }
+});
+
+elements.templateConfigStop.addEventListener("click", async () => {
+  const templateId = elements.templateConfigTemplate.value;
+  setFeedback("Stopping the existing template…");
+  try {
+    const payload = await templateConfigAction("stop", { templateId });
+    setFeedback(payload.message ?? "Template stopped.", "success");
+    await refreshSimpleFarmer();
+  } catch (error) {
+    setFeedback(`Template stop failed: ${error.message}`, "error");
+  }
+});
+
+elements.startSlice83LiveTest.addEventListener("click", async () => {
+  if (state.slice83LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice83LastReport = null;
+  elements.copySlice83LiveTestResult.hidden = true;
+  setFeedback("Slice 8.3 Template Configuration test started. It changes and restores settings only; no gameplay automation will start.");
+  try {
+    const { payload, copied } = await startSlice83LiveTest(clipboardWrite);
+    const outcome = payload.result?.outcome ?? "failed";
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 8.3 test ${String(outcome).toUpperCase()}. ${copyMessage}`,
+      outcome === "passed" && copied ? "success" : outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    await refreshSlice83LiveTest();
+    setFeedback(`Slice 8.3 Template Configuration test could not finish: ${error.message}`, "error");
+  } finally {
+    templateConfigDirty = false;
+    await refreshTemplateConfig();
+  }
+});
+
+elements.copySlice83LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice83LastReport) return;
+  try {
+    await writeClipboard(state.slice83LastReport);
+    setFeedback("Complete Slice 8.3 Template Configuration result and sanitized diagnostic log copied.", "success");
+  } catch (error) {
+    setFeedback(`Template Configuration result copy failed: ${error.message}`, "error");
   }
 });
 
@@ -5685,6 +5998,8 @@ await refreshCharacterCards();
 await refreshSlice81LiveTest();
 await refreshSetupWizard();
 await refreshSlice82LiveTest();
+await refreshTemplateConfig();
+await refreshSlice83LiveTest();
 await refreshMovementDebug();
 await refreshGameVersion();
 await refreshGameData();
@@ -5727,6 +6042,8 @@ setInterval(refreshCharacterCards, 1500);
 setInterval(refreshSlice81LiveTest, 1500);
 setInterval(refreshSetupWizard, 2000);
 setInterval(refreshSlice82LiveTest, 1500);
+setInterval(refreshTemplateConfig, 2000);
+setInterval(refreshSlice83LiveTest, 1500);
 setInterval(refreshMovementDebug, 1500);
 setInterval(refreshGameVersion, 2000);
 setInterval(refreshGameData, 2000);

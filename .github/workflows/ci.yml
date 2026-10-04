@@ -43,7 +43,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ALREMASTERED_BUILD_VERSION=0.1.0-alpha.57 npm run build
+          ALREMASTERED_BUILD_VERSION=0.1.0-alpha.58 npm run build
           npm run installer:linux
           cp artifacts/ALRemastered-Linux-*.run "$RUNNER_TEMP/ALRemastered-A.run"
       - name: Install version A to a custom path
@@ -52,7 +52,7 @@ jobs:
           set -euo pipefail
           test_dir="$RUNNER_TEMP/ALRemastered Custom Path"
           "$RUNNER_TEMP/ALRemastered-A.run" --install-dir "$test_dir" --yes --no-desktop
-          test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.57"
+          test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.58"
           paths_json="$("$test_dir/alremastered" --paths)"
           data_dir="$(node -e 'console.log(JSON.parse(process.argv[1]).dataDir)' "$paths_json")"
           mkdir -p "$data_dir"
@@ -85,15 +85,15 @@ jobs:
           test_dir="$RUNNER_TEMP/ALRemastered Custom Path"
           data_dir="$(cat "$RUNNER_TEMP/alremastered-data-dir.txt")"
           ALREMASTERED_UPDATE_SESSION_HANDOFF="ci-invalid-handoff-probe" "$installer" --yes --no-desktop --restart
-          test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.58"
+          test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.59"
           test "$(cat "$data_dir/upgrade-sentinel.txt")" = "keep-me"
           previous_version="$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).version" "$test_dir/.previous/app/package.json")"
-          test "$previous_version" = "0.1.0-alpha.57"
-          grep 'event=install_success version=0.1.0-alpha.58' "$data_dir/logs/installer.log"
-          grep 'event=auto_restart version=0.1.0-alpha.58' "$data_dir/logs/installer.log"
+          test "$previous_version" = "0.1.0-alpha.58"
+          grep 'event=install_success version=0.1.0-alpha.59' "$data_dir/logs/installer.log"
+          grep 'event=auto_restart version=0.1.0-alpha.59' "$data_dir/logs/installer.log"
           dashboard_ready=0
           for attempt in $(seq 1 120); do
-            if curl -fsS http://127.0.0.1:3210/api/status 2>/dev/null | grep -q '"version":"0.1.0-alpha.58"'; then
+            if curl -fsS http://127.0.0.1:3210/api/status 2>/dev/null | grep -q '"version":"0.1.0-alpha.59"'; then
               dashboard_ready=1
               break
             fi
@@ -158,6 +158,9 @@ jobs:
           curl -fsS http://127.0.0.1:3210/ | grep 'Setup Wizard'
           curl -fsS http://127.0.0.1:3210/ | grep 'Task / Template'
           curl -fsS http://127.0.0.1:3210/ | grep 'Slice 8.2 one-click Setup Wizard test'
+          curl -fsS http://127.0.0.1:3210/ | grep 'Template Configuration'
+          curl -fsS http://127.0.0.1:3210/ | grep 'without editing script code'
+          curl -fsS http://127.0.0.1:3210/ | grep 'Slice 8.3 one-click Template Configuration test'
           curl -fsS http://127.0.0.1:3210/ | grep 'namespaced persistent get()/set()/del() script storage'
           curl -fsS http://127.0.0.1:3210/ | grep 'get_nearest_monster()'
           curl -fsS http://127.0.0.1:3210/ | grep '>Start test</button>'
@@ -191,6 +194,8 @@ jobs:
           curl -fsS http://127.0.0.1:3210/api/live-test/slice-8-1 | grep '"status":"idle"'
           curl -fsS http://127.0.0.1:3210/api/setup-wizard | grep '"status":"blocked"'
           curl -fsS http://127.0.0.1:3210/api/live-test/slice-8-2 | grep '"status":"idle"'
+          curl -fsS http://127.0.0.1:3210/api/template-config | grep '"selectedTemplateId":"simple-farmer"'
+          curl -fsS http://127.0.0.1:3210/api/live-test/slice-8-3 | grep '"status":"idle"'
           curl -fsS http://127.0.0.1:3210/api/navigation/movement-debug | grep '"status":"ready"'
           curl -fsS http://127.0.0.1:3210/api/navigation/map-model | grep '"status":'
           curl -fsS http://127.0.0.1:3210/api/navigation/path-planner | grep '"status":'
@@ -203,7 +208,7 @@ jobs:
           curl -fsS http://127.0.0.1:3210/api/game-data | grep '"status":'
           curl -fsS http://127.0.0.1:3210/api/diagnostics/snapshot | grep '"sanitized":true'
           curl -fsS http://127.0.0.1:3210/api/diagnostics/package | grep 'ALRemasteredDiagnosticPackage'
-          curl -fsS http://127.0.0.1:3210/api/update | grep '"currentVersion":"0.1.0-alpha.58"'
+          curl -fsS http://127.0.0.1:3210/api/update | grep '"currentVersion":"0.1.0-alpha.59"'
           curl -fsS http://127.0.0.1:3210/api/logs/export | grep '"sanitized":true'
           test -f "$data_dir/logs/client.log"
           grep '"level":"INFO"' "$data_dir/logs/client.log"
@@ -243,7 +248,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
-          $env:ALREMASTERED_BUILD_VERSION = "0.1.0-alpha.57"
+          $env:ALREMASTERED_BUILD_VERSION = "0.1.0-alpha.58"
           npm run build
           npm run installer:windows
           Copy-Item (Get-ChildItem "artifacts\ALRemastered-Windows-*-Setup.exe" | Select-Object -First 1).FullName "$env:RUNNER_TEMP\ALRemastered-A.exe"
@@ -255,7 +260,7 @@ jobs:
           $installProcess = Start-Process -FilePath "$env:RUNNER_TEMP\ALRemastered-A.exe" -ArgumentList @("/S", "/D=$testDir") -Wait -PassThru
           if ($installProcess.ExitCode -ne 0) { throw "Version A installer returned exit code $($installProcess.ExitCode)" }
           $version = & "$testDir\ALRemastered.exe" --version
-          if ($version.Trim() -ne "0.1.0-alpha.57") { throw "Expected version A, got $version" }
+          if ($version.Trim() -ne "0.1.0-alpha.58") { throw "Expected version A, got $version" }
           $paths = (& "$testDir\ALRemastered.exe" --paths) | ConvertFrom-Json
           New-Item -ItemType Directory -Path $paths.dataDir -Force | Out-Null
           Set-Content -Path (Join-Path $paths.dataDir "upgrade-sentinel.txt") -Value "keep-me" -NoNewline
@@ -295,7 +300,7 @@ jobs:
           for ($attempt = 0; $attempt -lt 40; $attempt++) {
             try {
               $oldDashboardStatus = Invoke-RestMethod "http://127.0.0.1:3210/api/status"
-              if ($oldDashboardStatus.version -eq "0.1.0-alpha.57") {
+              if ($oldDashboardStatus.version -eq "0.1.0-alpha.58") {
                 $oldDashboardReady = $true
                 break
               }
@@ -313,7 +318,7 @@ jobs:
           Start-Sleep -Milliseconds 750
 
           $versionWhileWaiting = & "$testDir\ALRemastered.exe" --version
-          if ($versionWhileWaiting.Trim() -ne "0.1.0-alpha.57") {
+          if ($versionWhileWaiting.Trim() -ne "0.1.0-alpha.58") {
             throw "Automatic updater modified the installation before the previous client exited."
           }
 
@@ -323,7 +328,7 @@ jobs:
           for ($attempt = 0; $attempt -lt 120; $attempt++) {
             try {
               $dashboardStatus = Invoke-RestMethod "http://127.0.0.1:3210/api/status"
-              if ($dashboardStatus.version -eq "0.1.0-alpha.58") {
+              if ($dashboardStatus.version -eq "0.1.0-alpha.59") {
                 $dashboardReady = $true
                 break
               }
@@ -345,10 +350,10 @@ jobs:
           if ($remainingInstaller) { throw "Update installer process remained open after installation." }
 
           $version = & "$testDir\ALRemastered.exe" --version
-          if ($version.Trim() -ne "0.1.0-alpha.58") { throw "Expected version B, got $version" }
+          if ($version.Trim() -ne "0.1.0-alpha.59") { throw "Expected version B, got $version" }
           if ((Get-Content (Join-Path $dataDir "upgrade-sentinel.txt") -Raw) -ne "keep-me") { throw "User data was not preserved." }
           $previous = Get-Content "$testDir\.previous\app\package.json" -Raw | ConvertFrom-Json
-          if ($previous.version -ne "0.1.0-alpha.57") { throw "Previous version was not retained for rollback." }
+          if ($previous.version -ne "0.1.0-alpha.58") { throw "Previous version was not retained for rollback." }
 
           if (Test-Path "$testDir\ALRemastered.cmd") { throw "Legacy batch launcher must not be installed." }
 
@@ -416,6 +421,9 @@ jobs:
           if ($dashboardPage.Content -notmatch "Setup Wizard") { throw "Setup Wizard panel was not available." }
           if ($dashboardPage.Content -notmatch "Task / Template") { throw "Setup Wizard Task / Template stage was not available." }
           if ($dashboardPage.Content -notmatch "Slice 8.2 one-click Setup Wizard test") { throw "Slice 8.2 Setup Wizard panel was not available." }
+          if ($dashboardPage.Content -notmatch "Template Configuration") { throw "Template Configuration panel was not available." }
+          if ($dashboardPage.Content -notmatch "without editing script code") { throw "Template Configuration no-code guidance was not available." }
+          if ($dashboardPage.Content -notmatch "Slice 8.3 one-click Template Configuration test") { throw "Slice 8.3 Template Configuration panel was not available." }
           if ($dashboardPage.Content -notmatch "namespaced persistent get\(\)/set\(\)/del\(\) script storage") { throw "Slice 4.4 storage API documentation was not available." }
           if ($dashboardPage.Content -notmatch "get_nearest_monster\(\)") { throw "Slice 4.2 compatible helper documentation was not available." }
           if ($dashboardPage.Content -notmatch ">Start test</button>") { throw "One-click Start test button was not available." }
@@ -479,6 +487,11 @@ jobs:
           if ($setupWizard.status -ne "blocked") { throw "Setup Wizard API was not blocked before account connection." }
           $slice82LiveTest = Invoke-RestMethod "http://127.0.0.1:3210/api/live-test/slice-8-2"
           if ($slice82LiveTest.status -ne "idle") { throw "Slice 8.2 Setup Wizard API was not idle on clean CI startup." }
+          $templateConfig = Invoke-RestMethod "http://127.0.0.1:3210/api/template-config"
+          if ($templateConfig.selectedTemplateId -ne "simple-farmer") { throw "Template Configuration API did not expose Simple Farmer." }
+          if ($templateConfig.normalSettingsRequireCodeChanges) { throw "Template Configuration incorrectly required code changes for normal settings." }
+          $slice83LiveTest = Invoke-RestMethod "http://127.0.0.1:3210/api/live-test/slice-8-3"
+          if ($slice83LiveTest.status -ne "idle") { throw "Slice 8.3 Template Configuration API was not idle on clean CI startup." }
           $movementDebug = Invoke-RestMethod "http://127.0.0.1:3210/api/navigation/movement-debug"
           if ($movementDebug.status -ne "ready") { throw "Movement-debug telemetry API was not ready on clean CI startup." }
           $mapModel = Invoke-RestMethod "http://127.0.0.1:3210/api/navigation/map-model"
@@ -498,7 +511,7 @@ jobs:
 
           $dashboardStatus = Invoke-RestMethod "http://127.0.0.1:3210/api/status"
           if ($dashboardStatus.status -ne "running") { throw "Dashboard status endpoint did not report a running core." }
-          if ($dashboardStatus.version -ne "0.1.0-alpha.58") { throw "Automatically restarted client reported the wrong version." }
+          if ($dashboardStatus.version -ne "0.1.0-alpha.59") { throw "Automatically restarted client reported the wrong version." }
 
           $dashboardGameVersion = Invoke-RestMethod "http://127.0.0.1:3210/api/game-version"
           if ($dashboardGameVersion.status -notin @("idle", "checking", "current", "changed", "error")) { throw "Game version API returned an invalid state." }
@@ -506,7 +519,7 @@ jobs:
           if ($dashboardGameData.status -notin @("idle", "loading", "loaded", "error")) { throw "Game data API returned an invalid state." }
 
           $dashboardUpdate = Invoke-RestMethod "http://127.0.0.1:3210/api/update"
-          if ($dashboardUpdate.currentVersion -ne "0.1.0-alpha.58") { throw "Update API returned the wrong client version." }
+          if ($dashboardUpdate.currentVersion -ne "0.1.0-alpha.59") { throw "Update API returned the wrong client version." }
           $diagnosticsSnapshot = Invoke-RestMethod "http://127.0.0.1:3210/api/diagnostics/snapshot"
           if (-not $diagnosticsSnapshot.sanitized) { throw "Diagnostics snapshot was not marked as sanitized." }
           if ($diagnosticsSnapshot.components.Count -lt 5) { throw "Diagnostics component health was incomplete." }

@@ -752,3 +752,31 @@ h2 {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+
+.template-config-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.8rem;
+  margin: 1rem 0;
+}
+
+.template-config-field {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+  padding: 0.8rem;
+  border: 1px solid #2b313c;
+  border-radius: 9px;
+  background: #11151b;
+}
+
+.template-config-field select,
+.template-config-field input {
+  width: 100%;
+}
+
+.template-config-field input[type="checkbox"] {
+  width: auto;
+  justify-self: start;
+}

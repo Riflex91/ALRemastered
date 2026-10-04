@@ -20,6 +20,7 @@ import type { PartyCoordinatorService } from "../party/coordinator.ts";
 import type { PartyTemplateService } from "../party/templates.ts";
 import type { CharacterCardsService } from "./character-cards.ts";
 import type { SetupWizardService, SetupWizardStartInput } from "./setup-wizard.ts";
+import type { TemplateConfigurationService } from "./template-config.ts";
 import type { CoreRuntime, HealthSnapshot } from "../core/app.ts";
 import type { DiagnosticsService } from "../diagnostics/service.ts";
 import type { AdventureLandGameDataService } from "../game/data-service.ts";
@@ -45,6 +46,7 @@ import type { Slice73LiveTestService } from "../live-test/slice-7-3.ts";
 import type { Slice74LiveTestService } from "../live-test/slice-7-4.ts";
 import type { Slice81LiveTestService } from "../live-test/slice-8-1.ts";
 import type { Slice82LiveTestService } from "../live-test/slice-8-2.ts";
+import type { Slice83LiveTestService } from "../live-test/slice-8-3.ts";
 import type { AdventureLandMapModelService } from "../navigation/map-model.ts";
 import type { MovementDebugService } from "../navigation/movement-debug.ts";
 import type { SimplePathPlannerService } from "../navigation/path-planner.ts";
@@ -68,6 +70,7 @@ export interface DashboardServerOptions {
   readonly partyTemplateService?: PartyTemplateService;
   readonly characterCardsService?: CharacterCardsService;
   readonly setupWizardService?: SetupWizardService;
+  readonly templateConfigurationService?: TemplateConfigurationService;
   readonly actionGateway?: ActionGateway;
   readonly movementService?: AdventureLandMovementService;
   readonly attackService?: AdventureLandAttackService;
@@ -94,6 +97,7 @@ export interface DashboardServerOptions {
   readonly slice74LiveTestService?: Slice74LiveTestService;
   readonly slice81LiveTestService?: Slice81LiveTestService;
   readonly slice82LiveTestService?: Slice82LiveTestService;
+  readonly slice83LiveTestService?: Slice83LiveTestService;
   readonly mapModelService?: AdventureLandMapModelService;
   readonly movementDebugService?: MovementDebugService;
   readonly pathPlannerService?: SimplePathPlannerService;
@@ -120,6 +124,7 @@ export class DashboardServer {
   readonly #partyTemplateService?: PartyTemplateService;
   readonly #characterCardsService?: CharacterCardsService;
   readonly #setupWizardService?: SetupWizardService;
+  readonly #templateConfigurationService?: TemplateConfigurationService;
   readonly #actionGateway?: ActionGateway;
   readonly #movementService?: AdventureLandMovementService;
   readonly #attackService?: AdventureLandAttackService;
@@ -146,6 +151,7 @@ export class DashboardServer {
   readonly #slice74LiveTestService?: Slice74LiveTestService;
   readonly #slice81LiveTestService?: Slice81LiveTestService;
   readonly #slice82LiveTestService?: Slice82LiveTestService;
+  readonly #slice83LiveTestService?: Slice83LiveTestService;
   readonly #mapModelService?: AdventureLandMapModelService;
   readonly #movementDebugService?: MovementDebugService;
   readonly #pathPlannerService?: SimplePathPlannerService;
@@ -175,6 +181,7 @@ export class DashboardServer {
     this.#partyTemplateService = options.partyTemplateService;
     this.#characterCardsService = options.characterCardsService;
     this.#setupWizardService = options.setupWizardService;
+    this.#templateConfigurationService = options.templateConfigurationService;
     this.#actionGateway = options.actionGateway;
     this.#movementService = options.movementService;
     this.#attackService = options.attackService;
@@ -201,6 +208,7 @@ export class DashboardServer {
     this.#slice74LiveTestService = options.slice74LiveTestService;
     this.#slice81LiveTestService = options.slice81LiveTestService;
     this.#slice82LiveTestService = options.slice82LiveTestService;
+    this.#slice83LiveTestService = options.slice83LiveTestService;
     this.#mapModelService = options.mapModelService;
     this.#movementDebugService = options.movementDebugService;
     this.#pathPlannerService = options.pathPlannerService;
@@ -1026,6 +1034,60 @@ export class DashboardServer {
       });
     }
 
+
+    if (method === "GET" && path === "/api/template-config") {
+      if (!this.#templateConfigurationService) {
+        return this.#json(response, {
+          status: "unavailable",
+          templates: [],
+          message: "Template Configuration is unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#templateConfigurationService.state());
+    }
+    if (
+      method === "POST" &&
+      (path === "/api/template-config/save" ||
+        path === "/api/template-config/reset" ||
+        path === "/api/template-config/start" ||
+        path === "/api/template-config/stop")
+    ) {
+      if (!this.#templateConfigurationService) {
+        return this.#json(response, { error: "Template Configuration is unavailable." }, 503);
+      }
+      let body: Record<string, unknown>;
+      try {
+        body = await this.#readJsonObject(request);
+      } catch (error) {
+        return this.#json(response, {
+          error: error instanceof Error ? error.message : "Invalid request body.",
+        }, 400);
+      }
+      const templateId = typeof body.templateId === "string" ? body.templateId : "";
+      if (!templateId.trim()) {
+        return this.#json(response, { error: "Template selection is required." }, 400);
+      }
+      try {
+        if (path.endsWith("/save")) {
+          const values = body.values && typeof body.values === "object" && !Array.isArray(body.values)
+            ? body.values as Record<string, unknown>
+            : {};
+          return this.#json(response, this.#templateConfigurationService.save(templateId, values));
+        }
+        if (path.endsWith("/reset")) {
+          return this.#json(response, this.#templateConfigurationService.reset(templateId));
+        }
+        if (path.endsWith("/start")) {
+          return this.#json(response, await this.#templateConfigurationService.start(templateId));
+        }
+        return this.#json(response, await this.#templateConfigurationService.stop(templateId));
+      } catch (error) {
+        return this.#json(response, {
+          error: error instanceof Error ? error.message : String(error),
+        }, 400);
+      }
+    }
+
     if (method === "GET" && path === "/api/simple-farmer") {
       if (!this.#simpleFarmerService) {
         return this.#json(response, { status: "unavailable", message: "Simple Farmer Template is unavailable." }, 503);
@@ -1568,6 +1630,41 @@ export class DashboardServer {
         primaryCharacter: this.#characterService?.state(),
         selection: this.#selectionService?.state(),
         account: this.#accountService?.state(),
+        userScriptRuntime: this.#scriptRuntime?.state(),
+        diagnostic,
+      };
+      return this.#json(response, {
+        result,
+        reportText: JSON.stringify(report, null, 2),
+        clipboardSuggested: true,
+      });
+    }
+
+
+    if (method === "GET" && path === "/api/live-test/slice-8-3") {
+      if (!this.#slice83LiveTestService) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Slice 8.3 Template Configuration test service is unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#slice83LiveTestService.state());
+    }
+    if (method === "POST" && path === "/api/live-test/slice-8-3/start") {
+      if (!this.#slice83LiveTestService) {
+        return this.#json(response, {
+          error: "Slice 8.3 Template Configuration test service is unavailable.",
+        }, 503);
+      }
+      const result = await this.#slice83LiveTestService.run();
+      const diagnostic = this.#exportPayload();
+      const report = {
+        schemaVersion: 1,
+        kind: "ALRemastered Slice 8.3 one-click Template Configuration test",
+        result,
+        templateConfiguration: this.#templateConfigurationService?.state(),
+        simpleFarmer: this.#simpleFarmerService?.state(),
+        primaryCharacter: this.#characterService?.state(),
         userScriptRuntime: this.#scriptRuntime?.state(),
         diagnostic,
       };
