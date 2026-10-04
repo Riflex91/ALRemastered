@@ -2920,3 +2920,81 @@ Repository/release gate evidence:
 Result: the real installed Windows alpha.59 run proves the complete Slice 8.3 Config UI für Templates scope: normal Simple Farmer settings can be exposed, changed, validated, saved, and restored through the dashboard without editing Script source, while preserving the primary Character, user Script runtime, and no-gameplay-mutation/no-raw-socket safety boundary. **Slice 8.3 is VERIFIED.**
 
 Before Slice 8.4 begins, the agreed dashboard-maintenance cleanup may hide historical one-click verification controls from the normal dashboard while retaining their services, APIs, automated CI coverage, and historical evidence. Only the currently required verification test should remain visible in the normal workflow.
+
+
+---
+
+## Slice 8.4 Verification Record — “Why is the bot doing this?”
+
+**Canonical status update: Slice 8.4 = VERIFIED.**
+
+Release/live environment:
+
+- verified release: `v0.1.0-alpha.60`
+- tested implementation main / release target: `cfb203e199f5f89733d8174e213e3d39ffdfb445`
+- Windows client: `0.1.0-alpha.60`
+- platform: `win32`
+- one-click test ID: `live84-186baff7-0dec-49a2-98ea-f4af7236bc09`
+- primary Character: `My_Merchant`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-04T09:38:12.483Z → 2026-10-04T09:38:12.485Z`
+- diagnostic export: 35 log lines, `Secrets sanitized: yes`.
+
+Explainability evidence:
+
+- the dashboard exposed the full Slice 8.4 scope in English:
+  - Current target
+  - Selection reason
+  - Rejected targets
+  - Range
+  - Cooldowns
+  - Movement target
+  - Next action
+  - Strategy
+  - Blockers;
+- Strategy identified `Simple Farmer`, with configured monster `bee`, runtime status `idle`, and active state `false`;
+- current target preview selected visible bee `5757471` at distance `375.3`, with attack range `70` and `inRange:false`;
+- selection reason was explicit and correctly stated that this was a read-only preview because the template was not running;
+- rejected targets were surfaced with concrete per-target reasons;
+- range explanation reported `375.3 > 70`;
+- cooldowns reported Attack / HP / MP at `0 ms`;
+- Movement target reported none and explained that Simple Farmer itself does not navigate;
+- Next action reported `Start template`;
+- blockers correctly described the inactive template and the out-of-range target.
+
+Isolation and safety evidence:
+
+- both live-test steps, `explainability` and `isolation`, passed;
+- primary `My_Merchant` remained `connected`;
+- user Script remained `unloaded`;
+- Action Gateway total request count remained exactly `0 → 0`;
+- `readOnly:true`;
+- `gameplayMutation:false`;
+- `rawSocketAccess:false`;
+- the explainability layer only mirrors existing Character state, Template Configuration, Simple Farmer state, Action Gateway state, and Movement Debug telemetry;
+- no new target-selection engine, movement controller, gameplay mutation path, Script execution path, or raw-socket shortcut was introduced.
+
+Repository/release gate evidence:
+
+- implementation PR #118 final feature head: `25c144b4ec134c1c05ece7d02c6507eccc343848`;
+- final implementation PR CI run `37191850363` completed with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #118 merged with method `merge` into exact implementation main `cfb203e199f5f89733d8174e213e3d39ffdfb445`;
+- exact post-implementation-main CI run `37191997325` completed with all four required jobs successful;
+- release publish run `37192184994` completed successfully;
+- release branch `release/v0.1.0-alpha.60`, tag `v0.1.0-alpha.60`, GitHub release target, and tested implementation main were verified commit-identical at `cfb203e199f5f89733d8174e213e3d39ffdfb445`;
+- published assets:
+  - Windows x64 installer SHA-256 `bf0d147424d9881656c21d0cb5ebdba3132fd6fcf7733d1ee5b5d1535ccbcaaa`
+  - Linux x64 installer SHA-256 `dddd576cd25ff0968a992a4aa2e087ec4cff899075087bbe75c0357e694a4f74`
+  - updater manifest SHA-256 `1af34f4310df1f07ef01b7c8c45967ce98c42cff980cc2d2c5a35257f11c774b`.
+
+Dashboard verification workflow evidence:
+
+- `Current verification` showed Slice 8.4 as the single active manual one-click test;
+- historical one-click controls remain retained in code/API/CI/evidence while hidden from the normal dashboard workflow.
+
+Result: the real installed Windows alpha.60 run proves the complete Slice 8.4 “Why is the bot doing this?” scope and confirms that explainability is observability-only: it exposes target choice, rejection reasons, range, cooldowns, movement context, next action, strategy, and blockers without dispatching gameplay actions or altering the Script/runtime state. **Slice 8.4 is VERIFIED.**
+
+**Phase 8 is complete through Slice 8.4.**
+
+Phase 9 / Slice 9.1 – Dashboard Edit Mode may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
