@@ -6,8 +6,8 @@ test("Slice 9.4 exposes persistence, history, reset, profiles, and viewport vari
   const html = readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
   const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
   const editor = readFileSync(new URL("../dashboard/editor.js", import.meta.url), "utf8");
-  const server = readFileSync(new URL("../src/dashboard/server.ts", import.meta.url), "utf8");
-  const main = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
+  const server = readFileSync(new URL("../src/dashboard/server.js", import.meta.url), "utf8");
+  const main = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
   const css = readFileSync(new URL("../dashboard/styles.css", import.meta.url), "utf8");
 
   assert.match(html, /data-current-verification-slice="9\.4"/);
