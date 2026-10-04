@@ -545,9 +545,24 @@ export class ScriptPackageImporter {
     rmSync(verificationRoot, { recursive: true, force: true });
     const cleanup = !existsSync(verificationRoot);
     const finalChecks = Object.freeze({ ...checks, cleanup });
-    const ready = Object.entries(finalChecks)
-      .filter(([key]) => !key.endsWith("ErrorCode"))
-      .every(([, value]) => value === true);
+    const ready =
+      finalChecks.linkPreviewReady &&
+      finalChecks.githubPreviewReady &&
+      finalChecks.descriptionVisible &&
+      finalChecks.permissionsVisible &&
+      finalChecks.configurationVisible &&
+      finalChecks.codeVisible &&
+      finalChecks.dangerousConfirmationRequired &&
+      finalChecks.unapprovedRejected &&
+      finalChecks.importPersisted &&
+      finalChecks.approvedPermissionPersisted &&
+      finalChecks.importedInactive &&
+      finalChecks.executionAttempted === false &&
+      finalChecks.sourceRefetchedOnConfirm &&
+      finalChecks.staleRejected &&
+      finalChecks.insecureSourceRejected &&
+      finalChecks.privateSourceRejected &&
+      finalChecks.cleanup;
 
     return Object.freeze({
       status: ready ? "ready" : "failed",
