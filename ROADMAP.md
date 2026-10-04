@@ -3074,3 +3074,51 @@ Repository/release evidence:
 
 Slice 9.4 – Layout Persistence and Profiles may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
 
+
+
+---
+
+## Verification Evidence — Slice 9.4 Layout Persistence and Profiles
+
+**Status: VERIFIED**
+
+> 2026-10-04: VERIFIED on Windows with `0.1.0-alpha.64`. The real installed one-click test `live94-f5e11f90-b74d-40a4-bbe0-9d0acba4da2e` passed save-to-disk, restart/reload, separate Desktop/Small-screen layouts, multiple profiles, Undo/Redo, and Reset. Persistence was enabled and disk reload was explicitly verified. The test made no gameplay mutation, issued zero Action Gateway requests, used no raw socket access, and did not touch the user Script runtime. The sanitized diagnostic export contained 11 lines and reported `Secrets sanitized: yes`.
+
+Live verification evidence:
+
+- client: `0.1.0-alpha.64`;
+- platform: `win32`;
+- test ID: `live94-f5e11f90-b74d-40a4-bbe0-9d0acba4da2e`;
+- outcome: `PASSED`;
+- test window: `2026-10-04T11:37:28.749Z → 2026-10-04T11:37:28.773Z`;
+- `save-to-disk: PASSED`;
+- `restart-reload: PASSED`;
+- `desktop-small-profiles: PASSED`;
+- `multiple-profiles: PASSED`;
+- `undo-redo: PASSED`;
+- `reset: PASSED`;
+- `Persistence: true`;
+- `Disk reload: true`;
+- `Profiles: multiple`;
+- `Viewport layouts: Desktop / Small`;
+- `Gameplay mutation: false`;
+- `Action Gateway requests: 0`;
+- `Raw socket access: false`;
+- `User Script touched: false`.
+
+Repository/release evidence:
+
+- canonical implementation PR #126 final feature head: `bf3de36980df8934277b5dbbd95d01004f23e78f`;
+- final implementation PR CI run `37198816249` completed on that exact head with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #126 merged with method `merge` into exact implementation main `b466c9258263b7d6622a812a6c9b9c8c0bcf3de5`;
+- exact post-implementation-main CI run `37198968039` completed with all four required jobs successful;
+- release publish run `37199122283` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.64`, tag `v0.1.0-alpha.64`, GitHub release target, publish-run head, and tested implementation `main` were verified commit-identical at `b466c9258263b7d6622a812a6c9b9c8c0bcf3de5`;
+- published assets:
+  - Windows x64 installer SHA-256 `40bd9cad8dd6c895e3ed06b244e0b143d44e9ee2fc08d7b64c661490d9761109`
+  - Linux x64 installer SHA-256 `4d44af6331cb458a4f500fd7c8afff339bc0ee6e9a13ec0c807e7b10534011ae`
+  - updater manifest SHA-256 `6cc3eb0c3c049af86377e67548f4a8875673cec9520af1c0dcfd54928b9a716f`.
+
+**Canonical roadmap status: Slice 9.4 = VERIFIED.**
+
+Slice 9.5 may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
