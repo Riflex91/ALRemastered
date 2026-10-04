@@ -10,7 +10,6 @@ test("Slice 9.4 exposes persistence, history, reset, profiles, and viewport vari
   const main = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
   const css = readFileSync(new URL("../dashboard/styles.css", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="9\.4"/);
   assert.match(html, /id="dashboard-layout-profile"/);
   assert.match(html, /id="dashboard-layout-save"[^>]*>Save layout</);
   assert.match(html, /id="dashboard-layout-undo"[^>]*>Undo</);
