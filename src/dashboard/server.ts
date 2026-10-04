@@ -344,6 +344,39 @@ export class DashboardServer {
         return this.#json(response, { error: message }, 400);
       }
     }
+    if (method === "GET" && path === "/api/hd/assets/browser-plan") {
+      if (!this.#alhdAssetProvider) {
+        return this.#json(response, { error: "ALHD asset provider is unavailable." }, 503);
+      }
+      try {
+        const url = new URL(pathWithQuery, "http://127.0.0.1");
+        const maxTextureSize = parseOptionalPositiveInteger(
+          url.searchParams.get("maxTextureSize"),
+          "maxTextureSize",
+        );
+        return this.#json(response, this.#alhdAssetProvider.browserPlan(maxTextureSize));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Invalid Browser asset plan request.";
+        return this.#json(response, { error: message }, 400);
+      }
+    }
+    if (method === "GET" && path === "/api/hd/assets/content") {
+      if (!this.#alhdAssetProvider) {
+        return this.#json(response, { error: "ALHD asset provider is unavailable." }, 503);
+      }
+      try {
+        const url = new URL(pathWithQuery, "http://127.0.0.1");
+        const hdPath = url.searchParams.get("hdPath") ?? "";
+        if (!hdPath.trim()) {
+          return this.#json(response, { error: "hdPath is required." }, 400);
+        }
+        return this.#json(response, this.#alhdAssetProvider.readBrowserAsset(hdPath));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "HD asset payload is unavailable.";
+        return this.#json(response, { error: message }, 404);
+      }
+    }
+
     if (method === "GET" && path === "/api/hd/assets/resolve") {
       if (!this.#alhdAssetProvider) {
         return this.#json(response, { error: "ALHD asset provider is unavailable." }, 503);
