@@ -56,6 +56,7 @@ import { Slice82LiveTestService } from "./live-test/slice-8-2.ts";
 import { Slice83LiveTestService } from "./live-test/slice-8-3.ts";
 import { Slice84LiveTestService } from "./live-test/slice-8-4.ts";
 import { ScriptPackageImporter } from "./packages/importer.ts";
+import { ScriptPackageLibrary } from "./packages/library.ts";
 import { getUserPaths } from "./platform/paths.ts";
 import { AdventureLandScriptApiBridge } from "./script/adventure-api.ts";
 import { ScriptRuntimeService } from "./script/runtime.ts";
@@ -109,8 +110,9 @@ const logger = new Logger({
   component: "core",
   logFile: join(userPaths.logsDir, "client.log"),
 });
+const importedPackagesDir = join(userPaths.dataDir, "packages", "imported");
 const scriptPackageImporter = new ScriptPackageImporter(
-  join(userPaths.dataDir, "packages", "imported"),
+  importedPackagesDir,
   logger,
 );
 
@@ -198,6 +200,7 @@ let respawnService: AdventureLandRespawnService | undefined;
 let simpleFarmerService: SimpleFarmerTemplateService | undefined;
 let slice35LiveTestService: Slice35LiveTestService | undefined;
 let scriptRuntime: ScriptRuntimeService | undefined;
+let scriptPackageLibrary: ScriptPackageLibrary | undefined;
 let slice41LiveTestService: Slice41LiveTestService | undefined;
 let slice42LiveTestService: Slice42LiveTestService | undefined;
 let slice43LiveTestService: Slice43LiveTestService | undefined;
@@ -687,6 +690,11 @@ scriptRuntime = new ScriptRuntimeService({
   api: scriptApiBridge,
   storage: scriptStorage,
 });
+scriptPackageLibrary = new ScriptPackageLibrary({
+  rootDir: importedPackagesDir,
+  logger,
+  runtimeState: () => scriptRuntime!.state(),
+});
 characterCardsService = new CharacterCardsService({
   logger,
   selection: selectionService!,
@@ -996,6 +1004,7 @@ dashboard = new DashboardServer({
   explainabilityService,
   dashboardLayoutStore,
   scriptPackageImporter,
+  scriptPackageLibrary,
   rendererBridge,
   rendererHandoffService,
   alhdAssetProvider,
