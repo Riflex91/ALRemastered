@@ -81,3 +81,23 @@ test("renderer handoff supports multiple Browser renderers independently", () =>
   assert.equal(handoff.state().mode, "headless");
   assert.equal(handoff.state().lastSocketContinuity, true);
 });
+
+test("renderer handoff preserves an intentionally disconnected Character baseline", () => {
+  const character: AdventureLandCharacterConnectionState = {
+    status: "disconnected",
+    reconnectCount: 0,
+    message: "No Character is connected.",
+  };
+  const handoff = new RendererHandoffService({ character: () => character });
+
+  const attached = handoff.attach("browser-disconnected");
+  assert.equal(attached.mode, "browser");
+  assert.equal(attached.socketOwnership, "headless-core");
+  assert.equal(attached.socketStrategy, "preserve");
+
+  const detached = handoff.detach("browser-disconnected");
+  assert.equal(detached.mode, "headless");
+  assert.equal(detached.lastSocketContinuity, true);
+  assert.equal(detached.reconnectFallback, "soft-handoff");
+});
+
