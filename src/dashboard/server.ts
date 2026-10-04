@@ -22,6 +22,11 @@ import type { CharacterCardsService } from "./character-cards.ts";
 import type { SetupWizardService, SetupWizardStartInput } from "./setup-wizard.ts";
 import type { TemplateConfigurationService } from "./template-config.ts";
 import type { ExplainabilityService } from "./explainability.ts";
+import type {
+  DashboardLayoutStore,
+  DashboardLayoutVariant,
+  DashboardPersistentLayout,
+} from "./layout-store.ts";
 import type { CoreRuntime, HealthSnapshot } from "../core/app.ts";
 import type { DiagnosticsService } from "../diagnostics/service.ts";
 import type { AdventureLandGameDataService } from "../game/data-service.ts";
@@ -74,6 +79,7 @@ export interface DashboardServerOptions {
   readonly setupWizardService?: SetupWizardService;
   readonly templateConfigurationService?: TemplateConfigurationService;
   readonly explainabilityService?: ExplainabilityService;
+  readonly dashboardLayoutStore?: DashboardLayoutStore;
   readonly actionGateway?: ActionGateway;
   readonly movementService?: AdventureLandMovementService;
   readonly attackService?: AdventureLandAttackService;
@@ -130,6 +136,7 @@ export class DashboardServer {
   readonly #setupWizardService?: SetupWizardService;
   readonly #templateConfigurationService?: TemplateConfigurationService;
   readonly #explainabilityService?: ExplainabilityService;
+  readonly #dashboardLayoutStore?: DashboardLayoutStore;
   readonly #actionGateway?: ActionGateway;
   readonly #movementService?: AdventureLandMovementService;
   readonly #attackService?: AdventureLandAttackService;
@@ -189,6 +196,7 @@ export class DashboardServer {
     this.#setupWizardService = options.setupWizardService;
     this.#templateConfigurationService = options.templateConfigurationService;
     this.#explainabilityService = options.explainabilityService;
+    this.#dashboardLayoutStore = options.dashboardLayoutStore;
     this.#actionGateway = options.actionGateway;
     this.#movementService = options.movementService;
     this.#attackService = options.attackService;
@@ -1043,6 +1051,64 @@ export class DashboardServer {
     }
 
 
+
+    if (method === "GET" && path === "/api/dashboard-layout") {
+      if (!this.#dashboardLayoutStore) {
+        return this.#json(response, { error: "Dashboard layout persistence is unavailable." }, 503);
+      }
+      return this.#json(response, this.#dashboardLayoutStore.state());
+    }
+    if (method === "POST" && path.startsWith("/api/dashboard-layout/")) {
+      if (!this.#dashboardLayoutStore) {
+        return this.#json(response, { error: "Dashboard layout persistence is unavailable." }, 503);
+      }
+      let body: Record<string, unknown> = {};
+      if (!path.endsWith("/reload")) {
+        try {
+          body = await this.#readJsonObject(request);
+        } catch (error) {
+          return this.#json(response, {
+            error: error instanceof Error ? error.message : "Invalid request body.",
+          }, 400);
+        }
+      }
+      try {
+        const profileId = typeof body.profileId === "string" ? body.profileId : "";
+        if (path.endsWith("/profile/create")) {
+          const name = typeof body.name === "string" ? body.name : "";
+          return this.#json(response, this.#dashboardLayoutStore.createProfile(profileId, name));
+        }
+        if (path.endsWith("/profile/active")) {
+          return this.#json(response, this.#dashboardLayoutStore.setActive(profileId));
+        }
+        if (path.endsWith("/profile/delete")) {
+          return this.#json(response, this.#dashboardLayoutStore.deleteProfile(profileId));
+        }
+        if (path.endsWith("/save")) {
+          const variant = body.variant as DashboardLayoutVariant;
+          return this.#json(
+            response,
+            this.#dashboardLayoutStore.saveLayout(
+              profileId,
+              variant,
+              body.layout as DashboardPersistentLayout,
+            ),
+          );
+        }
+        if (path.endsWith("/reset")) {
+          const variant = body.variant as DashboardLayoutVariant;
+          return this.#json(response, this.#dashboardLayoutStore.resetVariant(profileId, variant));
+        }
+        if (path.endsWith("/reload")) {
+          return this.#json(response, this.#dashboardLayoutStore.reload());
+        }
+        return this.#json(response, { error: "Dashboard layout action is unknown." }, 404);
+      } catch (error) {
+        return this.#json(response, {
+          error: error instanceof Error ? error.message : String(error),
+        }, 400);
+      }
+    }
 
     if (method === "GET" && path === "/api/explainability") {
       if (!this.#explainabilityService) {
