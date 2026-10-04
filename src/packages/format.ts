@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isScriptPackagePermission } from "./permissions.ts";
 
 export const SCRIPT_PACKAGE_FORMAT = "alremastered-script-package";
 export const SCRIPT_PACKAGE_SCHEMA_VERSION = 1;
@@ -223,6 +224,9 @@ function validateManifest(input: unknown): ScriptPackageManifest {
     const permission = requiredString(value, `manifest.permissions[${index}]`, 80);
     if (!PERMISSION_PATTERN.test(permission)) {
       fail("PACKAGE_PERMISSIONS_INVALID", `Invalid permission declaration: ${permission}.`);
+    }
+    if (!isScriptPackagePermission(permission)) {
+      fail("PACKAGE_PERMISSIONS_INVALID", `Unsupported permission declaration: ${permission}.`);
     }
     return permission;
   });
