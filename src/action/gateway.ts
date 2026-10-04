@@ -57,8 +57,20 @@ export interface ActionGatewayState {
   readonly lastResult?: ActionGatewayResult;
 }
 
+export interface ActionGatewayControlPolicy {
+  authorize(
+    origin: ActionOrigin,
+    action: string,
+  ): {
+    readonly allowed: boolean;
+    readonly code?: string;
+    readonly message?: string;
+  };
+}
+
 export interface ActionGatewayOptions {
   readonly logger: Logger;
+  readonly controlPolicy?: ActionGatewayControlPolicy;
   readonly defaultTimeoutMs?: number;
   readonly maxTimeoutMs?: number;
   readonly clock?: () => Date;
@@ -84,6 +96,7 @@ export class ActionGatewayExecutionError extends Error {
 
 export class ActionGateway {
   readonly #logger: Logger;
+  readonly #controlPolicy?: ActionGatewayControlPolicy;
   readonly #defaultTimeoutMs: number;
   readonly #maxTimeoutMs: number;
   readonly #clock: () => Date;
@@ -96,6 +109,7 @@ export class ActionGateway {
 
   constructor(options: ActionGatewayOptions) {
     this.#logger = options.logger;
+    this.#controlPolicy = options.controlPolicy;
     this.#defaultTimeoutMs = positiveInteger(options.defaultTimeoutMs, 5_000);
     this.#maxTimeoutMs = Math.max(
       this.#defaultTimeoutMs,
@@ -127,6 +141,29 @@ export class ActionGateway {
     const startedAt = this.#clock().toISOString();
     const startedMs = this.#nowMs();
     this.#totalRequests += 1;
+
+    const authorization = this.#controlPolicy?.authorize(request.origin, action);
+    if (authorization && !authorization.allowed) {
+      const result = this.#finish<TResult>({
+        requestId,
+        action,
+        origin: request.origin,
+        characterId: request.characterId,
+        outcome: "error",
+        startedAt,
+        startedMs,
+        error: {
+          code: authorization.code ?? "CONTROL_MODE_BLOCKED",
+          message: authorization.message ?? "Action is blocked by the current control mode.",
+        },
+      });
+      this.#logger.warn(
+        "Action gateway request blocked by control mode.",
+        actionLogContext(result),
+        actionLogMeta(result),
+      );
+      return result;
+    }
 
     const minIntervalMs = nonNegativeInteger(request.minIntervalMs, 0);
     const rateKey = request.rateLimitKey?.trim() ||
