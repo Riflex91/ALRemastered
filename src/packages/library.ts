@@ -41,6 +41,7 @@ export interface ScriptLibraryVersion {
   readonly version: string;
   readonly author: string;
   readonly description: string;
+  readonly packageKind: "script" | "dashboard";
   readonly manifestHash: string;
   readonly importedAt?: string;
   readonly permissions: readonly ScriptPackagePermission[];
@@ -85,6 +86,7 @@ interface LocatedPackage {
   readonly packagePath: string;
   readonly statePath: string;
   readonly receiptPath: string;
+  readonly packageKind: "script" | "dashboard";
   readonly configSchema: Readonly<Record<string, unknown>>;
 }
 
@@ -124,6 +126,8 @@ export class ScriptPackageLibrary {
       activeStateSupported: true,
       configurationSupported: true,
       oneActiveVersionPerPackage: true,
+      dashboardPackagesVisible: true,
+      dashboardActivationSupported: false,
       activationExecutesPackage: false,
       executionSupported: false,
       updatesSupported: false,
@@ -199,6 +203,12 @@ export class ScriptPackageLibrary {
     readonly active: boolean;
   }): ScriptLibrarySnapshot {
     const target = this.#locate(input.packageId, input.version);
+    if (target.packageKind !== "script") {
+      throw new ScriptPackageLibraryError(
+        "PACKAGE_LIBRARY_ACTIVATION_UNSUPPORTED",
+        "Dashboard packages are applied through Dashboard layout import, not Script Library activation.",
+      );
+    }
     const packageDir = target.packageDir;
 
     if (input.active) {
@@ -238,6 +248,12 @@ export class ScriptPackageLibrary {
     readonly configuration: unknown;
   }): ScriptLibrarySnapshot {
     const located = this.#locate(input.packageId, input.version);
+    if (located.packageKind !== "script") {
+      throw new ScriptPackageLibraryError(
+        "PACKAGE_LIBRARY_CONFIGURATION_UNSUPPORTED",
+        "Dashboard packages do not expose Script Library configuration.",
+      );
+    }
     const configuration = validateConfiguration(input.configuration, located.configSchema);
     const current = this.#readState(located);
     this.#writeState(located, { ...current, configuration });
@@ -380,6 +396,7 @@ export class ScriptPackageLibrary {
       description: descriptionFromReadme(
         located.document.files[located.document.manifest.readme.path] ?? "",
       ),
+      packageKind: inspection.packageKind,
       manifestHash: inspection.manifestHash,
       importedAt: typeof receipt.importedAt === "string" ? receipt.importedAt : undefined,
       permissions: Object.freeze([...permissions]),
@@ -439,7 +456,7 @@ export class ScriptPackageLibrary {
         "Imported package document could not be read.",
       );
     }
-    validateScriptPackage(parsed);
+    const inspection = validateScriptPackage(parsed);
     const document = parsed as ScriptPackageDocument;
     const packageDir = join(this.#rootDir, sha256Text(document.manifest.id));
     const expectedPath = join(packageDir, `${document.manifest.version}.alrpkg`);
@@ -449,21 +466,27 @@ export class ScriptPackageLibrary {
         "Imported package is stored outside its canonical package path.",
       );
     }
-    const schemaText = document.files[document.manifest.configSchema.path];
-    let configSchema: unknown;
-    try {
-      configSchema = JSON.parse(schemaText ?? "");
-    } catch {
-      throw new ScriptPackageLibraryError(
-        "PACKAGE_LIBRARY_CONFIG_SCHEMA_INVALID",
-        "Imported package Config Schema could not be read.",
-      );
-    }
-    if (!isRecord(configSchema)) {
-      throw new ScriptPackageLibraryError(
-        "PACKAGE_LIBRARY_CONFIG_SCHEMA_INVALID",
-        "Imported package Config Schema must be an object.",
-      );
+    let configSchema: unknown = {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    };
+    if (inspection.packageKind === "script") {
+      const schemaText = document.files[document.manifest.configSchema!.path];
+      try {
+        configSchema = JSON.parse(schemaText ?? "");
+      } catch {
+        throw new ScriptPackageLibraryError(
+          "PACKAGE_LIBRARY_CONFIG_SCHEMA_INVALID",
+          "Imported package Config Schema could not be read.",
+        );
+      }
+      if (!isRecord(configSchema)) {
+        throw new ScriptPackageLibraryError(
+          "PACKAGE_LIBRARY_CONFIG_SCHEMA_INVALID",
+          "Imported package Config Schema must be an object.",
+        );
+      }
     }
     return {
       document,
@@ -471,6 +494,7 @@ export class ScriptPackageLibrary {
       packagePath,
       statePath: join(packageDir, `${document.manifest.version}.library.json`),
       receiptPath: join(packageDir, `${document.manifest.version}.import.json`),
+      packageKind: inspection.packageKind,
       configSchema: Object.freeze(structuredClone(configSchema)),
     };
   }

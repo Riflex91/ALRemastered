@@ -6,7 +6,7 @@
   <title>ALRemastered</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body data-current-verification-slice="12.6">
+<body data-current-verification-slice="13.1">
   <main class="shell">
     <header class="topbar">
       <div>
@@ -67,6 +67,21 @@
           <button id="dashboard-layout-export" type="button">Export profile</button>
           <button id="dashboard-layout-import" type="button">Import profile</button>
           <input id="dashboard-layout-import-file" type="file" accept=".json,application/json" hidden>
+        </div>
+        <div class="toolbar dashboard-package-export">
+          <label>
+            <span class="label">Dashboard package ID</span>
+            <input id="dashboard-package-id" type="text" maxlength="80" placeholder="org.example.my-dashboard">
+          </label>
+          <label>
+            <span class="label">Version</span>
+            <input id="dashboard-package-version" type="text" maxlength="80" value="1.0.0">
+          </label>
+          <label>
+            <span class="label">Author</span>
+            <input id="dashboard-package-author" type="text" maxlength="120" placeholder="Author name">
+          </label>
+          <button id="dashboard-package-export" type="button">Export as .alrpkg</button>
         </div>
         <div class="dashboard-layout-import-panel" id="dashboard-layout-import-panel" hidden>
           <div>
@@ -371,8 +386,8 @@
     <section class="account-panel" id="package-import-panel">
       <div class="diagnostics-heading">
         <div>
-          <p class="eyebrow">Phase 12 community packages</p>
-          <h2>Import Script Package</h2>
+          <p class="eyebrow">Community packages</p>
+          <h2>Import Package</h2>
         </div>
         <strong id="package-import-status" aria-live="polite">Choose a .alrpkg file</strong>
       </div>
@@ -390,6 +405,7 @@
           <article class="card"><span class="label">Package</span><strong id="package-import-name">—</strong></article>
           <article class="card"><span class="label">Version</span><strong id="package-import-version">—</strong></article>
           <article class="card"><span class="label">Author</span><strong id="package-import-author">—</strong></article>
+          <article class="card"><span class="label">Type</span><strong id="package-import-kind">—</strong></article>
           <article class="card"><span class="label">Integrity</span><strong id="package-import-integrity">—</strong></article>
         </div>
         <article class="card">
@@ -400,11 +416,15 @@
           <span class="label">Permissions</span>
           <div id="package-import-permissions"></div>
         </article>
-        <article class="card">
+        <article class="card" id="package-import-dashboard-card" hidden>
+          <span class="label">Dashboard profile</span>
+          <p id="package-import-dashboard">—</p>
+        </article>
+        <article class="card" id="package-import-config-card">
           <span class="label">Configuration schema</span>
           <pre id="package-import-config">—</pre>
         </article>
-        <article class="card">
+        <article class="card" id="package-import-code-card">
           <span class="label">Code</span>
           <select id="package-import-code-file" aria-label="Package code file"></select>
           <pre id="package-import-code">—</pre>
@@ -419,7 +439,7 @@
       <div class="diagnostics-heading">
         <div>
           <p class="eyebrow">Phase 12 community packages</p>
-          <h2>Script Library</h2>
+          <h2>Package Library</h2>
         </div>
         <div class="toolbar">
           <strong id="package-library-status" aria-live="polite">Loading…</strong>
@@ -497,6 +517,20 @@
         </div>
         <small class="selection-note" id="slice-12-6-live-test-note">
           Verifies available-version detection, Changelog display, confirmation of every newly requested permission, update persistence, previous-version rollback, stale-preview protection, cleanup, and uninterrupted runtime. Package code is never executed.
+        </small>
+      </div>
+    </div>
+
+    <div class="selection-content" data-verification-test="13.1" hidden>
+      <div>
+        <h3>Slice 13.1 one-click Dashboard Packages test</h3>
+        <div class="server-picker">
+          <button id="start-slice-13-1-live-test" type="button">Start test</button>
+          <strong id="slice-13-1-live-test-status" aria-live="polite">Ready</strong>
+          <button id="copy-slice-13-1-live-test-result" type="button" hidden>Copy last test result</button>
+        </div>
+        <small class="selection-note" id="slice-13-1-live-test-note">
+          Verifies Dashboard-only .alrpkg export/import, portable Character roles, explicit role mapping, persistent layout application, combined-pack deferral, cleanup, and uninterrupted runtime. No package code or gameplay action is executed.
         </small>
       </div>
     </div>

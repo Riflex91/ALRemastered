@@ -33,6 +33,7 @@ import {
 import type { ScriptPackageImporter } from "../packages/importer.ts";
 import type { ScriptPackageLibrary } from "../packages/library.ts";
 import type { ScriptPackageUpdateService } from "../packages/updater.ts";
+import type { DashboardPackageService } from "../packages/dashboard.ts";
 import type { CharacterCardsService } from "./character-cards.ts";
 import type { SetupWizardService, SetupWizardStartInput } from "./setup-wizard.ts";
 import type { TemplateConfigurationService } from "./template-config.ts";
@@ -105,6 +106,7 @@ export interface DashboardServerOptions {
   readonly scriptPackageImporter?: ScriptPackageImporter;
   readonly scriptPackageLibrary?: ScriptPackageLibrary;
   readonly scriptPackageUpdateService?: ScriptPackageUpdateService;
+  readonly dashboardPackageService?: DashboardPackageService;
   readonly rendererBridge?: RendererBridge;
   readonly rendererHandoffService?: RendererHandoffService;
   readonly alhdAssetProvider?: AlhdAssetProvider;
@@ -169,6 +171,7 @@ export class DashboardServer {
   readonly #scriptPackageImporter?: ScriptPackageImporter;
   readonly #scriptPackageLibrary?: ScriptPackageLibrary;
   readonly #scriptPackageUpdateService?: ScriptPackageUpdateService;
+  readonly #dashboardPackageService?: DashboardPackageService;
   readonly #rendererBridge?: RendererBridge;
   readonly #rendererHandoffService?: RendererHandoffService;
   readonly #alhdAssetProvider?: AlhdAssetProvider;
@@ -237,6 +240,7 @@ export class DashboardServer {
     this.#scriptPackageImporter = options.scriptPackageImporter;
     this.#scriptPackageLibrary = options.scriptPackageLibrary;
     this.#scriptPackageUpdateService = options.scriptPackageUpdateService;
+    this.#dashboardPackageService = options.dashboardPackageService;
     this.#rendererBridge = options.rendererBridge;
     this.#rendererHandoffService = options.rendererHandoffService;
     this.#alhdAssetProvider = options.alhdAssetProvider;
@@ -420,6 +424,94 @@ export class DashboardServer {
           throw new Error("packageId is required.");
         }
         return this.#scriptPackageUpdateService!.rollback(body.packageId);
+      });
+    }
+
+    if (method === "GET" && path === "/api/packages/dashboard") {
+      if (!this.#dashboardPackageService) {
+        return this.#json(response, { status: "unavailable" }, 503);
+      }
+      return this.#json(response, this.#dashboardPackageService.descriptor());
+    }
+    if (method === "GET" && path === "/api/packages/dashboard/self-test") {
+      if (!this.#dashboardPackageService) {
+        return this.#json(response, { error: "Dashboard package service is unavailable." }, 503);
+      }
+      return this.#runPackageImportAction(
+        response,
+        () => this.#dashboardPackageService!.runSelfTest(),
+      );
+    }
+    if (method === "POST" && path === "/api/packages/dashboard/export") {
+      if (!this.#dashboardPackageService) {
+        return this.#json(response, { error: "Dashboard package service is unavailable." }, 503);
+      }
+      return this.#runPackageImportAction(response, async () => {
+        const body = await this.#readJsonObject(request, 2 * 1024 * 1024);
+        for (const key of ["packageId", "name", "version", "author"] as const) {
+          if (typeof body[key] !== "string" || !body[key].trim()) {
+            throw new Error(`${key} is required.`);
+          }
+        }
+        if (!("portableProfile" in body)) {
+          throw new Error("portableProfile is required.");
+        }
+        return this.#dashboardPackageService!.createPackage({
+          packageId: body.packageId as string,
+          name: body.name as string,
+          version: body.version as string,
+          author: body.author as string,
+          portableProfile: body.portableProfile,
+        });
+      });
+    }
+    if (method === "POST" && path === "/api/packages/dashboard/inspect") {
+      if (!this.#dashboardPackageService) {
+        return this.#json(response, { error: "Dashboard package service is unavailable." }, 503);
+      }
+      return this.#runPackageImportAction(response, async () => {
+        const body = await this.#readJsonObject(request);
+        if (
+          typeof body.packageId !== "string" ||
+          !body.packageId.trim() ||
+          typeof body.version !== "string" ||
+          !body.version.trim()
+        ) {
+          throw new Error("packageId and version are required.");
+        }
+        return this.#dashboardPackageService!.inspectImported(body.packageId, body.version);
+      });
+    }
+    if (method === "POST" && path === "/api/packages/dashboard/apply") {
+      if (!this.#dashboardPackageService) {
+        return this.#json(response, { error: "Dashboard package service is unavailable." }, 503);
+      }
+      return this.#runPackageImportAction(response, async () => {
+        const body = await this.#readJsonObject(request);
+        if (
+          typeof body.packageId !== "string" ||
+          !body.packageId.trim() ||
+          typeof body.version !== "string" ||
+          !body.version.trim()
+        ) {
+          throw new Error("packageId and version are required.");
+        }
+        if (
+          body.roleMapping !== undefined &&
+          (
+            typeof body.roleMapping !== "object" ||
+            body.roleMapping === null ||
+            Array.isArray(body.roleMapping) ||
+            Object.values(body.roleMapping).some((value) => typeof value !== "string")
+          )
+        ) {
+          throw new Error("roleMapping must be an object of Character role IDs to Character IDs.");
+        }
+        return this.#dashboardPackageService!.applyImported({
+          packageId: body.packageId,
+          version: body.version,
+          roleMapping: body.roleMapping as Readonly<Record<string, string>> | undefined,
+        });
       });
     }
 

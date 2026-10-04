@@ -175,7 +175,7 @@ test("Slice 12.1 remains retained while Slice 12.4 is the current verification",
   const server = readFileSync(new URL("../src/dashboard/server.js", import.meta.url), "utf8");
   const format = readFileSync(new URL("../src/packages/format.js", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="12\.6"/);
+  assert.match(html, /data-current-verification-slice="13\.1"/);
   assert.match(html, /data-verification-test="11\.4" hidden/);
   assert.match(html, /data-verification-test="12\.1" hidden/);
   assert.match(html, /Slice 12\.1 one-click Script Package format test/);
