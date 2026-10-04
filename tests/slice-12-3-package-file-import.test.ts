@@ -257,13 +257,13 @@ test("Slice 12.3 dashboard endpoints preview and confirm package import without 
   }
 });
 
-test("Slice 12.3 is current verification and leaves link import/library/execution for later slices", () => {
+test("Slice 12.3 file import remains retained while Slice 12.4 owns remote import", () => {
   const html = readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
   const app = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
   const server = readFileSync(new URL("../src/dashboard/server.js", import.meta.url), "utf8");
   const importer = readFileSync(new URL("../src/packages/importer.js", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="12\.3"/);
+  assert.match(html, /data-current-verification-slice="12\.4"/);
   assert.match(html, /id="package-import-file"/);
   assert.match(html, /id="package-import-preview"/);
   assert.match(html, /id="package-import-confirm"/);
@@ -285,7 +285,7 @@ test("Slice 12.3 is current verification and leaves link import/library/executio
 
   assert.match(importer, /importedPackagesInactive: true/);
   assert.match(importer, /executionSupported: false/);
-  assert.match(importer, /linkImportSupported: false/);
-  assert.match(importer, /githubImportSupported: false/);
+  assert.match(importer, /linkImportSupported: true/);
+  assert.match(importer, /githubImportSupported: true/);
   assert.match(importer, /libraryManagementSupported: false/);
 });

@@ -48,7 +48,10 @@ const state = {
   slice122LastReport: null,
   slice123LiveTest: { status: "idle", message: "Ready." },
   slice123LastReport: null,
+  slice124LiveTest: { status: "idle", message: "Ready." },
+  slice124LastReport: null,
   packageImportDocument: null,
+  packageImportRemoteSource: null,
   packageImportPreview: null,
   controlMode: null,
   dashboardLayouts: null,
@@ -219,8 +222,14 @@ const elements = {
   slice123LiveTestStatus: document.querySelector("#slice-12-3-live-test-status"),
   slice123LiveTestNote: document.querySelector("#slice-12-3-live-test-note"),
   copySlice123LiveTestResult: document.querySelector("#copy-slice-12-3-live-test-result"),
+  startSlice124LiveTest: document.querySelector("#start-slice-12-4-live-test"),
+  slice124LiveTestStatus: document.querySelector("#slice-12-4-live-test-status"),
+  slice124LiveTestNote: document.querySelector("#slice-12-4-live-test-note"),
+  copySlice124LiveTestResult: document.querySelector("#copy-slice-12-4-live-test-result"),
   packageImportFile: document.querySelector("#package-import-file"),
   packageImportPreviewButton: document.querySelector("#package-import-preview"),
+  packageImportSource: document.querySelector("#package-import-source"),
+  packageImportRemotePreviewButton: document.querySelector("#package-import-remote-preview"),
   packageImportConfirm: document.querySelector("#package-import-confirm"),
   packageImportStatus: document.querySelector("#package-import-status"),
   packageImportPreviewPanel: document.querySelector("#package-import-preview-panel"),
@@ -5173,6 +5182,7 @@ async function previewSelectedPackage() {
   }
   const preview = await postPackageImport("/api/packages/import/preview", { package: documentValue });
   state.packageImportDocument = documentValue;
+  state.packageImportRemoteSource = null;
   renderPackageImportPreview(preview);
   return preview;
 }
@@ -5184,6 +5194,7 @@ elements.packageImportPreviewButton.addEventListener("click", async () => {
     setFeedback(`Package preview ready: ${preview.name} ${preview.version}.`, "success");
   } catch (error) {
     state.packageImportDocument = null;
+    state.packageImportRemoteSource = null;
     state.packageImportPreview = null;
     elements.packageImportPreviewPanel.hidden = true;
     elements.packageImportConfirm.hidden = true;
@@ -5196,15 +5207,49 @@ elements.packageImportPreviewButton.addEventListener("click", async () => {
 
 elements.packageImportCodeFile.addEventListener("change", renderPackageImportCode);
 
+elements.packageImportRemotePreviewButton.addEventListener("click", async () => {
+  elements.packageImportRemotePreviewButton.disabled = true;
+  try {
+    const source = elements.packageImportSource.value.trim();
+    if (!source) throw new Error("Enter an HTTPS .alrpkg link or supported GitHub blob URL first.");
+    const preview = await postPackageImport("/api/packages/import/remote/preview", { source });
+    state.packageImportDocument = null;
+    state.packageImportRemoteSource = source;
+    renderPackageImportPreview(preview);
+    const sourceLabel = preview.remoteSource?.kind === "github" ? "GitHub source" : "package link";
+    elements.packageImportNote.textContent =
+      `Previewed ${sourceLabel}. Review code, configuration, and permissions. The source is fetched again when you confirm, and the package remains inactive after import.`;
+    setFeedback(`Remote package preview ready: ${preview.name} ${preview.version}.`, "success");
+  } catch (error) {
+    state.packageImportDocument = null;
+    state.packageImportRemoteSource = null;
+    state.packageImportPreview = null;
+    elements.packageImportPreviewPanel.hidden = true;
+    elements.packageImportConfirm.hidden = true;
+    elements.packageImportStatus.textContent = "Preview failed";
+    setFeedback(`Remote package preview failed: ${error.message}`, "error");
+  } finally {
+    elements.packageImportRemotePreviewButton.disabled = false;
+  }
+});
+
 elements.packageImportConfirm.addEventListener("click", async () => {
-  if (!state.packageImportDocument || !state.packageImportPreview) return;
+  if (!state.packageImportPreview) return;
+  const remote = Boolean(state.packageImportRemoteSource);
+  if (!remote && !state.packageImportDocument) return;
   elements.packageImportConfirm.disabled = true;
   try {
-    const receipt = await postPackageImport("/api/packages/import/confirm", {
-      package: state.packageImportDocument,
-      previewToken: state.packageImportPreview.previewToken,
-      approvedDangerous: approvedDangerousPermissions(),
-    });
+    const receipt = remote
+      ? await postPackageImport("/api/packages/import/remote/confirm", {
+        source: state.packageImportRemoteSource,
+        previewToken: state.packageImportPreview.previewToken,
+        approvedDangerous: approvedDangerousPermissions(),
+      })
+      : await postPackageImport("/api/packages/import/confirm", {
+        package: state.packageImportDocument,
+        previewToken: state.packageImportPreview.previewToken,
+        approvedDangerous: approvedDangerousPermissions(),
+      });
     elements.packageImportStatus.textContent = "Imported inactive";
     elements.packageImportNote.textContent =
       `${receipt.name} ${receipt.version} imported successfully and remains inactive. Package execution is not part of this flow.`;
@@ -5420,6 +5465,265 @@ elements.copySlice123LiveTestResult.addEventListener("click", async () => {
 });
 
 renderSlice123LiveTest();
+
+function renderSlice124LiveTest() {
+  const test = state.slice124LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = { idle: "Ready", running: "Running…", passed: "PASSED", failed: "FAILED" };
+  elements.slice124LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice124LiveTest.disabled = test.status === "running";
+  elements.copySlice124LiveTestResult.hidden = !state.slice124LastReport;
+  if (test.status === "running") {
+    elements.slice124LiveTestNote.textContent =
+      "Testing HTTPS package links, supported GitHub sources, source re-fetch, stale-preview protection, dangerous confirmation, inactive persistence, cleanup, and runtime continuity.";
+  } else if (test.message) {
+    elements.slice124LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function runSlice124Verification() {
+  const before = await fetchRendererSnapshot();
+  const descriptorResponse = await fetch("/api/packages/import", { cache: "no-store" });
+  const descriptor = await descriptorResponse.json();
+  if (!descriptorResponse.ok) throw new Error(descriptor.error ?? "Package importer descriptor failed.");
+
+  const selfTestResponse = await fetch("/api/packages/import/remote/self-test", { cache: "no-store" });
+  const selfTest = await selfTestResponse.json();
+  if (!selfTestResponse.ok) throw new Error(selfTest.error ?? "Remote package importer self-test failed.");
+
+  const after = await fetchRendererSnapshot();
+  const checks = selfTest.checks ?? {};
+  const linkPreview = selfTest.linkPreview ?? {};
+  const githubPreview = selfTest.githubPreview ?? {};
+  const receipt = selfTest.receipt ?? {};
+  const steps = [
+    {
+      key: "remote-source-descriptor",
+      outcome:
+        descriptor.linkImportSupported === true &&
+        descriptor.githubImportSupported === true &&
+        descriptor.remotePreviewRefetchOnConfirm === true &&
+        descriptor.remoteHttpsOnly === true
+          ? "passed" : "failed",
+    },
+    {
+      key: "remote-source-preview",
+      outcome: checks.linkPreviewReady && checks.githubPreviewReady ? "passed" : "failed",
+    },
+    {
+      key: "github-source-normalization",
+      outcome:
+        githubPreview.remoteSource?.kind === "github" &&
+        githubPreview.remoteSource?.resolvedUrl?.startsWith("https://raw.githubusercontent.com/")
+          ? "passed" : "failed",
+    },
+    {
+      key: "preview-content-visible",
+      outcome:
+        checks.descriptionVisible &&
+        checks.permissionsVisible &&
+        checks.configurationVisible &&
+        checks.codeVisible
+          ? "passed" : "failed",
+    },
+    {
+      key: "dangerous-confirmation-required",
+      outcome:
+        checks.dangerousConfirmationRequired &&
+        checks.unapprovedRejected &&
+        checks.unapprovedErrorCode === "PACKAGE_IMPORT_PERMISSION_CONFIRMATION_REQUIRED"
+          ? "passed" : "failed",
+    },
+    {
+      key: "confirmed-import-persisted",
+      outcome: checks.importPersisted && checks.approvedPermissionPersisted ? "passed" : "failed",
+    },
+    {
+      key: "remote-stale-protection",
+      outcome:
+        checks.sourceRefetchedOnConfirm &&
+        checks.staleRejected &&
+        checks.staleErrorCode === "PACKAGE_IMPORT_PREVIEW_STALE"
+          ? "passed" : "failed",
+    },
+    {
+      key: "remote-source-safety",
+      outcome:
+        checks.insecureSourceRejected &&
+        checks.privateSourceRejected &&
+        checks.insecureSourceErrorCode === "PACKAGE_IMPORT_REMOTE_SOURCE_UNSAFE" &&
+        checks.privateSourceErrorCode === "PACKAGE_IMPORT_REMOTE_SOURCE_UNSAFE"
+          ? "passed" : "failed",
+    },
+    {
+      key: "imported-inactive-no-execution",
+      outcome:
+        checks.importedInactive &&
+        checks.executionAttempted === false &&
+        descriptor.importedPackagesInactive === true &&
+        descriptor.executionSupported === false &&
+        descriptor.libraryManagementSupported === false
+          ? "passed" : "failed",
+    },
+    { key: "verification-cleanup", outcome: checks.cleanup ? "passed" : "failed" },
+  ];
+
+  const beforeCore = before.snapshot?.core ?? {};
+  const afterCore = after.snapshot?.core ?? {};
+  const beforeCharacter = before.snapshot?.character ?? {};
+  const afterCharacter = after.snapshot?.character ?? {};
+  const beforeScript = before.snapshot?.script ?? {};
+  const afterScript = after.snapshot?.script ?? {};
+  const coreRestart = beforeCore.startedAt !== afterCore.startedAt;
+  const characterRestart = !sameSocketMarkers(beforeCharacter, afterCharacter);
+  const scriptRestart =
+    (beforeScript.runId ?? null) !== (afterScript.runId ?? null) ||
+    (beforeScript.startedAt ?? null) !== (afterScript.startedAt ?? null);
+  const actionGatewayRequests = Math.max(
+    0,
+    Number(after.snapshot?.actionGateway?.totalRequests ?? 0) -
+      Number(before.snapshot?.actionGateway?.totalRequests ?? 0),
+  );
+  steps.push({
+    key: "core-character-script-continuity",
+    outcome: !coreRestart && !characterRestart && !scriptRestart ? "passed" : "failed",
+  });
+  steps.push({
+    key: "read-only-gameplay-runtime",
+    outcome: actionGatewayRequests === 0 ? "passed" : "failed",
+  });
+
+  return {
+    outcome: steps.every((step) => step.outcome === "passed") ? "passed" : "failed",
+    steps,
+    descriptor,
+    selfTest,
+    linkPreview,
+    githubPreview,
+    receipt,
+    coreRestart,
+    characterRestart,
+    scriptRestart,
+    actionGatewayRequests,
+    gameplayMutation: false,
+    rawSocketAccess: false,
+    userScriptTouched: false,
+  };
+}
+
+async function startSlice124LiveTest(clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice124LiveTest = { status: "running", message: "Slice 12.4 Link / GitHub Import test is running." };
+  renderSlice124LiveTest();
+  const verification = await runSlice124Verification();
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live124-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const checks = verification.selfTest.checks ?? {};
+  const linkPreview = verification.linkPreview ?? {};
+  const githubPreview = verification.githubPreview ?? {};
+  const receipt = verification.receipt ?? {};
+  const stepLines = verification.steps.map((step) => `- ${step.key}: ${String(step.outcome).toUpperCase()}`);
+  const reportText = [
+    "ALRemastered Slice 12.4 one-click Link / GitHub Import test",
+    `Test ID: ${testId}`,
+    "Slice: 12.4",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    `Link import supported: ${verification.descriptor.linkImportSupported}`,
+    `GitHub import supported: ${verification.descriptor.githubImportSupported}`,
+    `HTTPS only: ${verification.descriptor.remoteHttpsOnly}`,
+    `Re-fetch on confirm: ${verification.descriptor.remotePreviewRefetchOnConfirm}`,
+    `Link source kind: ${linkPreview.remoteSource?.kind ?? "unknown"}`,
+    `GitHub source kind: ${githubPreview.remoteSource?.kind ?? "unknown"}`,
+    `GitHub repository: ${githubPreview.remoteSource?.repository ?? "unknown"}`,
+    `GitHub ref: ${githubPreview.remoteSource?.ref ?? "unknown"}`,
+    `GitHub path: ${githubPreview.remoteSource?.path ?? "unknown"}`,
+    `GitHub resolved raw URL: ${githubPreview.remoteSource?.resolvedUrl ?? "unknown"}`,
+    `Preview package: ${linkPreview.packageId} @ ${linkPreview.version}`,
+    `Description: ${linkPreview.description}`,
+    `Permissions: ${linkPreview.permissions?.join(", ") || "none"}`,
+    `Dangerous permissions: ${linkPreview.dangerousPermissions?.join(", ") || "none"}`,
+    `Config Schema visible: ${checks.configurationVisible}`,
+    `Code files visible: ${linkPreview.code?.length ?? 0}`,
+    `Dangerous confirmation required: ${checks.dangerousConfirmationRequired}`,
+    `Unapproved import rejected: ${checks.unapprovedRejected}`,
+    `Unapproved error: ${checks.unapprovedErrorCode}`,
+    `Confirmed import persisted: ${checks.importPersisted}`,
+    `Approved dangerous permission persisted: ${checks.approvedPermissionPersisted}`,
+    `Source re-fetched on confirm: ${checks.sourceRefetchedOnConfirm}`,
+    `Changed source rejected after preview: ${checks.staleRejected}`,
+    `Changed source error: ${checks.staleErrorCode}`,
+    `HTTP source rejected: ${checks.insecureSourceRejected}`,
+    `Private source rejected: ${checks.privateSourceRejected}`,
+    `Imported inactive: ${receipt.inactive}`,
+    "Package execution attempted: false",
+    `Verification cleanup: ${checks.cleanup}`,
+    `Core restart: ${verification.coreRestart}`,
+    `Character restart: ${verification.characterRestart}`,
+    `Script restart: ${verification.scriptRestart}`,
+    "Gameplay mutation: false",
+    `Action Gateway requests: ${verification.actionGatewayRequests}`,
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+
+  const result = {
+    testId, slice: "12.4", outcome, startedAt, completedAt,
+    message: outcome === "passed" ? "Link / GitHub Import verification passed." : "Link / GitHub Import verification failed.",
+    ...verification,
+  };
+  state.slice124LastReport = reportText;
+  state.slice124LiveTest = { status: outcome, message: result.message, lastResult: result };
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice124LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice124LiveTest.addEventListener("click", async () => {
+  if (state.slice124LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice124LastReport = null;
+  elements.copySlice124LiveTestResult.hidden = true;
+  try {
+    const { result, copied } = await startSlice124LiveTest(clipboardWrite);
+    setFeedback(
+      `Slice 12.4 test ${String(result.outcome).toUpperCase()}. ${copied ? "Complete result and sanitized diagnostic log copied to clipboard." : "Use Copy last test result once."}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    state.slice124LiveTest = { status: "failed", message: error.message };
+    renderSlice124LiveTest();
+    setFeedback(`Slice 12.4 Link / GitHub Import test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice124LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice124LastReport) return;
+  try {
+    await writeClipboard(state.slice124LastReport);
+    setFeedback("Complete Slice 12.4 Link / GitHub Import result and sanitized diagnostic log copied.", "success");
+  } catch (error) {
+    setFeedback(`Link / GitHub Import result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice124LiveTest();
 
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));

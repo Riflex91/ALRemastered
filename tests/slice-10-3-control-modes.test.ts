@@ -91,7 +91,7 @@ test("Slice 10.3 is the single current verification and keeps earlier harnesses 
   const server = readFileSync(new URL("../src/dashboard/server.js", import.meta.url), "utf8");
   const main = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="12\.3"/);
+  assert.match(html, /data-current-verification-slice="12\.4"/);
   assert.match(html, /data-verification-test="10\.2" hidden/);
   assert.match(html, /data-verification-test="10\.3" hidden/);
   assert.match(html, /id="control-mode"/);

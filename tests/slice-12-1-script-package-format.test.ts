@@ -169,13 +169,13 @@ test("Slice 12.1 exposes only read-only package-format endpoints", async () => {
   }
 });
 
-test("Slice 12.1 is the single current verification and retains later-slice boundaries", () => {
+test("Slice 12.1 remains retained while Slice 12.4 is the current verification", () => {
   const html = readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
   const app = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
   const server = readFileSync(new URL("../src/dashboard/server.js", import.meta.url), "utf8");
   const format = readFileSync(new URL("../src/packages/format.js", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="12\.3"/);
+  assert.match(html, /data-current-verification-slice="12\.4"/);
   assert.match(html, /data-verification-test="11\.4" hidden/);
   assert.match(html, /data-verification-test="12\.1" hidden/);
   assert.match(html, /Slice 12\.1 one-click Script Package format test/);

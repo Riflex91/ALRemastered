@@ -361,6 +361,54 @@ export class DashboardServer {
         () => this.#scriptPackageImporter!.runSelfTest(),
       );
     }
+    if (method === "GET" && path === "/api/packages/import/remote/self-test") {
+      if (!this.#scriptPackageImporter) {
+        return this.#json(response, { error: "Package importer is unavailable." }, 503);
+      }
+      return this.#runPackageImportAction(
+        response,
+        () => this.#scriptPackageImporter!.runRemoteSelfTest(),
+      );
+    }
+    if (method === "POST" && path === "/api/packages/import/remote/preview") {
+      if (!this.#scriptPackageImporter) {
+        return this.#json(response, { error: "Package importer is unavailable." }, 503);
+      }
+      return this.#runPackageImportAction(response, async () => {
+        const body = await this.#readJsonObject(request);
+        if (typeof body.source !== "string" || !body.source.trim()) {
+          throw new Error("Request body must include source.");
+        }
+        return this.#scriptPackageImporter!.previewRemote(body.source);
+      });
+    }
+    if (method === "POST" && path === "/api/packages/import/remote/confirm") {
+      if (!this.#scriptPackageImporter) {
+        return this.#json(response, { error: "Package importer is unavailable." }, 503);
+      }
+      return this.#runPackageImportAction(response, async () => {
+        const body = await this.#readJsonObject(request);
+        if (typeof body.source !== "string" || !body.source.trim()) {
+          throw new Error("Request body must include source.");
+        }
+        if (typeof body.previewToken !== "string" || !body.previewToken) {
+          throw new Error("Request body must include previewToken.");
+        }
+        if (
+          body.approvedDangerous !== undefined &&
+          (!Array.isArray(body.approvedDangerous) ||
+            body.approvedDangerous.some((value) => typeof value !== "string"))
+        ) {
+          throw new Error("approvedDangerous must be an array of permission strings.");
+        }
+        return this.#scriptPackageImporter!.importRemote({
+          source: body.source,
+          previewToken: body.previewToken,
+          approvedDangerous: body.approvedDangerous as readonly string[] | undefined,
+        });
+      });
+    }
+
     if (method === "POST" && path === "/api/packages/import/preview") {
       if (!this.#scriptPackageImporter) {
         return this.#json(response, { error: "Package importer is unavailable." }, 503);
