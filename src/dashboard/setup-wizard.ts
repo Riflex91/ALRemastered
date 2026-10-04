@@ -319,10 +319,10 @@ function normalizeFarmerConfiguration(input: Readonly<Record<string, unknown>> |
   const mp = source.mpThresholdPercent ?? 30;
   const loot = source.loot ?? true;
   const respawn = source.respawn ?? true;
-  if (!Number.isInteger(hp) || Number(hp) < 1 || Number(hp) > 99) {
+  if (typeof hp !== "number" || !Number.isInteger(hp) || hp < 1 || hp > 99) {
     throw new Error("HP threshold must be an integer from 1 to 99 percent.");
   }
-  if (!Number.isInteger(mp) || Number(mp) < 1 || Number(mp) > 99) {
+  if (typeof mp !== "number" || !Number.isInteger(mp) || mp < 1 || mp > 99) {
     throw new Error("MP threshold must be an integer from 1 to 99 percent.");
   }
   if (typeof loot !== "boolean" || typeof respawn !== "boolean") {
@@ -330,8 +330,8 @@ function normalizeFarmerConfiguration(input: Readonly<Record<string, unknown>> |
   }
   return {
     monster,
-    hpThresholdPercent: Number(hp),
-    mpThresholdPercent: Number(mp),
+    hpThresholdPercent: hp,
+    mpThresholdPercent: mp,
     loot,
     respawn,
   };
