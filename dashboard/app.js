@@ -2247,6 +2247,7 @@ function formatResource(current, maximum) {
 function renderCharacterCards() {
   const cardsState = state.characterCards;
   const cards = Array.isArray(cardsState?.cards) ? cardsState.cards : [];
+  dashboardEditor?.setCharacterSnapshots(cards);
   elements.characterCardsStatus.textContent = cardsState?.status === "ready"
     ? `${cardsState.activeSessionCount ?? 0} / ${cardsState.sessionLimit ?? 4} active`
     : "Unavailable";
