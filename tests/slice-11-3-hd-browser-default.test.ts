@@ -108,7 +108,7 @@ test("Slice 11.3 makes HD preferred only in Browser View and exposes required st
   assert.match(browserHtml, /id="browser-hd-texture-limit"/);
 
   assert.match(browser, /loadBrowserHdAssets/);
-  assert.match(browser, /mode: "HD"/);
+  assert.match(browser, /mode: definition\.usesHd \? "HD" : "Original"/);
   assert.match(browser, /\/api\/hd\/assets\/browser-plan/);
   assert.match(browser, /\/api\/hd\/assets\/content/);
   assert.match(browser, /verificationState\.alhdReady = true/);
