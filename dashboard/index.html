@@ -6,7 +6,7 @@
   <title>ALRemastered</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body data-current-verification-slice="9.2">
+<body data-current-verification-slice="9.3">
   <main class="shell">
     <header class="topbar">
       <div>
@@ -35,6 +35,15 @@
         <button id="dashboard-add-widget" type="button">Add widget</button>
       </div>
     </div>
+
+    <nav class="dashboard-page-tabs dashboard-editor-exempt" id="dashboard-page-tabs" aria-label="Dashboard pages">
+      <button class="dashboard-page-tab" type="button" data-dashboard-page="overview" aria-selected="true">Overview</button>
+      <button class="dashboard-page-tab" type="button" data-dashboard-page="combat" aria-selected="false">Combat</button>
+      <button class="dashboard-page-tab" type="button" data-dashboard-page="party" aria-selected="false">Party</button>
+      <button class="dashboard-page-tab" type="button" data-dashboard-page="merchant" aria-selected="false">Merchant</button>
+      <button class="dashboard-page-tab" type="button" data-dashboard-page="logs" aria-selected="false">Logs</button>
+      <button class="dashboard-page-tab" type="button" data-dashboard-page="debugging" aria-selected="false">Debugging</button>
+    </nav>
 
     <section class="update-banner" id="update-banner" hidden aria-live="polite">
       <div class="update-copy">
@@ -127,6 +136,20 @@
         </div>
         <small class="selection-note" id="slice-9-2-live-test-note">
           Exercises transient Character binding, field visibility, display options, widget duplication, independent duplicate configuration, and return to normal mode. The test does not persist layouts or dispatch gameplay actions.
+        </small>
+      </div>
+    </div>
+
+    <div class="selection-content" data-verification-test="9.3" hidden>
+      <div>
+        <h3>Slice 9.3 one-click dashboard pages and tabs test</h3>
+        <div class="server-picker">
+          <button id="start-slice-9-3-live-test" type="button">Start dashboard pages test</button>
+          <strong id="slice-9-3-live-test-status" aria-live="polite">Ready</strong>
+          <button id="copy-slice-9-3-live-test-result" type="button" hidden>Copy last test result</button>
+        </div>
+        <small class="selection-note" id="slice-9-3-live-test-note">
+          Exercises Overview, Combat, Party, Merchant, Logs, and Debugging tabs, verifies page filtering, and returns to Overview. Page selection is dashboard-only and is not persisted.
         </small>
       </div>
     </div>
