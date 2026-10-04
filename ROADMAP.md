@@ -3221,3 +3221,64 @@ Repository/release evidence:
 
 Slice 10.2 – Browser View may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
 
+---
+
+## Verification Evidence — Slice 10.2 Browser View
+
+**Status: VERIFIED**
+
+> 2026-10-04: VERIFIED on Windows with `0.1.0-alpha.67`. The real installed one-click test `live102-033065dd-80d4-4dd6-ba73-2379b7bfb539` passed Browser View open, current Character-state rendering, Browser View close, Core continuity, Character continuity, Script continuity, and read-only Action Gateway verification. The Browser View reused the Slice 10.1 read-only Renderer Bridge over SSE, the renderer subscriber count returned from `0 → 1 → 0`, no Core/Character/Script restart occurred, the test made no gameplay mutation, issued zero Action Gateway requests, used no raw socket access, and did not touch the user Script runtime. The sanitized diagnostic export contained 11 lines and reported `Secrets sanitized: yes`.
+
+Live verification evidence:
+
+- client: `0.1.0-alpha.67`;
+- platform: `win32`;
+- test ID: `live102-033065dd-80d4-4dd6-ba73-2379b7bfb539`;
+- outcome: `PASSED`;
+- test window: `2026-10-04T13:09:38.967Z → 2026-10-04T13:09:39.045Z`;
+- `browser-open: PASSED`;
+- `character-state-rendered: PASSED`;
+- `browser-close: PASSED`;
+- `core-continuity: PASSED`;
+- `character-continuity: PASSED`;
+- `script-continuity: PASSED`;
+- `read-only-action-gateway: PASSED`;
+- `Browser View opened: true`;
+- `Browser View closed: true`;
+- `Renderer transport: SSE`;
+- `Character state rendered: true`;
+- renderer subscribers: `0 → 1 → 0`;
+- `Core restart: false`;
+- `Character restart: false`;
+- `Script restart: false`;
+- `Gameplay mutation: false`;
+- `Action Gateway requests: 0`;
+- `Raw socket access: false`;
+- `User Script touched: false`;
+- diagnostic export: 11 log lines, `Secrets sanitized: yes`.
+
+Repository/release evidence:
+
+- implementation PR #133 final feature head: `379c2b85a837192740b2ed9ba211466668006a94`;
+- final implementation PR CI run `37204077360` completed on that exact head with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #133 merged with method `merge` into exact implementation main `0da5b42cb5e9b2c68f65261d13f66622bd51c0f3`;
+- exact post-implementation-main CI run `37204255045` completed with all four required jobs successful;
+- release publish run `37204416740` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.67`, tag `v0.1.0-alpha.67`, GitHub Release target, publish-run head, and tested implementation `main` were verified commit-identical at `0da5b42cb5e9b2c68f65261d13f66622bd51c0f3`;
+- published assets:
+  - Windows x64 installer SHA-256 `ab441f7d67dbdfa3ecf16117f6dde126a3d780c4e207b5441dfa1a276fa804a7`
+  - Linux x64 installer SHA-256 `ab9c0fe01a777e3f64c5761d5f9928042d3aaa5c34a57a77a3fe0522c4bfccab`
+  - updater manifest SHA-256 `9e6085f14f5e51bb5622dcfe4b3301ec1c2aabe3cbdad9017d3c52f9cb6b0441`.
+
+Scope/safety evidence:
+
+- Browser View is read-only and is served by the existing local dashboard server;
+- Character state is sourced through the existing Slice 10.1 Renderer Bridge snapshot/SSE transport;
+- opening and closing the Browser View does not restart Core, Character, or Script runtime;
+- no Renderer mutation API, gameplay mutation route, Action Gateway bypass, raw-socket shortcut, or user Script replacement was introduced;
+- Slice 10.3 Control Modes and Slice 10.4 live Headless/Browser handoff remain explicitly out of scope.
+
+**Canonical roadmap status: Slice 10.2 = VERIFIED.**
+
+Slice 10.3 – Control Modes may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
+
