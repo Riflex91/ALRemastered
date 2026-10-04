@@ -728,6 +728,35 @@
         </div>
       </div>
 
+
+      <div class="selection-content beginner-character-cards">
+        <div>
+          <p class="eyebrow">Phase 8 beginner dashboard</p>
+          <h3>Character Cards</h3>
+          <div class="toolbar">
+            <strong id="character-cards-status" aria-live="polite">Waiting</strong>
+          </div>
+          <div id="character-cards-grid" class="status-grid character-cards-grid" aria-label="Character Cards"></div>
+          <small class="selection-note" id="character-cards-note">
+            Start and Stop use the existing primary and managed Character session controls. Pause is enabled only for a running Script on the primary Character. Managed per-Character Script runtimes are intentionally not introduced in Slice 8.1.
+          </small>
+        </div>
+      </div>
+
+      <div class="selection-content">
+        <div>
+          <h3>Slice 8.1 one-click Character Cards test</h3>
+          <div class="server-picker">
+            <button id="start-slice-8-1-live-test" type="button">Start Character Cards test</button>
+            <strong id="slice-8-1-live-test-status" aria-live="polite">Ready</strong>
+            <button id="copy-slice-8-1-live-test-result" type="button" hidden>Copy last test result</button>
+          </div>
+          <small class="selection-note" id="slice-8-1-live-test-note">
+            Requires one connected primary Character, one offline secondary Character, one free session slot, and no running or paused user Script. The test verifies live HP/MP, Map, Target, Script and Health, managed Start/Stop, and primary Pause through an isolated probe runtime without gameplay mutation or raw sockets.
+          </small>
+        </div>
+      </div>
+
       <div class="selection-content">
         <div>
           <h3>Multi-character sessions</h3>
