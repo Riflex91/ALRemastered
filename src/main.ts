@@ -21,6 +21,7 @@ import { CharacterCardsService } from "./dashboard/character-cards.ts";
 import { SetupWizardService } from "./dashboard/setup-wizard.ts";
 import { TemplateConfigurationService } from "./dashboard/template-config.ts";
 import { ExplainabilityService } from "./dashboard/explainability.ts";
+import { DashboardLayoutStore } from "./dashboard/layout-store.ts";
 import { DashboardServer } from "./dashboard/server.ts";
 import { DiagnosticsService } from "./diagnostics/service.ts";
 import { AdventureLandGameDataCache } from "./game/data-cache.ts";
@@ -95,6 +96,9 @@ if (args.has("--paths")) {
 }
 
 const userPaths = getUserPaths();
+const dashboardLayoutStore = new DashboardLayoutStore(
+  join(userPaths.configDir, "dashboard-layouts.json"),
+);
 const logger = new Logger({
   component: "core",
   logFile: join(userPaths.logsDir, "client.log"),
@@ -910,6 +914,7 @@ dashboard = new DashboardServer({
   setupWizardService,
   templateConfigurationService,
   explainabilityService,
+  dashboardLayoutStore,
   actionGateway,
   movementService,
   attackService,
