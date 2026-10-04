@@ -16,6 +16,10 @@ const state = {
   slice92LastReport: null,
   slice93LiveTest: { status: "idle", message: "Ready." },
   slice93LastReport: null,
+  slice94LiveTest: { status: "idle", message: "Ready." },
+  slice94LastReport: null,
+  dashboardLayouts: null,
+  dashboardViewport: null,
   status: null,
   account: null,
   selection: null,
@@ -99,6 +103,16 @@ const elements = {
   dashboardWidgetAddSelect: document.querySelector("#dashboard-widget-add-select"),
   dashboardAddWidget: document.querySelector("#dashboard-add-widget"),
   dashboardPageTabs: document.querySelector("#dashboard-page-tabs"),
+  dashboardLayoutProfile: document.querySelector("#dashboard-layout-profile"),
+  dashboardLayoutProfileName: document.querySelector("#dashboard-layout-profile-name"),
+  dashboardCreateProfile: document.querySelector("#dashboard-create-profile"),
+  dashboardDeleteProfile: document.querySelector("#dashboard-delete-profile"),
+  dashboardLayoutViewport: document.querySelector("#dashboard-layout-viewport"),
+  dashboardSaveLayout: document.querySelector("#dashboard-save-layout"),
+  dashboardUndoLayout: document.querySelector("#dashboard-undo-layout"),
+  dashboardRedoLayout: document.querySelector("#dashboard-redo-layout"),
+  dashboardResetLayout: document.querySelector("#dashboard-reset-layout"),
+  dashboardLayoutNote: document.querySelector("#dashboard-layout-note"),
   startSlice91LiveTest: document.querySelector("#start-slice-9-1-live-test"),
   slice91LiveTestStatus: document.querySelector("#slice-9-1-live-test-status"),
   slice91LiveTestNote: document.querySelector("#slice-9-1-live-test-note"),
@@ -111,6 +125,10 @@ const elements = {
   slice93LiveTestStatus: document.querySelector("#slice-9-3-live-test-status"),
   slice93LiveTestNote: document.querySelector("#slice-9-3-live-test-note"),
   copySlice93LiveTestResult: document.querySelector("#copy-slice-9-3-live-test-result"),
+  startSlice94LiveTest: document.querySelector("#start-slice-9-4-live-test"),
+  slice94LiveTestStatus: document.querySelector("#slice-9-4-live-test-status"),
+  slice94LiveTestNote: document.querySelector("#slice-9-4-live-test-note"),
+  copySlice94LiveTestResult: document.querySelector("#copy-slice-9-4-live-test-result"),
   coreStatus: document.querySelector("#core-status"),
   version: document.querySelector("#client-version"),
   uptime: document.querySelector("#uptime"),
@@ -450,6 +468,105 @@ function mountCurrentVerification() {
 mountCurrentVerification();
 
 let dashboardEditor;
+const dashboardSmallViewport = globalThis.matchMedia?.("(max-width: 720px)");
+
+function currentDashboardViewport() {
+  return dashboardSmallViewport?.matches ? "small" : "desktop";
+}
+
+function activeDashboardLayoutProfile() {
+  const layouts = state.dashboardLayouts;
+  return layouts?.profiles?.find((profile) => profile.id === layouts.activeProfileId) ?? null;
+}
+
+async function dashboardLayoutRequest(path, body) {
+  const response = await fetch(path, {
+    method: body === undefined ? "GET" : "POST",
+    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    cache: "no-store",
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || `Dashboard layout request failed with HTTP ${response.status}.`);
+  }
+  return data;
+}
+
+function dashboardLayoutsEqual(left, right) {
+  return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
+}
+
+function renderDashboardLayoutControls() {
+  const layouts = state.dashboardLayouts;
+  const profile = activeDashboardLayoutProfile();
+  const viewport = state.dashboardViewport ?? currentDashboardViewport();
+
+  elements.dashboardLayoutProfile.replaceChildren();
+  if (!layouts?.profiles?.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "Loading profiles…";
+    elements.dashboardLayoutProfile.append(option);
+    elements.dashboardLayoutProfile.disabled = true;
+  } else {
+    for (const item of layouts.profiles) {
+      const option = document.createElement("option");
+      option.value = item.id;
+      option.textContent = item.name;
+      elements.dashboardLayoutProfile.append(option);
+    }
+    elements.dashboardLayoutProfile.value = layouts.activeProfileId;
+    elements.dashboardLayoutProfile.disabled = false;
+  }
+
+  elements.dashboardLayoutViewport.textContent =
+    viewport === "small" ? "Small-screen layout" : "Desktop layout";
+  elements.dashboardDeleteProfile.disabled = !layouts || layouts.profiles.length <= 1;
+  elements.dashboardSaveLayout.disabled = !profile;
+  elements.dashboardResetLayout.disabled = !profile;
+  elements.dashboardUndoLayout.disabled = !dashboardEditor?.canUndo();
+  elements.dashboardRedoLayout.disabled = !dashboardEditor?.canRedo();
+
+  if (!profile || !dashboardEditor) {
+    elements.dashboardLayoutNote.textContent =
+      "Saved layout profiles persist across ALRemastered restarts. Undo and redo are session-local.";
+    return;
+  }
+
+  const saved = profile.layouts?.[viewport];
+  const current = dashboardEditor.layoutState();
+  const baseline = dashboardEditor.initialLayout;
+  const dirty = saved
+    ? !dashboardLayoutsEqual(current, saved)
+    : !dashboardLayoutsEqual(current, baseline);
+  const storedLabel = saved ? "saved" : "using default";
+  elements.dashboardLayoutNote.textContent =
+    `Profile "${profile.name}" · ${viewport === "small" ? "Small-screen" : "Desktop"} layout ${storedLabel}${dirty ? " · unsaved changes" : ""}. Profiles persist across restarts; Undo/Redo is session-local.`;
+}
+
+async function applyActiveDashboardLayout({ clearHistory = true } = {}) {
+  if (!dashboardEditor) return;
+  const profile = activeDashboardLayoutProfile();
+  const viewport = state.dashboardViewport ?? currentDashboardViewport();
+  const saved = profile?.layouts?.[viewport];
+  if (saved) {
+    dashboardEditor.applySavedLayout(saved, { history: false });
+  } else {
+    dashboardEditor.resetLayout({ history: false });
+  }
+  if (clearHistory) dashboardEditor.clearHistory();
+  renderDashboardEditorState();
+}
+
+async function refreshDashboardLayouts({ apply = false } = {}) {
+  state.dashboardLayouts = await dashboardLayoutRequest("/api/dashboard-layouts");
+  state.dashboardViewport = currentDashboardViewport();
+  if (apply) await applyActiveDashboardLayout();
+  else renderDashboardLayoutControls();
+  return state.dashboardLayouts;
+}
+
 function renderDashboardEditMode() {
   if (!dashboardEditor) return;
   const editing = dashboardEditor.enabled;
@@ -492,13 +609,19 @@ function renderDashboardPages() {
 function renderDashboardEditorState() {
   renderDashboardEditMode();
   renderDashboardPages();
+  renderDashboardLayoutControls();
 }
 
 dashboardEditor = new DashboardEditor({
   document,
   onChange: () => renderDashboardEditorState(),
 }).init();
+state.dashboardViewport = currentDashboardViewport();
 renderDashboardEditorState();
+void refreshDashboardLayouts({ apply: true }).catch((error) => {
+  elements.dashboardLayoutNote.textContent = `Layout persistence unavailable: ${error.message}`;
+  setFeedback(`Dashboard layout profiles could not be loaded: ${error.message}`, "error");
+});
 
 elements.dashboardPageTabs.addEventListener("click", (event) => {
   const button = event.target.closest("[data-dashboard-page]");
@@ -506,14 +629,14 @@ elements.dashboardPageTabs.addEventListener("click", (event) => {
   const pageId = button.dataset.dashboardPage;
   const page = dashboardEditor.pages().find((item) => item.id === pageId);
   dashboardEditor.setActivePage(pageId);
-  setFeedback(`Dashboard page changed to ${page?.label ?? pageId}. Page selection is not persisted.`);
+  setFeedback(`Dashboard page changed to ${page?.label ?? pageId}. Use Save layout to persist this page selection.`);
 });
 
 elements.editDashboard.addEventListener("click", () => {
   dashboardEditor.toggle();
   setFeedback(
     dashboardEditor.enabled
-      ? "Dashboard edit mode enabled. Drag, resize, configure, duplicate, remove, or add widgets. Changes are not persisted."
+      ? "Dashboard edit mode enabled. Use Save layout to persist changes in the active profile and viewport."
       : "Dashboard edit mode disabled. Normal dashboard controls are active.",
   );
 });
@@ -522,7 +645,118 @@ elements.dashboardAddWidget.addEventListener("click", () => {
   const id = elements.dashboardWidgetAddSelect.value;
   if (!id) return;
   dashboardEditor.addWidget(id);
-  setFeedback("Widget added to the current dashboard session.", "success");
+  setFeedback("Widget added. Use Save layout to persist the change.", "success");
+});
+
+elements.dashboardLayoutProfile.addEventListener("change", async () => {
+  const profileId = elements.dashboardLayoutProfile.value;
+  if (!profileId) return;
+  try {
+    state.dashboardLayouts = await dashboardLayoutRequest("/api/dashboard-layouts/select", { profileId });
+    await applyActiveDashboardLayout();
+    const profile = activeDashboardLayoutProfile();
+    setFeedback(`Dashboard layout profile changed to ${profile?.name ?? profileId}.`, "success");
+  } catch (error) {
+    setFeedback(`Dashboard profile switch failed: ${error.message}`, "error");
+    renderDashboardLayoutControls();
+  }
+});
+
+elements.dashboardCreateProfile.addEventListener("click", async () => {
+  const name = elements.dashboardLayoutProfileName.value.trim();
+  if (!name) {
+    setFeedback("Enter a profile name first.", "error");
+    return;
+  }
+  try {
+    state.dashboardLayouts = await dashboardLayoutRequest("/api/dashboard-layouts/profile", { name });
+    elements.dashboardLayoutProfileName.value = "";
+    await applyActiveDashboardLayout();
+    setFeedback(`Dashboard profile "${name}" created.`, "success");
+  } catch (error) {
+    setFeedback(`Dashboard profile creation failed: ${error.message}`, "error");
+  }
+});
+
+elements.dashboardDeleteProfile.addEventListener("click", async () => {
+  const profile = activeDashboardLayoutProfile();
+  if (!profile) return;
+  if (globalThis.confirm && !globalThis.confirm(`Delete dashboard profile "${profile.name}"?`)) return;
+  try {
+    state.dashboardLayouts = await dashboardLayoutRequest("/api/dashboard-layouts/delete", {
+      profileId: profile.id,
+    });
+    await applyActiveDashboardLayout();
+    setFeedback(`Dashboard profile "${profile.name}" deleted.`, "success");
+  } catch (error) {
+    setFeedback(`Dashboard profile deletion failed: ${error.message}`, "error");
+  }
+});
+
+elements.dashboardSaveLayout.addEventListener("click", async () => {
+  const profile = activeDashboardLayoutProfile();
+  if (!profile) return;
+  const viewport = state.dashboardViewport ?? currentDashboardViewport();
+  try {
+    state.dashboardLayouts = await dashboardLayoutRequest("/api/dashboard-layouts/save", {
+      profileId: profile.id,
+      viewport,
+      layout: dashboardEditor.layoutState(),
+    });
+    renderDashboardLayoutControls();
+    setFeedback(
+      `${viewport === "small" ? "Small-screen" : "Desktop"} layout saved to profile "${profile.name}".`,
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Dashboard layout save failed: ${error.message}`, "error");
+  }
+});
+
+elements.dashboardUndoLayout.addEventListener("click", () => {
+  if (!dashboardEditor.undo()) return;
+  setFeedback("Dashboard layout change undone. Save layout to persist the restored state.", "success");
+});
+
+elements.dashboardRedoLayout.addEventListener("click", () => {
+  if (!dashboardEditor.redo()) return;
+  setFeedback("Dashboard layout change redone. Save layout to persist the restored state.", "success");
+});
+
+elements.dashboardResetLayout.addEventListener("click", async () => {
+  const profile = activeDashboardLayoutProfile();
+  if (!profile) return;
+  const viewport = state.dashboardViewport ?? currentDashboardViewport();
+  try {
+    dashboardEditor.resetLayout({ history: true });
+    state.dashboardLayouts = await dashboardLayoutRequest("/api/dashboard-layouts/reset", {
+      profileId: profile.id,
+      viewport,
+    });
+    renderDashboardEditorState();
+    setFeedback(
+      `${viewport === "small" ? "Small-screen" : "Desktop"} layout reset to the built-in default.`,
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Dashboard layout reset failed: ${error.message}`, "error");
+  }
+});
+
+const handleDashboardViewportChange = async () => {
+  const nextViewport = currentDashboardViewport();
+  if (state.dashboardViewport === nextViewport) return;
+  state.dashboardViewport = nextViewport;
+  await applyActiveDashboardLayout();
+  setFeedback(
+    `Dashboard switched to the ${nextViewport === "small" ? "Small-screen" : "Desktop"} layout profile.`,
+  );
+};
+
+dashboardSmallViewport?.addEventListener?.("change", () => {
+  void handleDashboardViewportChange().catch((error) => {
+    setFeedback(`Dashboard viewport profile switch failed: ${error.message}`, "error");
+  });
 });
 
 function renderSlice91LiveTest() {
