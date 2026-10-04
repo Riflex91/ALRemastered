@@ -3,9 +3,34 @@ export const DASHBOARD_GRID_ROW_PX = 48;
 export const DASHBOARD_MIN_COLUMNS = 3;
 export const DASHBOARD_MIN_HEIGHT_PX = 96;
 export const DASHBOARD_DISPLAY_MODES = ["standard", "compact", "spacious"];
+export const DASHBOARD_PAGES = [
+  { id: "overview", label: "Overview" },
+  { id: "combat", label: "Combat" },
+  { id: "party", label: "Party" },
+  { id: "merchant", label: "Merchant" },
+  { id: "logs", label: "Logs" },
+  { id: "debugging", label: "Debugging" },
+];
 
 export function normalizeDashboardDisplayMode(value) {
   return DASHBOARD_DISPLAY_MODES.includes(value) ? value : "standard";
+}
+
+export function normalizeDashboardPage(value) {
+  return DASHBOARD_PAGES.some((page) => page.id === value) ? value : "overview";
+}
+
+export function dashboardPagesForWidget(id, label = "") {
+  const text = `${id ?? ""} ${label ?? ""}`.toLowerCase();
+  const pages = new Set(["overview"]);
+  if (/action-gateway|script-runtime|explainability|combat/.test(text)) pages.add("combat");
+  if (/script-runtime|setup-wizard|character|selection|party/.test(text)) pages.add("party");
+  if (/script-runtime|account|setup-wizard|character|selection|merchant/.test(text)) pages.add("merchant");
+  if (/script-runtime|console|diagnostic|log/.test(text)) pages.add("logs");
+  if (/action-gateway|console|diagnostic|game-data|explainability|current-verification|debug/.test(text)) {
+    pages.add("debugging");
+  }
+  return DASHBOARD_PAGES.map((page) => page.id).filter((pageId) => pages.has(pageId));
 }
 
 function dashboardFieldLabel(element, index) {
@@ -90,6 +115,7 @@ export class DashboardEditor {
     this.characterOptions = [];
     this.characterSnapshots = new Map();
     this.activeConfigId = null;
+    this.activePage = "overview";
     this.duplicateSequence = 0;
   }
 
@@ -114,14 +140,17 @@ export class DashboardEditor {
       widget.dataset.widgetColumns = String(DASHBOARD_GRID_COLUMNS);
       widget.style.setProperty("--dashboard-widget-columns", String(DASHBOARD_GRID_COLUMNS));
       grid.append(widget);
+      const label = widgetLabel(widget, index);
       this.#registerWidget(id, widget, {
-        label: widgetLabel(widget, index),
+        label,
         duplicateOf: null,
+        pages: dashboardPagesForWidget(id, label),
       });
     });
 
     this.grid = grid;
     this.document.body.dataset.dashboardEditMode = "false";
+    this.document.body.dataset.dashboardPage = this.activePage;
     return this;
   }
 
@@ -136,6 +165,31 @@ export class DashboardEditor {
     return [...this.removed]
       .map((id) => ({ id, label: this.widgets.get(id)?.label ?? id }))
       .sort((a, b) => a.label.localeCompare(b.label));
+  }
+
+  pages() {
+    return DASHBOARD_PAGES.map((page) => ({ ...page }));
+  }
+
+  widgetPages(id) {
+    return [...(this.widgets.get(id)?.pages ?? [])];
+  }
+
+  visibleWidgetIds(pageId = this.activePage) {
+    const page = normalizeDashboardPage(pageId);
+    return this.widgetIds().filter((id) => {
+      const record = this.widgets.get(id);
+      return Boolean(record) && !this.removed.has(id) && record.pages.includes(page);
+    });
+  }
+
+  setActivePage(pageId, { notify = true } = {}) {
+    const page = normalizeDashboardPage(pageId);
+    this.activePage = page;
+    if (this.document?.body) this.document.body.dataset.dashboardPage = page;
+    for (const id of this.widgets.keys()) this.#syncPageVisibility(id);
+    if (notify) this.onChange();
+    return this.activePage;
   }
 
   setCharacterOptions(characters = []) {
@@ -276,6 +330,7 @@ export class DashboardEditor {
     this.#registerWidget(duplicateId, duplicate, {
       label: `${source.label} copy`,
       duplicateOf: id,
+      pages: [...source.pages],
     });
     this.configureWidget(duplicateId, {
       characterId: source.characterId,
@@ -360,6 +415,7 @@ export class DashboardEditor {
     this.removed.add(id);
     widget.dataset.editorRemoved = "true";
     widget.hidden = true;
+    this.#syncPageVisibility(id);
     this.onChange();
     return true;
   }
@@ -370,6 +426,7 @@ export class DashboardEditor {
     this.removed.delete(id);
     delete widget.dataset.editorRemoved;
     widget.hidden = false;
+    this.#syncPageVisibility(id);
     this.onChange();
     return true;
   }
@@ -393,6 +450,7 @@ export class DashboardEditor {
       configurations,
       characterOptions: this.characterOptions.map((character) => ({ ...character })),
       characterSnapshots: [...this.characterSnapshots.entries()].map(([id, value]) => [id, { ...value }]),
+      activePage: this.activePage,
       duplicateSequence: this.duplicateSequence,
     };
   }
@@ -413,6 +471,8 @@ export class DashboardEditor {
     this.characterSnapshots = new Map(
       (snapshot.characterSnapshots ?? []).map(([id, value]) => [id, { ...value }]),
     );
+    this.activePage = normalizeDashboardPage(snapshot.activePage);
+    if (this.document?.body) this.document.body.dataset.dashboardPage = this.activePage;
     this.duplicateSequence = Number(snapshot.duplicateSequence ?? this.duplicateSequence);
     for (const id of snapshot.order ?? []) {
       const widget = this.widgets.get(id)?.element;
@@ -446,6 +506,7 @@ export class DashboardEditor {
         hiddenFields: [],
         displayMode: "standard",
       }, { notify: false });
+      this.#syncPageVisibility(id);
     }
     if (snapshot.enabled) this.enable();
     else this.disable();
@@ -453,7 +514,7 @@ export class DashboardEditor {
     return true;
   }
 
-  #registerWidget(id, widget, { label, duplicateOf }) {
+  #registerWidget(id, widget, { label, duplicateOf, pages }) {
     const fields = [...widget.children]
       .filter((child) =>
         !child.classList.contains("dashboard-widget-controls") &&
@@ -491,15 +552,25 @@ export class DashboardEditor {
       characterId: "",
       hiddenFields: new Set(),
       displayMode: "standard",
+      pages: [...new Set((pages ?? dashboardPagesForWidget(id, label)).map(normalizeDashboardPage))],
       badge,
       characterContext,
       configPanel,
       mirrorObserver: null,
     });
     widget.dataset.widgetDisplay = "standard";
+    widget.dataset.dashboardPages = this.widgets.get(id).pages.join(" ");
     this.#installWidgetControls(id, widget);
     this.#installDragTarget(id, widget);
     this.#buildConfigurationPanel(id);
+    this.#syncPageVisibility(id);
+  }
+
+  #syncPageVisibility(id) {
+    const record = this.widgets.get(id);
+    if (!record) return;
+    const visible = !this.removed.has(id) && record.pages.includes(this.activePage);
+    record.element.dataset.dashboardPageVisible = String(visible);
   }
 
   #renderCharacterBadge(id) {
@@ -801,6 +872,78 @@ export class DashboardEditor {
     this.document.removeEventListener("pointerup", this.#handleResizeEnd);
     this.document.removeEventListener("pointercancel", this.#handleResizeEnd);
     this.resizeSession = null;
+  }
+}
+
+export async function runDashboardPagesVerification(editor) {
+  const snapshot = editor.snapshot();
+  const steps = [];
+  try {
+    const expectedPages = ["overview", "combat", "party", "merchant", "logs", "debugging"];
+    const pages = editor.pages();
+    steps.push({
+      key: "page-catalog",
+      outcome: pages.map((page) => page.id).join("|") === expectedPages.join("|")
+        ? "passed"
+        : "failed",
+    });
+
+    const overviewIds = editor.visibleWidgetIds("overview");
+    editor.setActivePage("overview");
+    steps.push({
+      key: "overview-page",
+      outcome:
+        editor.activePage === "overview" &&
+        editor.document.body.dataset.dashboardPage === "overview" &&
+        overviewIds.length > 0
+          ? "passed"
+          : "failed",
+    });
+
+    for (const pageId of expectedPages.slice(1)) {
+      editor.setActivePage(pageId);
+      const visibleIds = editor.visibleWidgetIds(pageId);
+      const visible = visibleIds.every((id) =>
+        editor.widgets.get(id)?.element.dataset.dashboardPageVisible === "true"
+      );
+      const hidden = editor.widgetIds()
+        .filter((id) => !visibleIds.includes(id) && !editor.removed.has(id))
+        .every((id) => editor.widgets.get(id)?.element.dataset.dashboardPageVisible === "false");
+      steps.push({
+        key: `${pageId}-page`,
+        outcome:
+          editor.activePage === pageId &&
+          editor.document.body.dataset.dashboardPage === pageId &&
+          visibleIds.length > 0 &&
+          visible &&
+          hidden
+            ? "passed"
+            : "failed",
+      });
+    }
+
+    editor.setActivePage("overview");
+    steps.push({
+      key: "return-to-overview",
+      outcome:
+        editor.activePage === "overview" &&
+        editor.visibleWidgetIds().length === overviewIds.length
+          ? "passed"
+          : "failed",
+    });
+
+    return {
+      outcome: steps.every((step) => step.outcome === "passed") ? "passed" : "failed",
+      steps,
+      pages,
+      persistence: false,
+      gameplayMutation: false,
+      actionGatewayRequests: 0,
+      rawSocketAccess: false,
+      userScriptTouched: false,
+    };
+  } finally {
+    editor.restore(snapshot);
   }
 }
 
