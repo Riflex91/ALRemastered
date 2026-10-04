@@ -31,6 +31,7 @@ import {
   scriptPackagePermissionDescriptor,
 } from "../packages/permissions.ts";
 import type { ScriptPackageImporter } from "../packages/importer.ts";
+import type { ScriptPackageLibrary } from "../packages/library.ts";
 import type { CharacterCardsService } from "./character-cards.ts";
 import type { SetupWizardService, SetupWizardStartInput } from "./setup-wizard.ts";
 import type { TemplateConfigurationService } from "./template-config.ts";
@@ -101,6 +102,7 @@ export interface DashboardServerOptions {
   readonly explainabilityService?: ExplainabilityService;
   readonly dashboardLayoutStore?: DashboardLayoutStore;
   readonly scriptPackageImporter?: ScriptPackageImporter;
+  readonly scriptPackageLibrary?: ScriptPackageLibrary;
   readonly rendererBridge?: RendererBridge;
   readonly rendererHandoffService?: RendererHandoffService;
   readonly alhdAssetProvider?: AlhdAssetProvider;
@@ -163,6 +165,7 @@ export class DashboardServer {
   readonly #explainabilityService?: ExplainabilityService;
   readonly #dashboardLayoutStore?: DashboardLayoutStore;
   readonly #scriptPackageImporter?: ScriptPackageImporter;
+  readonly #scriptPackageLibrary?: ScriptPackageLibrary;
   readonly #rendererBridge?: RendererBridge;
   readonly #rendererHandoffService?: RendererHandoffService;
   readonly #alhdAssetProvider?: AlhdAssetProvider;
@@ -229,6 +232,7 @@ export class DashboardServer {
     this.#explainabilityService = options.explainabilityService;
     this.#dashboardLayoutStore = options.dashboardLayoutStore;
     this.#scriptPackageImporter = options.scriptPackageImporter;
+    this.#scriptPackageLibrary = options.scriptPackageLibrary;
     this.#rendererBridge = options.rendererBridge;
     this.#rendererHandoffService = options.rendererHandoffService;
     this.#alhdAssetProvider = options.alhdAssetProvider;
@@ -346,6 +350,68 @@ export class DashboardServer {
     if (method === "GET" && path === "/api/packages/permissions/self-test") {
       return this.#json(response, runScriptPackagePermissionSelfTest());
     }
+    if (method === "GET" && path === "/api/packages/library") {
+      if (!this.#scriptPackageLibrary) {
+        return this.#json(response, { status: "unavailable" }, 503);
+      }
+      return this.#json(response, this.#scriptPackageLibrary.snapshot());
+    }
+    if (method === "GET" && path === "/api/packages/library/descriptor") {
+      if (!this.#scriptPackageLibrary) {
+        return this.#json(response, { status: "unavailable" }, 503);
+      }
+      return this.#json(response, this.#scriptPackageLibrary.descriptor());
+    }
+    if (method === "GET" && path === "/api/packages/library/self-test") {
+      if (!this.#scriptPackageLibrary) {
+        return this.#json(response, { error: "Script Library is unavailable." }, 503);
+      }
+      return this.#runPackageImportAction(
+        response,
+        () => this.#scriptPackageLibrary!.runSelfTest(),
+      );
+    }
+    if (method === "POST" && path === "/api/packages/library/active") {
+      if (!this.#scriptPackageLibrary) {
+        return this.#json(response, { error: "Script Library is unavailable." }, 503);
+      }
+      return this.#runPackageImportAction(response, async () => {
+        const body = await this.#readJsonObject(request);
+        if (
+          typeof body.packageId !== "string" ||
+          typeof body.version !== "string" ||
+          typeof body.active !== "boolean"
+        ) {
+          throw new Error("packageId, version, and boolean active are required.");
+        }
+        return this.#scriptPackageLibrary!.setActive({
+          packageId: body.packageId,
+          version: body.version,
+          active: body.active,
+        });
+      });
+    }
+    if (method === "POST" && path === "/api/packages/library/configuration") {
+      if (!this.#scriptPackageLibrary) {
+        return this.#json(response, { error: "Script Library is unavailable." }, 503);
+      }
+      return this.#runPackageImportAction(response, async () => {
+        const body = await this.#readJsonObject(request, 160 * 1024);
+        if (
+          typeof body.packageId !== "string" ||
+          typeof body.version !== "string" ||
+          !("configuration" in body)
+        ) {
+          throw new Error("packageId, version, and configuration are required.");
+        }
+        return this.#scriptPackageLibrary!.setConfiguration({
+          packageId: body.packageId,
+          version: body.version,
+          configuration: body.configuration,
+        });
+      });
+    }
+
     if (method === "GET" && path === "/api/packages/import") {
       if (!this.#scriptPackageImporter) {
         return this.#json(response, { status: "unavailable" }, 503);

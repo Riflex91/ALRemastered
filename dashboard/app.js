@@ -50,6 +50,9 @@ const state = {
   slice123LastReport: null,
   slice124LiveTest: { status: "idle", message: "Ready." },
   slice124LastReport: null,
+  slice125LiveTest: { status: "idle", message: "Ready." },
+  slice125LastReport: null,
+  packageLibrary: null,
   packageImportDocument: null,
   packageImportRemoteSource: null,
   packageImportPreview: null,
@@ -226,6 +229,15 @@ const elements = {
   slice124LiveTestStatus: document.querySelector("#slice-12-4-live-test-status"),
   slice124LiveTestNote: document.querySelector("#slice-12-4-live-test-note"),
   copySlice124LiveTestResult: document.querySelector("#copy-slice-12-4-live-test-result"),
+  startSlice125LiveTest: document.querySelector("#start-slice-12-5-live-test"),
+  slice125LiveTestStatus: document.querySelector("#slice-12-5-live-test-status"),
+  slice125LiveTestNote: document.querySelector("#slice-12-5-live-test-note"),
+  copySlice125LiveTestResult: document.querySelector("#copy-slice-12-5-live-test-result"),
+  packageLibraryStatus: document.querySelector("#package-library-status"),
+  packageLibraryRefresh: document.querySelector("#package-library-refresh"),
+  packageLibraryMyScripts: document.querySelector("#package-library-my-scripts"),
+  packageLibraryImported: document.querySelector("#package-library-imported"),
+  packageLibraryNote: document.querySelector("#package-library-note"),
   packageImportFile: document.querySelector("#package-import-file"),
   packageImportPreviewButton: document.querySelector("#package-import-preview"),
   packageImportSource: document.querySelector("#package-import-source"),
@@ -5253,6 +5265,7 @@ elements.packageImportConfirm.addEventListener("click", async () => {
     elements.packageImportStatus.textContent = "Imported inactive";
     elements.packageImportNote.textContent =
       `${receipt.name} ${receipt.version} imported successfully and remains inactive. Package execution is not part of this flow.`;
+    await refreshPackageLibrary();
     setFeedback(
       `Imported ${receipt.name} ${receipt.version} as an inactive package. No code was executed.`,
       "success",
@@ -5264,6 +5277,219 @@ elements.packageImportConfirm.addEventListener("click", async () => {
     elements.packageImportConfirm.disabled = false;
   }
 });
+
+async function fetchPackageLibrary() {
+  const response = await fetch("/api/packages/library", { cache: "no-store" });
+  const result = await response.json();
+  if (!response.ok) {
+    throw new Error(result.error ?? `Script Library request failed with HTTP ${response.status}.`);
+  }
+  return result;
+}
+
+async function postPackageLibrary(path, payload) {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const result = await response.json();
+  if (!response.ok) {
+    const error = new Error(result.error ?? `Script Library request failed with HTTP ${response.status}.`);
+    error.code = result.errorCode;
+    throw error;
+  }
+  return result;
+}
+
+function renderPackageLibrary(snapshot) {
+  state.packageLibrary = snapshot;
+  const myScripts = snapshot.myScripts ?? [];
+  const imported = snapshot.imported ?? [];
+  const versionCount = imported.reduce((sum, entry) => sum + (entry.versions?.length ?? 0), 0);
+  elements.packageLibraryStatus.textContent =
+    `${myScripts.length} My Script${myScripts.length === 1 ? "" : "s"} · ${imported.length} imported package${imported.length === 1 ? "" : "s"} · ${versionCount} version${versionCount === 1 ? "" : "s"}`;
+
+  elements.packageLibraryMyScripts.replaceChildren();
+  if (myScripts.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "selection-note";
+    empty.textContent = "No user script is currently loaded.";
+    elements.packageLibraryMyScripts.append(empty);
+  } else {
+    for (const script of myScripts) {
+      const item = document.createElement("div");
+      item.className = "selection-content";
+      const name = document.createElement("strong");
+      name.textContent = script.name;
+      const status = document.createElement("p");
+      status.className = "selection-note";
+      status.textContent =
+        `Runtime status: ${script.status}. ${script.active ? "Running" : "Not running"}.`;
+      item.append(name, status);
+      elements.packageLibraryMyScripts.append(item);
+    }
+  }
+
+  elements.packageLibraryImported.replaceChildren();
+  if (imported.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "selection-note";
+    empty.textContent = "No imported packages yet.";
+    elements.packageLibraryImported.append(empty);
+  }
+
+  for (const packageEntry of imported) {
+    const item = document.createElement("div");
+    item.className = "selection-content";
+
+    const heading = document.createElement("strong");
+    heading.textContent = packageEntry.name;
+    const idLine = document.createElement("p");
+    idLine.className = "selection-note";
+    idLine.textContent = packageEntry.packageId;
+
+    const versionLabel = document.createElement("label");
+    const versionText = document.createElement("span");
+    versionText.className = "label";
+    versionText.textContent = "Version";
+    const versionSelect = document.createElement("select");
+    versionSelect.setAttribute("aria-label", `${packageEntry.name} version`);
+    for (const version of packageEntry.versions ?? []) {
+      const option = document.createElement("option");
+      option.value = version.version;
+      option.textContent = version.version === packageEntry.activeVersion
+        ? `${version.version} (active)`
+        : version.version;
+      versionSelect.append(option);
+    }
+    versionLabel.append(versionText, versionSelect);
+
+    const status = document.createElement("p");
+    status.className = "selection-note";
+    const description = document.createElement("p");
+    description.className = "selection-note";
+    const permissions = document.createElement("p");
+    permissions.className = "selection-note";
+    const schemaLabel = document.createElement("span");
+    schemaLabel.className = "label";
+    schemaLabel.textContent = "Configuration schema";
+    const schema = document.createElement("pre");
+    const configLabel = document.createElement("label");
+    const configText = document.createElement("span");
+    configText.className = "label";
+    configText.textContent = "Configuration";
+    const config = document.createElement("textarea");
+    config.rows = 7;
+    config.setAttribute("aria-label", `${packageEntry.name} configuration`);
+    configLabel.append(configText, config);
+
+    const actions = document.createElement("div");
+    actions.className = "toolbar";
+    const activeButton = document.createElement("button");
+    activeButton.type = "button";
+    const saveButton = document.createElement("button");
+    saveButton.type = "button";
+    saveButton.textContent = "Save configuration";
+    actions.append(activeButton, saveButton);
+
+    function selectedVersion() {
+      return packageEntry.versions?.find((version) => version.version === versionSelect.value)
+        ?? packageEntry.versions?.[0];
+    }
+
+    function renderSelectedVersion() {
+      const version = selectedVersion();
+      if (!version) return;
+      status.textContent =
+        `${version.active ? "Active" : "Inactive"} · imported ${version.importedAt ?? "time unknown"} · package execution: not supported`;
+      description.textContent = version.description;
+      permissions.textContent =
+        `Permissions: ${version.permissions?.join(", ") || "none"}`;
+      schema.textContent = JSON.stringify(version.configSchema ?? {}, null, 2);
+      config.value = JSON.stringify(version.configuration ?? {}, null, 2);
+      activeButton.textContent = version.active ? "Set inactive" : "Set active";
+    }
+
+    versionSelect.addEventListener("change", renderSelectedVersion);
+    activeButton.addEventListener("click", async () => {
+      const version = selectedVersion();
+      if (!version) return;
+      activeButton.disabled = true;
+      try {
+        const updated = await postPackageLibrary("/api/packages/library/active", {
+          packageId: packageEntry.packageId,
+          version: version.version,
+          active: !version.active,
+        });
+        renderPackageLibrary(updated);
+        setFeedback(
+          `${packageEntry.name} ${version.version} is now ${version.active ? "inactive" : "active"} in the library. No package code was executed.`,
+          "success",
+        );
+      } catch (error) {
+        setFeedback(`Script Library state change failed: ${error.message}`, "error");
+      } finally {
+        activeButton.disabled = false;
+      }
+    });
+    saveButton.addEventListener("click", async () => {
+      const version = selectedVersion();
+      if (!version) return;
+      saveButton.disabled = true;
+      try {
+        const configuration = JSON.parse(config.value);
+        const updated = await postPackageLibrary("/api/packages/library/configuration", {
+          packageId: packageEntry.packageId,
+          version: version.version,
+          configuration,
+        });
+        renderPackageLibrary(updated);
+        setFeedback(
+          `Saved configuration for ${packageEntry.name} ${version.version}. No package code was executed.`,
+          "success",
+        );
+      } catch (error) {
+        setFeedback(`Script Library configuration was not saved: ${error.message}`, "error");
+      } finally {
+        saveButton.disabled = false;
+      }
+    });
+
+    renderSelectedVersion();
+    item.append(
+      heading,
+      idLine,
+      versionLabel,
+      status,
+      description,
+      permissions,
+      schemaLabel,
+      schema,
+      configLabel,
+      actions,
+    );
+    elements.packageLibraryImported.append(item);
+  }
+
+  elements.packageLibraryNote.textContent =
+    "Active / inactive is persistent library metadata only. Activating an imported package does not load or execute package code. Updates and rollback belong to Slice 12.6.";
+}
+
+async function refreshPackageLibrary() {
+  elements.packageLibraryRefresh.disabled = true;
+  try {
+    renderPackageLibrary(await fetchPackageLibrary());
+  } catch (error) {
+    elements.packageLibraryStatus.textContent = "Unavailable";
+    setFeedback(`Script Library refresh failed: ${error.message}`, "error");
+  } finally {
+    elements.packageLibraryRefresh.disabled = false;
+  }
+}
+
+elements.packageLibraryRefresh.addEventListener("click", () => void refreshPackageLibrary());
+void refreshPackageLibrary();
 
 function renderSlice123LiveTest() {
   const test = state.slice123LiveTest ?? { status: "idle", message: "Ready." };
@@ -5724,6 +5950,240 @@ elements.copySlice124LiveTestResult.addEventListener("click", async () => {
 });
 
 renderSlice124LiveTest();
+
+function renderSlice125LiveTest() {
+  const test = state.slice125LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = { idle: "Ready", running: "Running…", passed: "PASSED", failed: "FAILED" };
+  elements.slice125LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice125LiveTest.disabled = test.status === "running";
+  elements.copySlice125LiveTestResult.hidden = !state.slice125LastReport;
+  if (test.status === "running") {
+    elements.slice125LiveTestNote.textContent =
+      "Testing My Scripts, imported packages, versions, persistent Active / Inactive state, configuration, later-slice boundaries, cleanup, and runtime continuity.";
+  } else if (test.message) {
+    elements.slice125LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function runSlice125Verification() {
+  const before = await fetchRendererSnapshot();
+  const descriptorResponse = await fetch("/api/packages/library/descriptor", { cache: "no-store" });
+  const descriptor = await descriptorResponse.json();
+  if (!descriptorResponse.ok) throw new Error(descriptor.error ?? "Script Library descriptor failed.");
+
+  const selfTestResponse = await fetch("/api/packages/library/self-test", { cache: "no-store" });
+  const selfTest = await selfTestResponse.json();
+  if (!selfTestResponse.ok) throw new Error(selfTest.error ?? "Script Library self-test failed.");
+
+  const after = await fetchRendererSnapshot();
+  const checks = selfTest.checks ?? {};
+  const steps = [
+    {
+      key: "script-library-descriptor",
+      outcome:
+        Array.isArray(descriptor.sections) &&
+        descriptor.sections.includes("my-scripts") &&
+        descriptor.sections.includes("imported") &&
+        descriptor.versionsVisible === true &&
+        descriptor.activeStateSupported === true &&
+        descriptor.configurationSupported === true
+          ? "passed" : "failed",
+    },
+    { key: "my-scripts-visible", outcome: checks.myScriptsVisible ? "passed" : "failed" },
+    { key: "imported-packages-visible", outcome: checks.importedVisible ? "passed" : "failed" },
+    { key: "versions-visible", outcome: checks.versionsVisible ? "passed" : "failed" },
+    { key: "inactive-by-default", outcome: checks.inactiveByDefault ? "passed" : "failed" },
+    {
+      key: "configuration-visible-persisted",
+      outcome:
+        checks.configurationVisible &&
+        checks.configurationPersisted
+          ? "passed" : "failed",
+    },
+    {
+      key: "active-version-persisted",
+      outcome: checks.oneActiveVersion ? "passed" : "failed",
+    },
+    {
+      key: "activation-no-execution",
+      outcome:
+        checks.activationNoExecution &&
+        descriptor.activationExecutesPackage === false &&
+        descriptor.executionSupported === false
+          ? "passed" : "failed",
+    },
+    {
+      key: "updates-rollback-deferred",
+      outcome:
+        checks.laterSliceBoundaries &&
+        descriptor.updatesSupported === false &&
+        descriptor.rollbackSupported === false
+          ? "passed" : "failed",
+    },
+    { key: "verification-cleanup", outcome: checks.cleanup ? "passed" : "failed" },
+  ];
+
+  const beforeCore = before.snapshot?.core ?? {};
+  const afterCore = after.snapshot?.core ?? {};
+  const beforeCharacter = before.snapshot?.character ?? {};
+  const afterCharacter = after.snapshot?.character ?? {};
+  const beforeScript = before.snapshot?.script ?? {};
+  const afterScript = after.snapshot?.script ?? {};
+  const coreRestart = beforeCore.startedAt !== afterCore.startedAt;
+  const characterRestart = !sameSocketMarkers(beforeCharacter, afterCharacter);
+  const scriptRestart =
+    (beforeScript.runId ?? null) !== (afterScript.runId ?? null) ||
+    (beforeScript.startedAt ?? null) !== (afterScript.startedAt ?? null);
+  const actionGatewayRequests = Math.max(
+    0,
+    Number(after.snapshot?.actionGateway?.totalRequests ?? 0) -
+      Number(before.snapshot?.actionGateway?.totalRequests ?? 0),
+  );
+  steps.push({
+    key: "core-character-script-continuity",
+    outcome: !coreRestart && !characterRestart && !scriptRestart ? "passed" : "failed",
+  });
+  steps.push({
+    key: "read-only-gameplay-runtime",
+    outcome: actionGatewayRequests === 0 ? "passed" : "failed",
+  });
+
+  return {
+    outcome: steps.every((step) => step.outcome === "passed") ? "passed" : "failed",
+    steps,
+    descriptor,
+    selfTest,
+    coreRestart,
+    characterRestart,
+    scriptRestart,
+    actionGatewayRequests,
+    gameplayMutation: false,
+    rawSocketAccess: false,
+    userScriptTouched: false,
+    packageExecutionAttempted: false,
+  };
+}
+
+async function startSlice125LiveTest(clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice125LiveTest = { status: "running", message: "Slice 12.5 Script Library test is running." };
+  renderSlice125LiveTest();
+
+  const verification = await runSlice125Verification();
+  await refreshPackageLibrary();
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live125-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const checks = verification.selfTest.checks ?? {};
+  const persisted = verification.selfTest.persisted ?? {};
+  const imported = persisted.imported?.[0] ?? {};
+  const versions = imported.versions ?? [];
+  const configured = versions.find((version) => version.version === "1.0.0") ?? {};
+  const active = versions.find((version) => version.active === true) ?? {};
+  const myScript = persisted.myScripts?.[0] ?? {};
+  const stepLines = verification.steps.map((step) =>
+    `- ${step.key}: ${String(step.outcome).toUpperCase()}`
+  );
+
+  const reportText = [
+    "ALRemastered Slice 12.5 one-click Script Library test",
+    `Test ID: ${testId}`,
+    "Slice: 12.5",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    `Library sections: ${verification.descriptor.sections?.join(", ") ?? "unknown"}`,
+    `My Scripts visible: ${checks.myScriptsVisible}`,
+    `My Script: ${myScript.name ?? "none"}`,
+    `My Script status: ${myScript.status ?? "unknown"}`,
+    `Imported package visible: ${checks.importedVisible}`,
+    `Imported package: ${imported.packageId ?? "none"}`,
+    `Versions visible: ${checks.versionsVisible}`,
+    `Versions: ${versions.map((version) => version.version).join(", ") || "none"}`,
+    `Inactive by default: ${checks.inactiveByDefault}`,
+    `Active version: ${imported.activeVersion ?? "none"}`,
+    `Exactly one active version: ${checks.oneActiveVersion}`,
+    `Configuration visible: ${checks.configurationVisible}`,
+    `Configuration persisted: ${checks.configurationPersisted}`,
+    `Configured monster: ${configured.configuration?.monster ?? "unknown"}`,
+    `Configured range: ${configured.configuration?.range ?? "unknown"}`,
+    `Activation executes package: ${verification.descriptor.activationExecutesPackage}`,
+    `Package execution supported: ${verification.descriptor.executionSupported}`,
+    "Package execution attempted: false",
+    `Updates supported: ${verification.descriptor.updatesSupported}`,
+    `Rollback supported: ${verification.descriptor.rollbackSupported}`,
+    `Verification cleanup: ${checks.cleanup}`,
+    `Core restart: ${verification.coreRestart}`,
+    `Character restart: ${verification.characterRestart}`,
+    `Script restart: ${verification.scriptRestart}`,
+    "Gameplay mutation: false",
+    `Action Gateway requests: ${verification.actionGatewayRequests}`,
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+
+  const result = {
+    testId,
+    slice: "12.5",
+    outcome,
+    startedAt,
+    completedAt,
+    message: outcome === "passed"
+      ? "Script Library verification passed."
+      : "Script Library verification failed.",
+    ...verification,
+  };
+  state.slice125LastReport = reportText;
+  state.slice125LiveTest = { status: outcome, message: result.message, lastResult: result };
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice125LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice125LiveTest.addEventListener("click", async () => {
+  if (state.slice125LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice125LastReport = null;
+  elements.copySlice125LiveTestResult.hidden = true;
+  try {
+    const { result, copied } = await startSlice125LiveTest(clipboardWrite);
+    setFeedback(
+      `Slice 12.5 test ${String(result.outcome).toUpperCase()}. ${copied ? "Complete result and sanitized diagnostic log copied to clipboard." : "Use Copy last test result once."}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    state.slice125LiveTest = { status: "failed", message: error.message };
+    renderSlice125LiveTest();
+    setFeedback(`Slice 12.5 Script Library test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice125LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice125LastReport) return;
+  try {
+    await writeClipboard(state.slice125LastReport);
+    setFeedback("Complete Slice 12.5 Script Library result and sanitized diagnostic log copied.", "success");
+  } catch (error) {
+    setFeedback(`Script Library result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice125LiveTest();
 
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));

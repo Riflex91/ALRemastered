@@ -6,7 +6,7 @@
   <title>ALRemastered</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body data-current-verification-slice="12.4">
+<body data-current-verification-slice="12.5">
   <main class="shell">
     <header class="topbar">
       <div>
@@ -415,6 +415,36 @@
       </small>
     </section>
 
+    <section class="account-panel" id="package-library-panel">
+      <div class="diagnostics-heading">
+        <div>
+          <p class="eyebrow">Phase 12 community packages</p>
+          <h2>Script Library</h2>
+        </div>
+        <div class="toolbar">
+          <strong id="package-library-status" aria-live="polite">Loading…</strong>
+          <button id="package-library-refresh" type="button">Refresh library</button>
+        </div>
+      </div>
+      <div class="explainability-details">
+        <article class="card">
+          <span class="label">My Scripts</span>
+          <div id="package-library-my-scripts">
+            <p class="selection-note">No user script is currently loaded.</p>
+          </div>
+        </article>
+        <article class="card">
+          <span class="label">Imported</span>
+          <div id="package-library-imported">
+            <p class="selection-note">No imported packages yet.</p>
+          </div>
+        </article>
+      </div>
+      <small class="selection-note" id="package-library-note">
+        Active / inactive is persistent library metadata only. Activating an imported package in Slice 12.5 does not load or execute package code. Updates and rollback belong to Slice 12.6.
+      </small>
+    </section>
+
     <div class="selection-content" data-verification-test="12.3" hidden>
       <div>
         <h3>Slice 12.3 one-click Package File Import test</h3>
@@ -439,6 +469,20 @@
         </div>
         <small class="selection-note" id="slice-12-4-live-test-note">
           Verifies public HTTPS package links, supported GitHub blob sources, source re-fetch and stale-preview protection, dangerous-right confirmation, inactive persistence, cleanup, and runtime continuity. No remote package code is executed.
+        </small>
+      </div>
+    </div>
+
+    <div class="selection-content" data-verification-test="12.5" hidden>
+      <div>
+        <h3>Slice 12.5 one-click Script Library test</h3>
+        <div class="server-picker">
+          <button id="start-slice-12-5-live-test" type="button">Start test</button>
+          <strong id="slice-12-5-live-test-status" aria-live="polite">Ready</strong>
+          <button id="copy-slice-12-5-live-test-result" type="button" hidden>Copy last test result</button>
+        </div>
+        <small class="selection-note" id="slice-12-5-live-test-note">
+          Verifies My Scripts, imported packages, multiple versions, persistent Active / Inactive state, package configuration, cleanup, and uninterrupted runtime. Library activation never executes imported package code.
         </small>
       </div>
     </div>
