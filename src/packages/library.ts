@@ -228,9 +228,6 @@ export class ScriptPackageLibrary {
       version: input.version,
       active: input.active,
       executionAttempted: false,
-      ...(isRemoteSource(receipt.remoteSource)
-        ? { remoteSource: Object.freeze(structuredClone(receipt.remoteSource)) }
-        : {}),
     });
     return this.snapshot();
   }
@@ -398,6 +395,9 @@ export class ScriptPackageLibrary {
       configuration: state.configuration,
       active: state.active,
       executionAttempted: false,
+      ...(isRemoteSource(receipt.remoteSource)
+        ? { remoteSource: Object.freeze(structuredClone(receipt.remoteSource)) }
+        : {}),
     });
   }
 
