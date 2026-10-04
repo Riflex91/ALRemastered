@@ -2857,3 +2857,66 @@ Repository/release gate evidence:
 Result: the real installed Windows alpha.58 run proves the complete Slice 8.2 Setup Wizard scope: Account → Character → Server → Task / Template → Configuration → Start, with all visible Wizard text in English and with the bounded live-test path preserving user-script isolation, primary-session continuity, zero leftover managed sessions, and the no-gameplay-mutation/no-raw-socket safety boundary. **Slice 8.2 is VERIFIED.**
 
 Slice 8.3 – Config UI für Templates may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
+
+
+---
+
+## Slice 8.3 Verification Record — Template Configuration UI
+
+**Canonical status update: Slice 8.3 = VERIFIED.**
+
+Release/live environment:
+
+- verified release: `v0.1.0-alpha.59`
+- tested implementation main / release target: `1195c22956f9b29e02fbe4675d890913098fa86b`
+- Windows client: `0.1.0-alpha.59`
+- platform: `win32`
+- one-click test ID: `live83-be56e02c-d4c7-40b7-8dfa-52dc6ab30a5f`
+- primary Character: `My_Merchant`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-04T08:49:43.893Z → 2026-10-04T08:49:43.895Z`
+- diagnostic export: 215 log lines, `Secrets sanitized: yes`.
+
+Template Configuration evidence:
+
+- the schema-driven UI exposed normal Simple Farmer settings without requiring JavaScript/source edits;
+- exposed fields were exactly:
+  - Monster
+  - HP threshold %
+  - MP threshold %
+  - Loot
+  - Respawn;
+- `normalSettingsRequireCodeChanges:false`;
+- save changed HP `50 → 49`, MP `30 → 29`, Loot `true → false`, while retaining monster `bee` and Respawn `true`;
+- configuration changes round-tripped through the existing Template Configuration / Simple Farmer service path;
+- restore returned the exact pre-test draft state;
+- no saved draft existed before the test and none remained afterward;
+- the live-test path did not start the configured gameplay template.
+
+Isolation and safety evidence:
+
+- primary `My_Merchant` remained `connected`;
+- final user Script status remained `unloaded`;
+- `userScriptInterrupted:false`;
+- `gameplayMutation:false`;
+- `rawSocketAccess:false`;
+- normal settings remain configurable without code changes;
+- the existing template executor and Script runtime remain the only execution paths.
+
+Repository/release gate evidence:
+
+- implementation PR #115 final feature head: `6aee3f376774f6d8ffc5d353a9d97c5c4e8ffe03`;
+- final implementation PR CI run `37189640249` completed with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #115 merged with method `merge` into exact implementation main `1195c22956f9b29e02fbe4675d890913098fa86b`;
+- exact post-implementation-main CI run `37189763784` completed with all four required jobs successful;
+- release publish run `37189914134` completed successfully;
+- release branch `release/v0.1.0-alpha.59`, tag `v0.1.0-alpha.59`, GitHub release target, and tested implementation main were verified commit-identical at `1195c22956f9b29e02fbe4675d890913098fa86b`;
+- published assets:
+  - Windows x64 installer SHA-256 `e514bc820ca55b09373e41e41cedfca7a40917e5fa2c7e3d8f554d58023ef405`
+  - Linux x64 installer SHA-256 `8c3bbf1065f750302af11fa0d2aaeaa2471b6f16382310181ce2b9b619081d15`
+  - updater manifest SHA-256 `4637c5eec7e53b94712c45375a3dae93cfb0cf3c22a1d0510763ab615d9f952a`.
+
+Result: the real installed Windows alpha.59 run proves the complete Slice 8.3 Config UI für Templates scope: normal Simple Farmer settings can be exposed, changed, validated, saved, and restored through the dashboard without editing Script source, while preserving the primary Character, user Script runtime, and no-gameplay-mutation/no-raw-socket safety boundary. **Slice 8.3 is VERIFIED.**
+
+Before Slice 8.4 begins, the agreed dashboard-maintenance cleanup may hide historical one-click verification controls from the normal dashboard while retaining their services, APIs, automated CI coverage, and historical evidence. Only the currently required verification test should remain visible in the normal workflow.

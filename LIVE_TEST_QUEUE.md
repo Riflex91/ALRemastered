@@ -1511,3 +1511,63 @@ Repository/release evidence:
 The earlier BLOCKED precondition attempts remain valid diagnostics and are not treated as failures; the successful real installed Windows run above is the canonical verification result.
 
 Do not repeat Slice 8.2 merely because implementation planning text remains elsewhere. Slice 8.3 – Config UI für Templates may begin only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
+
+
+---
+
+### Alpha.59 real one-click result: PASSED — Slice 8.3 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.59`
+- release target / tested implementation main: `1195c22956f9b29e02fbe4675d890913098fa86b`
+- client: `0.1.0-alpha.59` / Windows
+- platform: `win32`
+- test ID: `live83-be56e02c-d4c7-40b7-8dfa-52dc6ab30a5f`
+- primary Character: `My_Merchant`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-04T08:49:43.893Z → 2026-10-04T08:49:43.895Z`
+- diagnostic export: 215 log lines, `Secrets sanitized: yes`.
+
+The one-click harness completed the full Slice 8.3 Template Configuration validation:
+
+- schema step exposed the five normal Simple Farmer settings:
+  - `monster`
+  - `hpThresholdPercent`
+  - `mpThresholdPercent`
+  - `loot`
+  - `respawn`;
+- no JavaScript/source field was exposed for normal settings;
+- `normalSettingsRequireCodeChanges:false`;
+- the save step changed the normal configuration through the schema-driven configuration service:
+  - monster remained `bee`
+  - HP threshold `50 → 49`
+  - MP threshold `30 → 29`
+  - Loot `true → false`
+  - Respawn remained `true`;
+- saving settings did not edit or start Script code;
+- `userScriptInterrupted:false`;
+- `gameplayMutation:false`;
+- `rawSocketAccess:false`;
+- the restore step returned the exact pre-test draft state, with `hadSavedDraftBefore:false` and `configuredAfterRestore:false`;
+- final primary `My_Merchant` remained `connected`;
+- final user Script status remained `unloaded`;
+- no gameplay action was started.
+
+Repository/release evidence:
+
+- implementation PR #115 final feature head: `6aee3f376774f6d8ffc5d353a9d97c5c4e8ffe03`;
+- final implementation PR CI run `37189640249` completed with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #115 merged with method `merge` into exact implementation main `1195c22956f9b29e02fbe4675d890913098fa86b`;
+- exact post-implementation-main CI run `37189763784` completed with all four required jobs successful;
+- release publish run `37189914134` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.59`, tag `v0.1.0-alpha.59`, GitHub release target, and tested implementation `main` were verified commit-identical at `1195c22956f9b29e02fbe4675d890913098fa86b`;
+- published assets:
+  - Windows x64 installer SHA-256 `e514bc820ca55b09373e41e41cedfca7a40917e5fa2c7e3d8f554d58023ef405`
+  - Linux x64 installer SHA-256 `8c3bbf1065f750302af11fa0d2aaeaa2471b6f16382310181ce2b9b619081d15`
+  - updater manifest SHA-256 `4637c5eec7e53b94712c45375a3dae93cfb0cf3c22a1d0510763ab615d9f952a`.
+
+**Canonical queue status: Slice 8.3 = VERIFIED.**
+
+Do not repeat Slice 8.3 merely because implementation planning text remains elsewhere. The dashboard-maintenance cleanup that hides historical one-click verification controls from the normal UI may begin only after this verification documentation is merged and the exact post-merge `main` CI is fully green. Historical live-test services, APIs, CI suites, and evidence remain retained.
