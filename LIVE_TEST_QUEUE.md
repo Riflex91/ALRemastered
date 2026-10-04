@@ -2074,3 +2074,81 @@ Scope and safety:
 
 Slice 10.4 – Headless ↔ Browser Live Handoff may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
 
+---
+
+### Alpha.69 real one-click result: PASSED — Slice 10.4 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.69`
+- release target / tested implementation main: `14d5f4e3cc8e33e69aefa620a115f0ba35fe5d39`
+- client: `0.1.0-alpha.69` / Windows
+- platform: `win32`
+- test ID: `live104-a0d81974-84de-46ae-8171-e3e92e1e3a75`
+- outcome: `passed`
+- test window: `2026-10-04T14:22:04.712Z → 2026-10-04T14:22:04.799Z`
+- diagnostic export: 34 log lines, `Secrets sanitized: yes`.
+
+The accepted one-click harness completed the full Slice 10.4 live handoff validation:
+
+- `headless-socket-ready: PASSED`;
+- `renderer-attach: PASSED`;
+- `socket-continuity-browser: PASSED`;
+- `script-continuity-browser: PASSED`;
+- `renderer-detach: PASSED`;
+- `socket-preserved: PASSED`;
+- `core-continuity: PASSED`;
+- `character-continuity: PASSED`;
+- `script-continuity: PASSED`;
+- `soft-handoff-policy: PASSED`;
+- `no-gameplay-action: PASSED`;
+- renderer transport: `SSE`;
+- renderer mode: `headless → browser → headless`;
+- renderer subscribers: `0 → 1 → 0`;
+- attached renderers: `0 → 1 → 0`;
+- socket ownership: `headless-core`;
+- socket strategy: `preserve`;
+- socket preserved: `true`;
+- reconnect fallback: `soft-handoff`;
+- soft handoff used: `false`;
+- `coreRestart:false`;
+- `characterRestart:false`;
+- `scriptRestart:false`;
+- `gameplayMutation:false`;
+- test-generated Action Gateway requests: `0`;
+- `rawSocketShortcut:false`;
+- user Script runtime was not touched by the verification harness.
+
+Running-script evidence:
+
+- the real headless Character `My_Ranger1` was connected on `SR_EUII`;
+- `simple-farmer-template` started with run ID `script-df4b578d-148f-4236-8daa-8aa29b257a6d`;
+- the Script was actively issuing successful Action Gateway attacks immediately before the handoff test;
+- snapshot continuity checks passed across Browser attach/detach with no Script restart;
+- the user explicitly accepted this Alpha.69 run as the canonical fully-passed live verification.
+
+Repository/release evidence:
+
+- implementation PR #137 final feature head: `e36f51b90a05ee90f0426e5584abe0106ba83b15`;
+- final implementation PR CI run `37207707303`: all four required jobs successful;
+- implementation main: `14d5f4e3cc8e33e69aefa620a115f0ba35fe5d39`;
+- exact post-implementation-main CI run `37207876721`: all four required jobs successful;
+- release publish run `37208027223`: Linux, Windows, and GitHub Release successful;
+- release branch, tag, release target, publish head, and tested implementation main are commit-identical at `14d5f4e3cc8e33e69aefa620a115f0ba35fe5d39`;
+- Windows x64 installer SHA-256: `c8313024a53cad9cd239a860ec8840d5ee743b27bac803bc7696d4def20ba431`;
+- Linux x64 installer SHA-256: `4f64783d5cb1af1561af105c28d590264bc5dff1c04790c4001ffae941d41e02`;
+- updater manifest SHA-256: `69852fd6948642780818f7c97de2b52df4d34c5dfc35ef32a8b98f1801df9a9b`.
+
+Scope and safety:
+
+- Browser attach/detach uses the existing Renderer Bridge SSE transport;
+- the headless Core retains Character socket ownership;
+- no reconnect was required in the accepted active-socket test;
+- a future reconnect-required public-browser takeover is constrained to soft handoff rather than Bot-process restart;
+- no gameplay mutation route, raw-socket shortcut, Action Gateway bypass, or user Script replacement was introduced;
+- superseded PR #138 was closed without merge.
+
+**Canonical queue status: Slice 10.4 = VERIFIED.**
+
+Phase 11 / Slice 11.1 – ALHD Asset Provider may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
+
