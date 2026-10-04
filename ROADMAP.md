@@ -4086,3 +4086,90 @@ Scope/safety evidence:
 
 Slice 12.5 – Script Library may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
 
+---
+
+## Verification Evidence — Slice 12.5 Script Library
+
+**Status: VERIFIED**
+
+> 2026-10-04: VERIFIED on Windows with `0.1.0-alpha.78`. Real installed one-click test `live125-b7296b62-d07a-4d34-b656-b8c51e4f1206` passed My Scripts visibility, imported-package indexing, multi-version visibility, inactive-by-default behavior, persistent Config-Schema-backed configuration, exactly one active version per package, no-execution activation semantics, Slice 12.6 update/rollback deferral, verification cleanup, runtime continuity, and read-only gameplay safety.
+
+Live verification evidence:
+
+- client: `0.1.0-alpha.78`;
+- platform: `win32`;
+- test ID: `live125-b7296b62-d07a-4d34-b656-b8c51e4f1206`;
+- outcome: `PASSED`;
+- test window: `2026-10-04T19:20:40.550Z → 2026-10-04T19:20:40.589Z`;
+- `script-library-descriptor: PASSED`;
+- `my-scripts-visible: PASSED`;
+- `imported-packages-visible: PASSED`;
+- `versions-visible: PASSED`;
+- `inactive-by-default: PASSED`;
+- `configuration-visible-persisted: PASSED`;
+- `active-version-persisted: PASSED`;
+- `activation-no-execution: PASSED`;
+- `updates-rollback-deferred: PASSED`;
+- `verification-cleanup: PASSED`;
+- `core-character-script-continuity: PASSED`;
+- `read-only-gameplay-runtime: PASSED`;
+- Library sections: `my-scripts, imported`;
+- My Scripts visible: `true`;
+- My Script: `User Script`;
+- My Script status: `running`;
+- imported package visible: `true`;
+- imported package: `org.alremastered.slice125-fixture`;
+- versions visible: `true`;
+- versions: `1.1.0, 1.0.0`;
+- inactive by default: `true`;
+- active version: `1.1.0`;
+- exactly one active version: `true`;
+- configuration visible: `true`;
+- configuration persisted: `true`;
+- configured monster: `crab`;
+- configured range: `175`;
+- activation executes package: `false`;
+- package execution supported: `false`;
+- package execution attempted: `false`;
+- updates supported: `false`;
+- rollback supported: `false`;
+- verification cleanup: `true`;
+- `Core restart: false`;
+- `Character restart: false`;
+- `Script restart: false`;
+- `Gameplay mutation: false`;
+- Action Gateway requests: `0`;
+- `Raw socket access: false`;
+- `User Script touched: false`;
+- diagnostic export: 11 log lines, `Secrets sanitized: yes`.
+
+Repository/release evidence:
+
+- implementation PR #156 final feature head: `19ad56a866efa1e695a149fb7ef2dd0ad71afd7a`;
+- final implementation PR CI run `37227247584` completed on that exact head with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #156 merged with method `merge` into exact implementation main `5334ec274f6af5546e573ddee340d224f0257b87`;
+- exact post-implementation-main CI run `37227426286` completed on `5334ec274f6af5546e573ddee340d224f0257b87` with all four required jobs successful;
+- release publish run `37227622926` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.78`, tag `v0.1.0-alpha.78`, GitHub Release target, publish-run head, and tested implementation `main` are commit-identical at `5334ec274f6af5546e573ddee340d224f0257b87`;
+- published assets:
+  - Windows x64 installer SHA-256 `552cf4e74d01d79b50d1f7790abc58c610385d76bf274330d7e4060af4fef0b3`
+  - Linux x64 installer SHA-256 `ebc2c6f34ae595b970e2b63feae11ea2fd9667d121aa84b5a84970a95bb5dbcb`
+  - updater manifest SHA-256 `05a5fb682e050ba04f8b6b4dcd22ef13ab37bb6e46bdf471d2732d73f99362c0`.
+
+Scope/safety evidence:
+
+- Script Library exposes the current User Script under My Scripts and imported packages under Imported;
+- imported packages expose all locally imported versions;
+- imported versions begin inactive;
+- Active / Inactive state is persistent library metadata only and does not load or execute imported package code;
+- at most one version per package is active at a time;
+- package configuration is visible, editable, persisted, and validated against the package Config Schema;
+- the current User Script remained running throughout verification;
+- updates, update discovery, changelog handling, rollback, and update-time permission re-confirmation remain deferred to Slice 12.6;
+- Core, Character, and Script remained continuous;
+- no gameplay mutation, Action Gateway request, raw socket access, or User Script replacement occurred.
+
+**Canonical roadmap status: Slice 12.5 = VERIFIED.**
+
+Slice 12.6 – Updates and Rollback may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
+
