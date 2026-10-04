@@ -16,6 +16,7 @@ import { PartyCoordinatorService } from "./party/coordinator.ts";
 import { PartyTemplateService } from "./party/templates.ts";
 import { AdventureLandCharacterTransport } from "./character/transport.ts";
 import { CoreRuntime } from "./core/app.ts";
+import { ControlModeService } from "./control/modes.ts";
 import { openDashboard } from "./dashboard/open.ts";
 import { CharacterCardsService } from "./dashboard/character-cards.ts";
 import { SetupWizardService } from "./dashboard/setup-wizard.ts";
@@ -166,6 +167,7 @@ if (args.has("--health-check")) {
 let shuttingDown = false;
 let dashboard: DashboardServer | undefined;
 let rendererBridge: RendererBridge | undefined;
+let controlModeService: ControlModeService | undefined;
 let accountService: AdventureLandAccountService | undefined;
 let selectionService: AdventureLandSelectionService | undefined;
 let characterService: AdventureLandCharacterService | undefined;
@@ -368,7 +370,20 @@ diagnostics.registerComponent("character-connection", () => {
   };
 });
 
-actionGateway = new ActionGateway({ logger });
+controlModeService = new ControlModeService();
+diagnostics.registerComponent("control-mode", () => {
+  const state = controlModeService!.state();
+  return {
+    name: "control-mode",
+    status: "healthy",
+    message: `Control mode: ${state.label}.`,
+  };
+});
+
+actionGateway = new ActionGateway({
+  logger,
+  controlPolicy: controlModeService,
+});
 diagnostics.registerComponent("action-gateway", () => {
   const state = actionGateway!.state();
   return {
@@ -945,6 +960,7 @@ dashboard = new DashboardServer({
   explainabilityService,
   dashboardLayoutStore,
   rendererBridge,
+  controlModeService,
   actionGateway,
   movementService,
   attackService,
