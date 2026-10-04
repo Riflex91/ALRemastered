@@ -2224,3 +2224,75 @@ Scope and safety:
 
 Slice 11.2 – WebGL Texture-Size Guard may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
 
+---
+
+### Alpha.71 real one-click result: PASSED — Slice 11.2 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.71`
+- release target / tested implementation main: `37cdd90027e697e6df642e44e13be9d37a94b4c0`
+- client: `0.1.0-alpha.71` / Windows
+- platform: `win32`
+- test ID: `live112-9079e8e2-8a63-4e67-9a7d-d1747fdd2dfb`
+- outcome: `passed`
+- test window: `2026-10-04T15:22:59.614Z → 2026-10-04T15:22:59.625Z`
+- diagnostic export: 11 log lines, `Secrets sanitized: yes`.
+
+The one-click harness completed the full Slice 11.2 validation:
+
+- `webgl-max-texture-size: PASSED`;
+- `texture-guard-diagnostics: PASSED`;
+- `oversized-original-fallback: PASSED`;
+- `actual-hardware-resolution: PASSED`;
+- `core-continuity: PASSED`;
+- `character-continuity: PASSED`;
+- `script-continuity: PASSED`;
+- `read-only-runtime: PASSED`;
+- WebGL context: `webgl`;
+- detected `MAX_TEXTURE_SIZE: 16384`;
+- `WEBGL_lose_context available: true`;
+- `Temporary context released: true`;
+- guard available assets: `2`;
+- guard eligible assets: `2`;
+- guard blocked assets: none;
+- `Hardware suitable for active ALHD assets: true`;
+- forced guard limit: `1024`;
+- forced oversized resolution: `original / texture-too-large`;
+- actual hardware resolution: `original / hd-file-missing`;
+- `presentationOnly:true`;
+- `originalFallback:true`;
+- `coreRestart:false`;
+- `characterRestart:false`;
+- `scriptRestart:false`;
+- `dashboardGetOnly:true`;
+- `gameplayMutation:false`;
+- Action Gateway requests: `0`;
+- `rawSocketAccess:false`;
+- user Script runtime was not touched.
+
+Repository/release evidence:
+
+- implementation PR #142 final feature head: `f222a797cf596f99ab88bf407c2a53f47590a812`;
+- final implementation PR CI run `37212162287`: all four required jobs successful;
+- implementation main: `37cdd90027e697e6df642e44e13be9d37a94b4c0`;
+- exact post-implementation-main CI run `37212357296`: all four required jobs successful;
+- release publish run `37212538843`: Linux, Windows, and GitHub Release successful;
+- release branch, tag, release target, publish head, and tested implementation main are commit-identical at `37cdd90027e697e6df642e44e13be9d37a94b4c0`;
+- Windows x64 installer SHA-256: `2fdab267a373aaa6320e387a152753e2aefbe3d4ae855d142f7156aadc42b88f`;
+- Linux x64 installer SHA-256: `0361bae4a1e4df00fe9a473266a441095e734c525374a5e6f961b74175e91e29`;
+- updater manifest SHA-256: `0d080173f53a663a2fb9422b8bf756fe77b9c11f65cf3ce472ab65a4acd00860`.
+
+Scope and safety:
+
+- real browser WebGL capability was detected without retaining a rendering context;
+- hardware-unsuitable HD content is blocked on the original asset path;
+- actual Windows hardware was suitable for both current active ALHD entries;
+- diagnostics remain GET-only and presentation-only;
+- no gameplay semantic changes, gameplay mutation, raw socket access, or user Script replacement occurred;
+- HD Browser default/application and graphics profiles remain out of scope.
+
+**Canonical queue status: Slice 11.2 = VERIFIED.**
+
+Slice 11.3 – HD Standard im Browser-Renderer may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
+
