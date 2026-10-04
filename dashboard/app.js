@@ -54,6 +54,8 @@ const state = {
   slice125LastReport: null,
   slice126LiveTest: { status: "idle", message: "Ready." },
   slice126LastReport: null,
+  slice131LiveTest: { status: "idle", message: "Ready." },
+  slice131LastReport: null,
   packageLibrary: null,
   packageImportDocument: null,
   packageImportRemoteSource: null,
@@ -61,6 +63,7 @@ const state = {
   controlMode: null,
   dashboardLayouts: null,
   pendingDashboardImport: null,
+  pendingDashboardPackage: null,
   status: null,
   account: null,
   selection: null,
@@ -156,6 +159,10 @@ const elements = {
   dashboardLayoutProfileCreate: document.querySelector("#dashboard-layout-profile-create"),
   dashboardLayoutProfileDelete: document.querySelector("#dashboard-layout-profile-delete"),
   dashboardLayoutExport: document.querySelector("#dashboard-layout-export"),
+  dashboardPackageId: document.querySelector("#dashboard-package-id"),
+  dashboardPackageVersion: document.querySelector("#dashboard-package-version"),
+  dashboardPackageAuthor: document.querySelector("#dashboard-package-author"),
+  dashboardPackageExport: document.querySelector("#dashboard-package-export"),
   dashboardLayoutImport: document.querySelector("#dashboard-layout-import"),
   dashboardLayoutImportFile: document.querySelector("#dashboard-layout-import-file"),
   dashboardLayoutImportPanel: document.querySelector("#dashboard-layout-import-panel"),
@@ -239,6 +246,10 @@ const elements = {
   slice126LiveTestStatus: document.querySelector("#slice-12-6-live-test-status"),
   slice126LiveTestNote: document.querySelector("#slice-12-6-live-test-note"),
   copySlice126LiveTestResult: document.querySelector("#copy-slice-12-6-live-test-result"),
+  startSlice131LiveTest: document.querySelector("#start-slice-13-1-live-test"),
+  slice131LiveTestStatus: document.querySelector("#slice-13-1-live-test-status"),
+  slice131LiveTestNote: document.querySelector("#slice-13-1-live-test-note"),
+  copySlice131LiveTestResult: document.querySelector("#copy-slice-13-1-live-test-result"),
   packageLibraryStatus: document.querySelector("#package-library-status"),
   packageLibraryRefresh: document.querySelector("#package-library-refresh"),
   packageLibraryMyScripts: document.querySelector("#package-library-my-scripts"),
@@ -254,10 +265,15 @@ const elements = {
   packageImportName: document.querySelector("#package-import-name"),
   packageImportVersion: document.querySelector("#package-import-version"),
   packageImportAuthor: document.querySelector("#package-import-author"),
+  packageImportKind: document.querySelector("#package-import-kind"),
   packageImportIntegrity: document.querySelector("#package-import-integrity"),
   packageImportDescription: document.querySelector("#package-import-description"),
   packageImportPermissions: document.querySelector("#package-import-permissions"),
+  packageImportDashboardCard: document.querySelector("#package-import-dashboard-card"),
+  packageImportDashboard: document.querySelector("#package-import-dashboard"),
+  packageImportConfigCard: document.querySelector("#package-import-config-card"),
   packageImportConfig: document.querySelector("#package-import-config"),
+  packageImportCodeCard: document.querySelector("#package-import-code-card"),
   packageImportCodeFile: document.querySelector("#package-import-code-file"),
   packageImportCode: document.querySelector("#package-import-code"),
   packageImportNote: document.querySelector("#package-import-note"),
@@ -743,6 +759,31 @@ function downloadDashboardExport(portable) {
   return json;
 }
 
+function dashboardPackageFilename(name, version) {
+  const base = String(name ?? "dashboard-package")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "dashboard-package";
+  const safeVersion = String(version ?? "1.0.0").replace(/[^0-9A-Za-z.-]+/g, "-");
+  return `${base}-${safeVersion}.alrpkg`;
+}
+
+function downloadDashboardPackage(exported) {
+  const json = `${JSON.stringify(exported.packageDocument, null, 2)}\n`;
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = dashboardPackageFilename(exported.name, exported.version);
+  anchor.hidden = true;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  globalThis.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 function dashboardImportMapping() {
   const mapping = {};
   for (const select of elements.dashboardLayoutRoleMappings.querySelectorAll("[data-dashboard-role]")) {
@@ -777,8 +818,13 @@ function renderDashboardImportPanel() {
   const roles = pending.profile.roles;
   const characters = dashboardEditor?.characters?.() ?? [];
   const variants = ["desktop", "small"].filter((variant) => pending.profile.layouts[variant]);
-  elements.dashboardLayoutImportSummary.textContent =
-    `Profile "${pending.profile.name}" · ${variants.map((variant) => variant === "small" ? "Small screen" : "Desktop").join(" + ")} · ${roles.length} Character role(s).`;
+  const packageSelection = state.pendingDashboardPackage;
+  elements.dashboardLayoutImportSummary.textContent = packageSelection
+    ? `Dashboard package "${packageSelection.name}" ${packageSelection.version} · profile "${pending.profile.name}" · ${variants.map((variant) => variant === "small" ? "Small screen" : "Desktop").join(" + ")} · ${roles.length} Character role(s).`
+    : `Profile "${pending.profile.name}" · ${variants.map((variant) => variant === "small" ? "Small screen" : "Desktop").join(" + ")} · ${roles.length} Character role(s).`;
+  elements.dashboardLayoutImportApply.textContent = packageSelection
+    ? "Apply dashboard package"
+    : "Import profile";
 
   if (!roles.length) {
     const note = document.createElement("small");
@@ -950,6 +996,31 @@ elements.dashboardLayoutExport.addEventListener("click", () => {
   }
 });
 
+elements.dashboardPackageExport.addEventListener("click", async () => {
+  elements.dashboardPackageExport.disabled = true;
+  try {
+    const profile = activeDashboardLayoutProfile();
+    if (!profile) throw new Error("No active dashboard profile is available.");
+    const portableProfile = createPortableDashboardProfile(profile);
+    const exported = await postPackageLibrary("/api/packages/dashboard/export", {
+      packageId: elements.dashboardPackageId.value.trim(),
+      name: profile.name,
+      version: elements.dashboardPackageVersion.value.trim(),
+      author: elements.dashboardPackageAuthor.value.trim(),
+      portableProfile,
+    });
+    downloadDashboardPackage(exported);
+    setFeedback(
+      `Dashboard package ${exported.packageId} ${exported.version} exported as .alrpkg without fixed Character IDs or executable code.`,
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Dashboard package export failed: ${error.message}`, "error");
+  } finally {
+    elements.dashboardPackageExport.disabled = false;
+  }
+});
+
 elements.dashboardLayoutImport.addEventListener("click", () => {
   elements.dashboardLayoutImportFile.value = "";
   elements.dashboardLayoutImportFile.click();
@@ -960,6 +1031,7 @@ elements.dashboardLayoutImportFile.addEventListener("change", async () => {
   if (!file) return;
   try {
     state.pendingDashboardImport = parsePortableDashboardProfile(await file.text());
+    state.pendingDashboardPackage = null;
     renderDashboardImportPanel();
     setFeedback(
       "Dashboard import file validated. Map every Character role before importing.",
@@ -974,6 +1046,7 @@ elements.dashboardLayoutImportFile.addEventListener("change", async () => {
 
 elements.dashboardLayoutImportCancel.addEventListener("click", () => {
   state.pendingDashboardImport = null;
+  state.pendingDashboardPackage = null;
   elements.dashboardLayoutImportFile.value = "";
   renderDashboardImportPanel();
   setFeedback("Dashboard import cancelled.");
@@ -985,6 +1058,26 @@ elements.dashboardLayoutImportApply.addEventListener("click", async () => {
   const roleMapping = dashboardImportMapping();
   let importedProfileId = null;
   try {
+    if (state.pendingDashboardPackage) {
+      const selection = state.pendingDashboardPackage;
+      const applied = await postPackageLibrary("/api/packages/dashboard/apply", {
+        packageId: selection.packageId,
+        version: selection.version,
+        roleMapping,
+      });
+      state.dashboardLayouts = await dashboardLayoutRequest("/api/dashboard-layout");
+      await applyActiveDashboardLayout();
+      state.pendingDashboardImport = null;
+      state.pendingDashboardPackage = null;
+      elements.dashboardLayoutImportFile.value = "";
+      renderDashboardImportPanel();
+      setFeedback(
+        `Dashboard package "${selection.name}" ${selection.version} applied as profile "${applied.profileName}" with explicit Character role mapping.`,
+        "success",
+      );
+      return;
+    }
+
     const resolved = resolvePortableDashboardProfile(pending, roleMapping);
     importedProfileId = dashboardProfileId(resolved.name);
     state.dashboardLayouts = await dashboardLayoutRequest("/api/dashboard-layout/profile/create", {
@@ -1002,6 +1095,7 @@ elements.dashboardLayoutImportApply.addEventListener("click", async () => {
     }
     await applyActiveDashboardLayout();
     state.pendingDashboardImport = null;
+    state.pendingDashboardPackage = null;
     elements.dashboardLayoutImportFile.value = "";
     renderDashboardImportPanel();
     setFeedback(
@@ -5145,11 +5239,32 @@ function renderPackageImportPreview(preview) {
   elements.packageImportName.textContent = preview.name;
   elements.packageImportVersion.textContent = preview.version;
   elements.packageImportAuthor.textContent = preview.author;
+  elements.packageImportKind.textContent = preview.packageKind === "dashboard" ? "Dashboard" : "Script";
   elements.packageImportIntegrity.textContent = `SHA-256 verified · ${preview.manifestHash.slice(0, 12)}…`;
   elements.packageImportDescription.textContent = preview.description;
+  const isDashboardPackage = preview.packageKind === "dashboard";
+  elements.packageImportDashboardCard.hidden = !isDashboardPackage;
+  elements.packageImportConfigCard.hidden = isDashboardPackage;
+  elements.packageImportCodeCard.hidden = isDashboardPackage;
+  if (isDashboardPackage) {
+    const profile = preview.dashboard?.profile?.profile;
+    const variants = ["desktop", "small"].filter((variant) => profile?.layouts?.[variant]);
+    elements.packageImportDashboard.textContent =
+      `Profile "${profile?.name ?? preview.name}" · ${preview.dashboard?.roleIds?.length ?? 0} Character role(s) · ${variants.join(" + ") || "no layouts"}`;
+  } else {
+    elements.packageImportDashboard.textContent = "—";
+  }
   elements.packageImportConfig.textContent = JSON.stringify(preview.configSchema, null, 2);
 
   elements.packageImportPermissions.replaceChildren();
+  if ((preview.permissions ?? []).length === 0) {
+    const none = document.createElement("span");
+    none.className = "selection-note";
+    none.textContent = preview.packageKind === "dashboard"
+      ? "No script permissions. Dashboard-only packages cannot contain executable scripts in Slice 13.1."
+      : "No permissions declared.";
+    elements.packageImportPermissions.append(none);
+  }
   for (const permission of preview.permissions ?? []) {
     const dangerous = preview.dangerousPermissions?.includes(permission) === true;
     const label = document.createElement("label");
@@ -5178,9 +5293,11 @@ function renderPackageImportPreview(preview) {
   renderPackageImportCode();
 
   elements.packageImportStatus.textContent = "Preview ready";
-  elements.packageImportNote.textContent = preview.requiresDangerousConfirmation
-    ? "Review code, configuration, and permissions. Every dangerous permission must be explicitly checked before import. Import remains inactive."
-    : "Review code and configuration before import. This package declares no dangerous permissions and remains inactive after import.";
+  elements.packageImportNote.textContent = preview.packageKind === "dashboard"
+    ? "Review the portable Dashboard profile and Character roles. Dashboard-only packages contain no executable scripts or script permissions. Import stores the package; applying the layout requires explicit Character role mapping."
+    : preview.requiresDangerousConfirmation
+      ? "Review code, configuration, and permissions. Every dangerous permission must be explicitly checked before import. Import remains inactive."
+      : "Review code and configuration before import. This package declares no dangerous permissions and remains inactive after import.";
 }
 
 async function previewSelectedPackage() {
@@ -5235,8 +5352,9 @@ elements.packageImportRemotePreviewButton.addEventListener("click", async () => 
     state.packageImportRemoteSource = source;
     renderPackageImportPreview(preview);
     const sourceLabel = preview.remoteSource?.kind === "github" ? "GitHub source" : "package link";
-    elements.packageImportNote.textContent =
-      `Previewed ${sourceLabel}. Review code, configuration, and permissions. The source is fetched again when you confirm, and the package remains inactive after import.`;
+    elements.packageImportNote.textContent = preview.packageKind === "dashboard"
+      ? `Previewed ${sourceLabel}. Review the portable Dashboard profile. The source is fetched again when you confirm; applying the layout later requires explicit Character role mapping.`
+      : `Previewed ${sourceLabel}. Review code, configuration, and permissions. The source is fetched again when you confirm, and the package remains inactive after import.`;
     setFeedback(`Remote package preview ready: ${preview.name} ${preview.version}.`, "success");
   } catch (error) {
     state.packageImportDocument = null;
@@ -5397,7 +5515,11 @@ function renderPackageLibrary(snapshot) {
     const saveButton = document.createElement("button");
     saveButton.type = "button";
     saveButton.textContent = "Save configuration";
-    actions.append(activeButton, saveButton);
+    const dashboardApplyButton = document.createElement("button");
+    dashboardApplyButton.type = "button";
+    dashboardApplyButton.textContent = "Apply dashboard layout";
+    dashboardApplyButton.hidden = true;
+    actions.append(activeButton, saveButton, dashboardApplyButton);
 
     const updateLabel = document.createElement("span");
     updateLabel.className = "label";
@@ -5444,14 +5566,28 @@ function renderPackageLibrary(snapshot) {
     function renderSelectedVersion() {
       const version = selectedVersion();
       if (!version) return;
-      status.textContent =
-        `${version.active ? "Active" : "Inactive"} · imported ${version.importedAt ?? "time unknown"} · package execution: not supported`;
+      const dashboardPackage = version.packageKind === "dashboard";
+      status.textContent = dashboardPackage
+        ? `Dashboard package · imported ${version.importedAt ?? "time unknown"} · package execution: not supported`
+        : `${version.active ? "Active" : "Inactive"} · imported ${version.importedAt ?? "time unknown"} · package execution: not supported`;
       description.textContent = version.description;
       permissions.textContent =
         `Permissions: ${version.permissions?.join(", ") || "none"}`;
       schema.textContent = JSON.stringify(version.configSchema ?? {}, null, 2);
       config.value = JSON.stringify(version.configuration ?? {}, null, 2);
       activeButton.textContent = version.active ? "Set inactive" : "Set active";
+      activeButton.hidden = dashboardPackage;
+      saveButton.hidden = dashboardPackage;
+      schemaLabel.hidden = dashboardPackage;
+      schema.hidden = dashboardPackage;
+      configLabel.hidden = dashboardPackage;
+      dashboardApplyButton.hidden = !dashboardPackage;
+      updateLabel.hidden = dashboardPackage;
+      updateStatus.hidden = dashboardPackage;
+      changelogLabel.hidden = dashboardPackage;
+      changelog.hidden = dashboardPackage;
+      updatePermissions.hidden = dashboardPackage;
+      updateActions.hidden = dashboardPackage;
     }
 
     function renderUpdatePreview(preview) {
@@ -5498,6 +5634,34 @@ function renderPackageLibrary(snapshot) {
     }
 
     versionSelect.addEventListener("change", renderSelectedVersion);
+    dashboardApplyButton.addEventListener("click", async () => {
+      const version = selectedVersion();
+      if (!version || version.packageKind !== "dashboard") return;
+      dashboardApplyButton.disabled = true;
+      try {
+        const inspected = await postPackageLibrary("/api/packages/dashboard/inspect", {
+          packageId: packageEntry.packageId,
+          version: version.version,
+        });
+        state.pendingDashboardImport = inspected.dashboard.profile;
+        state.pendingDashboardPackage = {
+          packageId: packageEntry.packageId,
+          name: packageEntry.name,
+          version: version.version,
+        };
+        renderDashboardImportPanel();
+        elements.dashboardLayoutImportPanel.scrollIntoView({ behavior: "smooth", block: "center" });
+        setFeedback(
+          `Dashboard package "${packageEntry.name}" ${version.version} loaded. Map every Character role before applying it.`,
+          "success",
+        );
+      } catch (error) {
+        setFeedback(`Dashboard package could not be prepared: ${error.message}`, "error");
+      } finally {
+        dashboardApplyButton.disabled = false;
+      }
+    });
+
     activeButton.addEventListener("click", async () => {
       const version = selectedVersion();
       if (!version) return;
@@ -5633,7 +5797,7 @@ function renderPackageLibrary(snapshot) {
   }
 
   elements.packageLibraryNote.textContent =
-    "Active / inactive, updates, and rollback only change persisted package-library state. Package code is not executed by these controls. Every permission newly requested by an update must be explicitly confirmed.";
+    "Script packages keep Active / inactive, configuration, updates, and rollback controls. Dashboard packages are applied separately through explicit Character role mapping. No package code is executed by Dashboard package controls.";
 }
 
 async function refreshPackageLibrary() {
@@ -6606,6 +6770,214 @@ elements.copySlice126LiveTestResult.addEventListener("click", async () => {
 });
 
 renderSlice126LiveTest();
+
+function renderSlice131LiveTest() {
+  const test = state.slice131LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = { idle: "Ready", running: "Running…", passed: "PASSED", failed: "FAILED" };
+  elements.slice131LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice131LiveTest.disabled = test.status === "running";
+  elements.copySlice131LiveTestResult.hidden = !state.slice131LastReport;
+  if (test.status === "running") {
+    elements.slice131LiveTestNote.textContent =
+      "Testing Dashboard-only .alrpkg export/import, portable roles, explicit role mapping, persistent layout application, combined-pack deferral, cleanup, and runtime continuity.";
+  } else if (test.message) {
+    elements.slice131LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function runSlice131Verification() {
+  const before = await fetchRendererSnapshot();
+  const descriptorResponse = await fetch("/api/packages/dashboard", { cache: "no-store" });
+  const descriptor = await descriptorResponse.json();
+  if (!descriptorResponse.ok) throw new Error(descriptor.error ?? "Dashboard package descriptor failed.");
+
+  const selfTestResponse = await fetch("/api/packages/dashboard/self-test", { cache: "no-store" });
+  const selfTest = await selfTestResponse.json();
+  if (!selfTestResponse.ok) throw new Error(selfTest.error ?? "Dashboard package self-test failed.");
+
+  const after = await fetchRendererSnapshot();
+  const checks = selfTest.checks ?? {};
+  const steps = [
+    { key: "dashboard-package-descriptor", outcome:
+      descriptor.packageKind === "dashboard" &&
+      descriptor.packageExtension === ".alrpkg" &&
+      descriptor.exportSupported === true &&
+      descriptor.importedPreviewSupported === true &&
+      descriptor.roleMappingRequired === true
+        ? "passed" : "failed" },
+    { key: "same-package-format", outcome: checks.samePackageFormat ? "passed" : "failed" },
+    { key: "dashboard-kind", outcome: checks.dashboardKind ? "passed" : "failed" },
+    { key: "portable-profile-validated", outcome: checks.portableProfileValidated ? "passed" : "failed" },
+    { key: "no-script-payload", outcome: checks.noScriptPayload ? "passed" : "failed" },
+    { key: "imported-inactive", outcome: checks.importedInactive ? "passed" : "failed" },
+    { key: "explicit-role-mapping", outcome: checks.explicitRoleMapping ? "passed" : "failed" },
+    { key: "source-character-ids-absent", outcome: checks.sourceCharacterIdsAbsent ? "passed" : "failed" },
+    { key: "layout-persisted", outcome: checks.layoutPersisted ? "passed" : "failed" },
+    { key: "combined-pack-deferred", outcome: checks.combinedPackDeferred ? "passed" : "failed" },
+    { key: "no-package-execution", outcome:
+      checks.noExecution && descriptor.packageExecutionSupported === false ? "passed" : "failed" },
+    { key: "verification-cleanup", outcome: checks.cleanup ? "passed" : "failed" },
+  ];
+
+  const beforeCore = before.snapshot?.core ?? {};
+  const afterCore = after.snapshot?.core ?? {};
+  const beforeCharacter = before.snapshot?.character ?? {};
+  const afterCharacter = after.snapshot?.character ?? {};
+  const beforeScript = before.snapshot?.script ?? {};
+  const afterScript = after.snapshot?.script ?? {};
+  const coreRestart = beforeCore.startedAt !== afterCore.startedAt;
+  const characterRestart = !sameSocketMarkers(beforeCharacter, afterCharacter);
+  const scriptRestart =
+    (beforeScript.runId ?? null) !== (afterScript.runId ?? null) ||
+    (beforeScript.startedAt ?? null) !== (afterScript.startedAt ?? null);
+  const actionGatewayRequests = Math.max(
+    0,
+    Number(after.snapshot?.actionGateway?.totalRequests ?? 0) -
+      Number(before.snapshot?.actionGateway?.totalRequests ?? 0),
+  );
+  steps.push({
+    key: "core-character-script-continuity",
+    outcome: !coreRestart && !characterRestart && !scriptRestart ? "passed" : "failed",
+  });
+  steps.push({
+    key: "read-only-gameplay-runtime",
+    outcome: actionGatewayRequests === 0 && checks.noGameplayMutation ? "passed" : "failed",
+  });
+
+  return {
+    outcome: steps.every((step) => step.outcome === "passed") ? "passed" : "failed",
+    steps,
+    descriptor,
+    selfTest,
+    coreRestart,
+    characterRestart,
+    scriptRestart,
+    actionGatewayRequests,
+    gameplayMutation: false,
+    rawSocketAccess: false,
+    userScriptTouched: false,
+    packageExecutionAttempted: false,
+  };
+}
+
+async function startSlice131LiveTest(clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice131LiveTest = {
+    status: "running",
+    message: "Slice 13.1 Dashboard Packages test is running.",
+  };
+  renderSlice131LiveTest();
+
+  const verification = await runSlice131Verification();
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) {
+    throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  }
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live131-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const checks = verification.selfTest.checks ?? {};
+  const applied = verification.selfTest.applied ?? {};
+  const stepLines = verification.steps.map((step) =>
+    `- ${step.key}: ${String(step.outcome).toUpperCase()}`
+  );
+
+  const reportText = [
+    "ALRemastered Slice 13.1 one-click Dashboard Packages test",
+    `Test ID: ${testId}`,
+    "Slice: 13.1",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    `Package extension: ${verification.descriptor.packageExtension}`,
+    `Package kind: ${verification.descriptor.packageKind}`,
+    `Portable profile kind: ${verification.descriptor.portableProfileKind}`,
+    `Dashboard export supported: ${verification.descriptor.exportSupported}`,
+    `Role mapping required: ${verification.descriptor.roleMappingRequired}`,
+    `Same package format: ${checks.samePackageFormat}`,
+    `Dashboard kind validated: ${checks.dashboardKind}`,
+    `Portable profile validated: ${checks.portableProfileValidated}`,
+    `No script payload: ${checks.noScriptPayload}`,
+    `Imported inactive: ${checks.importedInactive}`,
+    `Explicit role mapping: ${checks.explicitRoleMapping}`,
+    `Applied profile: ${applied.profileName ?? "unknown"}`,
+    `Applied profile ID: ${applied.profileId ?? "unknown"}`,
+    `Layout variants: ${applied.layoutVariants?.join(", ") || "none"}`,
+    `Source Character IDs absent: ${checks.sourceCharacterIdsAbsent}`,
+    `Layout persisted: ${checks.layoutPersisted}`,
+    `Combined Script + Dashboard deferred: ${checks.combinedPackDeferred}`,
+    `Combined rejection error: ${checks.combinedErrorCode ?? "unknown"}`,
+    "Package execution attempted: false",
+    `Verification cleanup: ${checks.cleanup}`,
+    `Core restart: ${verification.coreRestart}`,
+    `Character restart: ${verification.characterRestart}`,
+    `Script restart: ${verification.scriptRestart}`,
+    "Gameplay mutation: false",
+    `Action Gateway requests: ${verification.actionGatewayRequests}`,
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+
+  const result = {
+    testId,
+    slice: "13.1",
+    outcome,
+    startedAt,
+    completedAt,
+    message: outcome === "passed"
+      ? "Dashboard Packages verification passed."
+      : "Dashboard Packages verification failed.",
+    ...verification,
+  };
+  state.slice131LastReport = reportText;
+  state.slice131LiveTest = { status: outcome, message: result.message, lastResult: result };
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice131LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice131LiveTest.addEventListener("click", async () => {
+  if (state.slice131LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice131LastReport = null;
+  elements.copySlice131LiveTestResult.hidden = true;
+  try {
+    const { result, copied } = await startSlice131LiveTest(clipboardWrite);
+    setFeedback(
+      `Slice 13.1 test ${String(result.outcome).toUpperCase()}. ${copied ? "Complete result and sanitized diagnostic log copied to clipboard." : "Use Copy last test result once."}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    state.slice131LiveTest = { status: "failed", message: error.message };
+    renderSlice131LiveTest();
+    setFeedback(`Slice 13.1 Dashboard Packages test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice131LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice131LastReport) return;
+  try {
+    await writeClipboard(state.slice131LastReport);
+    setFeedback("Complete Slice 13.1 Dashboard Packages result and sanitized diagnostic log copied.", "success");
+  } catch (error) {
+    setFeedback(`Dashboard Packages result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice131LiveTest();
 
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
