@@ -48,7 +48,7 @@ test("Slice 11.4 exposes profile switching in Browser View without a gameplay mu
   const app = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
   const server = readFileSync(new URL("../src/dashboard/server.js", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="11\.4"/);
+  assert.match(html, /data-current-verification-slice="12\.1"/);
   assert.match(html, /Slice 11\.4 one-click Graphics Profiles test/);
   assert.match(html, /id="start-slice-11-4-live-test"/);
 

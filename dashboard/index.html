@@ -6,7 +6,7 @@
   <title>ALRemastered</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body data-current-verification-slice="11.4">
+<body data-current-verification-slice="12.1">
   <main class="shell">
     <header class="topbar">
       <div>
@@ -336,6 +336,20 @@
         </div>
         <small class="selection-note" id="slice-11-4-live-test-note">
           Opens Browser View and switches through Original, HD Performance, HD Auto, and HD Maximum. Verifies profile-specific texture policy, renderer reinitialization, original fallback, and uninterrupted Core / Character / Script runtime.
+        </small>
+      </div>
+    </div>
+
+    <div class="selection-content" data-verification-test="12.1" hidden>
+      <div>
+        <h3>Slice 12.1 one-click Script Package format test</h3>
+        <div class="server-picker">
+          <button id="start-slice-12-1-live-test" type="button">Start test</button>
+          <strong id="slice-12-1-live-test-status" aria-live="polite">Ready</strong>
+          <button id="copy-slice-12-1-live-test-result" type="button" hidden>Copy last test result</button>
+        </div>
+        <small class="selection-note" id="slice-12-1-live-test-note">
+          Validates the ALRemastered .alrpkg container, required manifest metadata, Scripts, Config Schema, README, compatibility, declared permissions, and SHA-256 integrity. No package is imported or executed.
         </small>
       </div>
     </div>
