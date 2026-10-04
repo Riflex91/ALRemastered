@@ -1571,3 +1571,75 @@ Repository/release evidence:
 **Canonical queue status: Slice 8.3 = VERIFIED.**
 
 Do not repeat Slice 8.3 merely because implementation planning text remains elsewhere. The dashboard-maintenance cleanup that hides historical one-click verification controls from the normal UI may begin only after this verification documentation is merged and the exact post-merge `main` CI is fully green. Historical live-test services, APIs, CI suites, and evidence remain retained.
+
+
+---
+
+### Alpha.60 real one-click result: PASSED — Slice 8.4 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.60`
+- release target / tested implementation main: `cfb203e199f5f89733d8174e213e3d39ffdfb445`
+- client: `0.1.0-alpha.60` / Windows
+- platform: `win32`
+- test ID: `live84-186baff7-0dec-49a2-98ea-f4af7236bc09`
+- primary Character: `My_Merchant`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-04T09:38:12.483Z → 2026-10-04T09:38:12.485Z`
+- diagnostic export: 35 log lines, `Secrets sanitized: yes`.
+
+The one-click harness completed the full Slice 8.4 explainability validation:
+
+- Strategy: `Simple Farmer`, currently inactive / runtime status `idle`, configured monster `bee`;
+- current target preview selected the nearest eligible visible `bee`:
+  - target ID `5757471`
+  - distance `375.3`
+  - attack range `70`
+  - `inRange:false`;
+- selection reason was exposed explicitly as a read-only preview because the template was not running;
+- rejected-target telemetry was populated with 12 rejected candidates and per-target reasons;
+- range explanation explicitly reported `Target is out of range (375.3 > 70).`;
+- cooldowns were exposed as Attack `0 ms`, HP `0 ms`, MP `0 ms`;
+- movement target correctly reported none, with the explanation that Simple Farmer itself does not navigate;
+- next action was `Start template`, because Simple Farmer was configured/readable but not running;
+- two blockers were exposed:
+  - Simple Farmer Template is not running;
+  - selected target is outside attack range and Simple Farmer does not navigate.
+
+Isolation and safety evidence:
+
+- the `explainability` step passed;
+- the `isolation` step passed;
+- primary Character remained `connected`;
+- user Script status remained `unloaded`;
+- Action Gateway request count remained exactly `0 → 0`;
+- `readOnly:true`;
+- `gameplayMutation:false`;
+- `rawSocketAccess:false`;
+- no gameplay action was dispatched by the explainability read path.
+
+Repository/release evidence:
+
+- implementation PR #118 final feature head: `25c144b4ec134c1c05ece7d02c6507eccc343848`;
+- final implementation PR CI run `37191850363` completed with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #118 merged with method `merge` into exact implementation main `cfb203e199f5f89733d8174e213e3d39ffdfb445`;
+- exact post-implementation-main CI run `37191997325` completed with all four required jobs successful;
+- release publish run `37192184994` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.60`, tag `v0.1.0-alpha.60`, GitHub release target, and tested implementation `main` were verified commit-identical at `cfb203e199f5f89733d8174e213e3d39ffdfb445`;
+- published assets:
+  - Windows x64 installer SHA-256 `bf0d147424d9881656c21d0cb5ebdba3132fd6fcf7733d1ee5b5d1535ccbcaaa`
+  - Linux x64 installer SHA-256 `dddd576cd25ff0968a992a4aa2e087ec4cff899075087bbe75c0357e694a4f74`
+  - updater manifest SHA-256 `1af34f4310df1f07ef01b7c8c45967ce98c42cff980cc2d2c5a35257f11c774b`.
+
+Dashboard verification workflow:
+
+- `Current verification` exposed Slice 8.4 as the single active manual verification harness;
+- historical one-click harnesses remain retained through their services, APIs, automated suites, and historical evidence while hidden from the normal workflow.
+
+**Canonical queue status: Slice 8.4 = VERIFIED.**
+
+The out-of-range target and inactive template are expected live-state observations, not failures: the purpose of Slice 8.4 is to explain the existing decision state without changing it.
+
+Phase 8 is functionally complete. Phase 9 / Slice 9.1 – Dashboard Edit Mode may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
