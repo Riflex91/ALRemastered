@@ -9,7 +9,6 @@ test("Slice 9.5 exposes portable dashboard import/export and explicit role mappi
   const server = readFileSync(new URL("../src/dashboard/server.js", import.meta.url), "utf8");
   const css = readFileSync(new URL("../dashboard/styles.css", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="9\.5"/);
   assert.match(html, /id="dashboard-layout-export"[^>]*>Export profile</);
   assert.match(html, /id="dashboard-layout-import"[^>]*>Import profile</);
   assert.match(html, /id="dashboard-layout-import-file"/);

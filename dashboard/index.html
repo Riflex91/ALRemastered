@@ -6,7 +6,7 @@
   <title>ALRemastered</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body data-current-verification-slice="9.5">
+<body data-current-verification-slice="10.1">
   <main class="shell">
     <header class="topbar">
       <div>
@@ -215,6 +215,20 @@
         </div>
         <small class="selection-note" id="slice-9-5-live-test-note">
           Exercises role-neutral export, JSON validation, Character role mapping, persistent import/reload, and cleanup. Exported layouts contain no fixed Character IDs or Character names and the test does not dispatch gameplay actions.
+        </small>
+      </div>
+    </div>
+
+    <div class="selection-content" data-verification-test="10.1" hidden>
+      <div>
+        <h3>Slice 10.1 one-click renderer bridge test</h3>
+        <div class="server-picker">
+          <button id="start-slice-10-1-live-test" type="button">Start renderer bridge test</button>
+          <strong id="slice-10-1-live-test-status" aria-live="polite">Ready</strong>
+          <button id="copy-slice-10-1-live-test-result" type="button" hidden>Copy last test result</button>
+        </div>
+        <small class="selection-note" id="slice-10-1-live-test-note">
+          Exercises the read-only renderer snapshot and SSE event stream, verifies sequence progression and Core/Character/Script continuity, then disconnects the test subscriber. It does not open a renderer window or dispatch gameplay actions.
         </small>
       </div>
     </div>
