@@ -3503,3 +3503,74 @@ Scope/safety evidence:
 
 Slice 11.2 – WebGL Texture-Size Guard may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
 
+---
+
+## Verification Evidence — Slice 11.2 GPU / Texture Guard
+
+**Status: VERIFIED**
+
+> 2026-10-04: VERIFIED on Windows with `0.1.0-alpha.71`. Real installed one-click test `live112-9079e8e2-8a63-4e67-9a7d-d1747fdd2dfb` passed real WebGL `MAX_TEXTURE_SIZE` detection, temporary-context cleanup, texture-guard diagnostics, deterministic oversized-HD original fallback, actual-hardware resolution, and Core/Character/Script/Action-Gateway continuity.
+
+Live verification evidence:
+
+- client: `0.1.0-alpha.71`;
+- platform: `win32`;
+- test ID: `live112-9079e8e2-8a63-4e67-9a7d-d1747fdd2dfb`;
+- outcome: `PASSED`;
+- test window: `2026-10-04T15:22:59.614Z → 2026-10-04T15:22:59.625Z`;
+- `webgl-max-texture-size: PASSED`;
+- `texture-guard-diagnostics: PASSED`;
+- `oversized-original-fallback: PASSED`;
+- `actual-hardware-resolution: PASSED`;
+- `core-continuity: PASSED`;
+- `character-continuity: PASSED`;
+- `script-continuity: PASSED`;
+- `read-only-runtime: PASSED`;
+- WebGL context: `webgl`;
+- detected `MAX_TEXTURE_SIZE: 16384`;
+- `WEBGL_lose_context available: true`;
+- `Temporary context released: true`;
+- guard available assets: `2`;
+- guard eligible assets: `2`;
+- guard blocked assets on actual hardware: none;
+- `Hardware suitable for active ALHD assets: true`;
+- forced guard limit: `1024`;
+- forced oversized resolution: `original / texture-too-large`;
+- actual hardware resolution: `original / hd-file-missing`;
+- `Presentation only: true`;
+- `Original fallback: true`;
+- `Core restart: false`;
+- `Character restart: false`;
+- `Script restart: false`;
+- `Dashboard GET only: true`;
+- `Gameplay mutation: false`;
+- Action Gateway requests: `0`;
+- `Raw socket access: false`;
+- `User Script touched: false`;
+- diagnostic export: 11 log lines, `Secrets sanitized: yes`.
+
+Repository/release evidence:
+
+- implementation PR #142 final feature head: `f222a797cf596f99ab88bf407c2a53f47590a812`;
+- final implementation PR CI run `37212162287` completed on that exact head with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #142 merged with method `merge` into exact implementation main `37cdd90027e697e6df642e44e13be9d37a94b4c0`;
+- exact post-implementation-main CI run `37212357296` completed with all four required jobs successful;
+- release publish run `37212538843` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.71`, tag `v0.1.0-alpha.71`, GitHub Release target, publish-run head, and tested implementation `main` were verified commit-identical at `37cdd90027e697e6df642e44e13be9d37a94b4c0`;
+- published assets:
+  - Windows x64 installer SHA-256 `2fdab267a373aaa6320e387a152753e2aefbe3d4ae855d142f7156aadc42b88f`
+  - Linux x64 installer SHA-256 `0361bae4a1e4df00fe9a473266a441095e734c525374a5e6f961b74175e91e29`
+  - updater manifest SHA-256 `0d080173f53a663a2fb9422b8bf756fe77b9c11f65cf3ce472ab65a4acd00860`.
+
+Scope/safety evidence:
+
+- WebGL capability detection uses only a temporary browser context and releases it when `WEBGL_lose_context` is available;
+- active ALHD entries are checked against their `hdPixels` dimensions before HD resolution;
+- oversized HD entries fail closed to the original Adventure Land asset path;
+- diagnostics are GET-only and presentation-only;
+- no HD-by-default Browser application, graphics profiles, gameplay mutation route, raw socket access, or user Script replacement was introduced.
+
+**Canonical roadmap status: Slice 11.2 = VERIFIED.**
+
+Slice 11.3 – HD Standard im Browser-Renderer may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
+
