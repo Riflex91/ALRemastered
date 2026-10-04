@@ -3122,3 +3122,51 @@ Repository/release evidence:
 **Canonical roadmap status: Slice 9.4 = VERIFIED.**
 
 Slice 9.5 may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
+
+---
+
+## Verification Evidence — Slice 9.5 Dashboard Import/Export
+
+**Status: VERIFIED**
+
+> 2026-10-04: VERIFIED on Windows with `0.1.0-alpha.65`. The real installed one-click test `live95-2655abcc-7452-471a-ae26-5a848df2ce0a` passed role-neutral export, JSON roundtrip validation, explicit Character role mapping, persistent import/reload, and cleanup. Portable exports contained no fixed Character IDs and no Character names. The imported profile was persisted and successfully reloaded. The test made no gameplay mutation, issued zero Action Gateway requests, used no raw socket access, and did not touch the user Script runtime. The sanitized diagnostic export contained 11 lines and reported `Secrets sanitized: yes`.
+
+Live verification evidence:
+
+- client: `0.1.0-alpha.65`;
+- platform: `win32`;
+- test ID: `live95-2655abcc-7452-471a-ae26-5a848df2ce0a`;
+- outcome: `PASSED`;
+- test window: `2026-10-04T12:14:43.273Z → 2026-10-04T12:14:43.300Z`;
+- `role-neutral-export: PASSED`;
+- `json-roundtrip: PASSED`;
+- `role-mapping: PASSED`;
+- `import-persist-reload: PASSED`;
+- `cleanup: PASSED`;
+- `Portable export: true`;
+- `Fixed Character IDs exported: false`;
+- `Character names exported: false`;
+- `Role mapping: explicit`;
+- `Imported profile persisted: true`;
+- `Gameplay mutation: false`;
+- `Action Gateway requests: 0`;
+- `Raw socket access: false`;
+- `User Script touched: false`.
+
+Repository/release evidence:
+
+- implementation PR #129 final feature head: `4f48b7093b0350b9c85ed5f37a019fa3da17d32c`;
+- final implementation PR CI run `37200740807` completed on that exact head with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #129 merged with method `merge` into exact implementation main `de11b27a1b5f5c07b31894edc852104ec9375488`;
+- exact post-implementation-main CI run `37200892391` completed with all four required jobs successful;
+- release publish run `37201066274` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.65`, tag `v0.1.0-alpha.65`, GitHub release target, publish-run head, and tested implementation `main` were verified commit-identical at `de11b27a1b5f5c07b31894edc852104ec9375488`;
+- published assets:
+  - Windows x64 installer SHA-256 `eef21e2336079612495a511b4eafce4678464270ca0005e47bd831e4a3a43577`
+  - Linux x64 installer SHA-256 `30d964e88aa7e4d49ebde4ab65e7d075e5e9dae3226a04ffb2c4d8b356b4d071`
+  - updater manifest SHA-256 `6a8dc504f77d04ef153f4a5218fd46495d4223129e6bf1e569358f4511fa3317`.
+
+**Canonical roadmap status: Slice 9.5 = VERIFIED.**
+
+Phase 9 – Dashboard Editor is complete through Slice 9.5 once this verification documentation is merged and the exact resulting post-merge `main` CI is fully green. Phase 10 / Slice 10.1 – Renderer Bridge must not begin before that closure gate is complete.
+
