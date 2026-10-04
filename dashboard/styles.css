@@ -814,3 +814,112 @@ h2 {
   margin: 0.5rem 0 0;
   padding-left: 1.25rem;
 }
+
+
+.dashboard-edit-toolbar {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1rem 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid #3a4761;
+  border-radius: 12px;
+  background: #111722;
+}
+
+.dashboard-edit-toolbar[hidden] {
+  display: none;
+}
+
+.dashboard-edit-toolbar small {
+  display: block;
+  margin-top: 0.35rem;
+  color: #9aa4b2;
+}
+
+.dashboard-edit-toolbar label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.dashboard-widget-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: 1rem;
+  align-items: start;
+}
+
+.dashboard-widget-grid > [data-dashboard-widget] {
+  position: relative;
+  min-width: 0;
+  grid-column: span var(--dashboard-widget-columns, 12);
+  height: var(--dashboard-widget-height, auto);
+}
+
+.dashboard-widget-grid > [data-dashboard-widget][data-widget-height] {
+  overflow: auto;
+}
+
+.dashboard-widget-controls {
+  display: none;
+  position: absolute;
+  z-index: 20;
+  top: 0.55rem;
+  right: 0.55rem;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem;
+  border: 1px solid #4a5568;
+  border-radius: 9px;
+  background: rgba(12, 16, 22, 0.94);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+}
+
+.dashboard-editing .dashboard-widget-controls {
+  display: flex;
+}
+
+.dashboard-editing .dashboard-widget-grid {
+  border-radius: 12px;
+  background-image:
+    linear-gradient(rgba(117, 137, 177, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(117, 137, 177, 0.08) 1px, transparent 1px);
+  background-size: calc(100% / 12) 48px;
+}
+
+.dashboard-editing [data-dashboard-widget] {
+  outline: 1px dashed #596a8f;
+  outline-offset: -1px;
+}
+
+.dashboard-editing [data-dashboard-widget][data-dragging="true"] {
+  opacity: 0.6;
+}
+
+.dashboard-drag-handle {
+  cursor: grab;
+}
+
+.dashboard-drag-handle:active {
+  cursor: grabbing;
+}
+
+.dashboard-resize-handle {
+  cursor: nwse-resize;
+}
+
+.dashboard-remove-widget {
+  border-color: #70434a;
+}
+
+@media (max-width: 720px) {
+  .dashboard-edit-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dashboard-widget-grid > [data-dashboard-widget] {
+    grid-column: span 12 !important;
+  }
+}

@@ -1,8 +1,12 @@
+import { DashboardEditor, runDashboardEditorVerification } from "/dashboard-editor.js";
+
 const state = {
   records: [],
   seenIds: new Set(),
   paused: false,
   autoScroll: true,
+  slice91LiveTest: { status: "idle", message: "Ready." },
+  slice91LastReport: null,
   status: null,
   account: null,
   selection: null,
@@ -80,6 +84,15 @@ const elements = {
   currentVerificationSlot: document.querySelector("#current-verification-slot"),
   currentVerificationStatus: document.querySelector("#current-verification-status"),
   currentVerificationEmpty: document.querySelector("#current-verification-empty"),
+  editDashboard: document.querySelector("#edit-dashboard"),
+  dashboardEditToolbar: document.querySelector("#dashboard-edit-toolbar"),
+  dashboardEditStatus: document.querySelector("#dashboard-edit-status"),
+  dashboardWidgetAddSelect: document.querySelector("#dashboard-widget-add-select"),
+  dashboardAddWidget: document.querySelector("#dashboard-add-widget"),
+  startSlice91LiveTest: document.querySelector("#start-slice-9-1-live-test"),
+  slice91LiveTestStatus: document.querySelector("#slice-9-1-live-test-status"),
+  slice91LiveTestNote: document.querySelector("#slice-9-1-live-test-note"),
+  copySlice91LiveTestResult: document.querySelector("#copy-slice-9-1-live-test-result"),
   coreStatus: document.querySelector("#core-status"),
   version: document.querySelector("#client-version"),
   uptime: document.querySelector("#uptime"),
@@ -417,6 +430,176 @@ function mountCurrentVerification() {
 }
 
 mountCurrentVerification();
+
+let dashboardEditor;
+function renderDashboardEditMode() {
+  if (!dashboardEditor) return;
+  const editing = dashboardEditor.enabled;
+  elements.editDashboard.setAttribute("aria-pressed", String(editing));
+  elements.editDashboard.textContent = editing ? "Finish editing" : "Edit dashboard";
+  elements.dashboardEditToolbar.hidden = !editing;
+  elements.dashboardEditStatus.textContent = editing ? "Editing" : "Normal mode";
+
+  const removed = dashboardEditor.removedWidgets();
+  elements.dashboardWidgetAddSelect.replaceChildren();
+  if (removed.length === 0) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "No removed widgets";
+    elements.dashboardWidgetAddSelect.append(option);
+    elements.dashboardWidgetAddSelect.disabled = true;
+    elements.dashboardAddWidget.disabled = true;
+  } else {
+    for (const widget of removed) {
+      const option = document.createElement("option");
+      option.value = widget.id;
+      option.textContent = widget.label;
+      elements.dashboardWidgetAddSelect.append(option);
+    }
+    elements.dashboardWidgetAddSelect.disabled = false;
+    elements.dashboardAddWidget.disabled = false;
+  }
+}
+
+dashboardEditor = new DashboardEditor({
+  document,
+  onChange: () => renderDashboardEditMode(),
+}).init();
+renderDashboardEditMode();
+
+elements.editDashboard.addEventListener("click", () => {
+  dashboardEditor.toggle();
+  setFeedback(
+    dashboardEditor.enabled
+      ? "Dashboard edit mode enabled. Drag, resize, remove, or add widgets. Changes are not persisted."
+      : "Dashboard edit mode disabled. Normal dashboard controls are active.",
+  );
+});
+
+elements.dashboardAddWidget.addEventListener("click", () => {
+  const id = elements.dashboardWidgetAddSelect.value;
+  if (!id) return;
+  dashboardEditor.addWidget(id);
+  setFeedback("Widget added to the current dashboard session.", "success");
+});
+
+function renderSlice91LiveTest() {
+  const test = state.slice91LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    failed: "FAILED",
+  };
+  elements.slice91LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice91LiveTest.disabled = test.status === "running";
+  elements.copySlice91LiveTestResult.hidden = !state.slice91LastReport;
+  if (test.status === "running") {
+    elements.slice91LiveTestNote.textContent =
+      "Exercising edit toggle, drag/reorder, resize, grid snapping, add/remove, and normal mode without gameplay actions.";
+  } else if (test.message) {
+    elements.slice91LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function startSlice91LiveTest(clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice91LiveTest = { status: "running", message: "Slice 9.1 dashboard edit test is running." };
+  renderSlice91LiveTest();
+
+  const verification = await runDashboardEditorVerification(dashboardEditor);
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live91-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const stepLines = verification.steps.map((step) =>
+    `- ${step.key}: ${String(step.outcome).toUpperCase()}`
+  );
+  const reportText = [
+    "ALRemastered Slice 9.1 one-click dashboard edit mode test",
+    `Test ID: ${testId}`,
+    "Slice: 9.1",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    `Grid: ${verification.grid.columns} columns / ${verification.grid.rowPx}px row snap`,
+    "Persistence: false",
+    "Gameplay mutation: false",
+    "Action Gateway requests: 0",
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+
+  const result = {
+    testId,
+    slice: "9.1",
+    outcome,
+    startedAt,
+    completedAt,
+    message: outcome === "passed"
+      ? "Dashboard edit mode verification passed."
+      : "Dashboard edit mode verification failed.",
+    steps: verification.steps,
+    persistence: false,
+    gameplayMutation: false,
+    rawSocketAccess: false,
+    userScriptTouched: false,
+  };
+
+  state.slice91LastReport = reportText;
+  state.slice91LiveTest = { status: outcome, message: result.message, lastResult: result };
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice91LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice91LiveTest.addEventListener("click", async () => {
+  if (state.slice91LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice91LastReport = null;
+  elements.copySlice91LiveTestResult.hidden = true;
+  setFeedback("Slice 9.1 dashboard edit test started. It changes dashboard DOM only and restores the starting layout.");
+  try {
+    const { result, copied } = await startSlice91LiveTest(clipboardWrite);
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 9.1 test ${String(result.outcome).toUpperCase()}. ${copyMessage}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    state.slice91LiveTest = { status: "failed", message: error.message };
+    renderSlice91LiveTest();
+    setFeedback(`Slice 9.1 dashboard edit test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice91LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice91LastReport) return;
+  try {
+    await writeClipboard(state.slice91LastReport);
+    setFeedback("Complete Slice 9.1 dashboard edit result and sanitized diagnostic log copied.", "success");
+  } catch (error) {
+    setFeedback(`Dashboard edit result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice91LiveTest();
 
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));

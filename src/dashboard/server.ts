@@ -1935,6 +1935,7 @@ export class DashboardServer {
       "/index.html": "index.html",
       "/styles.css": "styles.css",
       "/app.js": "app.js",
+      "/dashboard-editor.js": "editor.js",
     };
     const assetName = assets[path];
     if (!assetName) {
