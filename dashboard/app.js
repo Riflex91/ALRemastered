@@ -5399,6 +5399,43 @@ function renderPackageLibrary(snapshot) {
     saveButton.textContent = "Save configuration";
     actions.append(activeButton, saveButton);
 
+    const updateLabel = document.createElement("span");
+    updateLabel.className = "label";
+    updateLabel.textContent = "Updates and rollback";
+    const updateStatus = document.createElement("p");
+    updateStatus.className = "selection-note";
+    const changelogLabel = document.createElement("span");
+    changelogLabel.className = "label";
+    changelogLabel.textContent = "Changelog";
+    const changelog = document.createElement("pre");
+    changelog.textContent = "Check for updates to load the remote Changelog.";
+    const updatePermissions = document.createElement("div");
+    const updateActions = document.createElement("div");
+    updateActions.className = "toolbar";
+    const checkUpdateButton = document.createElement("button");
+    checkUpdateButton.type = "button";
+    checkUpdateButton.textContent = "Check for updates";
+    const applyUpdateButton = document.createElement("button");
+    applyUpdateButton.type = "button";
+    applyUpdateButton.textContent = "Install update";
+    applyUpdateButton.hidden = true;
+    const rollbackButton = document.createElement("button");
+    rollbackButton.type = "button";
+    rollbackButton.textContent = "Restore previous version";
+    updateActions.append(checkUpdateButton, applyUpdateButton, rollbackButton);
+
+    let updatePreview = null;
+    const hasRemoteSource = (packageEntry.versions ?? []).some(
+      (version) => Boolean(version.remoteSource?.inputUrl),
+    );
+    if (!hasRemoteSource) {
+      checkUpdateButton.disabled = true;
+      updateStatus.textContent =
+        "No persisted remote update source. Re-import this package from an HTTPS link or supported GitHub source to enable update checks.";
+    } else {
+      updateStatus.textContent = "Remote update source available.";
+    }
+
     function selectedVersion() {
       return packageEntry.versions?.find((version) => version.version === versionSelect.value)
         ?? packageEntry.versions?.[0];
@@ -5415,6 +5452,49 @@ function renderPackageLibrary(snapshot) {
       schema.textContent = JSON.stringify(version.configSchema ?? {}, null, 2);
       config.value = JSON.stringify(version.configuration ?? {}, null, 2);
       activeButton.textContent = version.active ? "Set inactive" : "Set active";
+    }
+
+    function renderUpdatePreview(preview) {
+      updatePreview = preview;
+      updatePermissions.replaceChildren();
+      changelog.textContent = preview.changelog ?? "No changelog entries provided.";
+      if (!preview.updateAvailable) {
+        updateStatus.textContent =
+          `Current version ${preview.currentVersion}; remote version ${preview.availableVersion}. No newer version is available.`;
+        applyUpdateButton.hidden = true;
+        return;
+      }
+      updateStatus.textContent =
+        `Update available: ${preview.currentVersion} → ${preview.availableVersion}.`;
+      const newPermissions = preview.newPermissions ?? [];
+      if (newPermissions.length === 0) {
+        const note = document.createElement("p");
+        note.className = "selection-note";
+        note.textContent = "This update requests no new permissions.";
+        updatePermissions.append(note);
+      } else {
+        const note = document.createElement("p");
+        note.className = "selection-note";
+        note.textContent =
+          "Every newly requested permission must be explicitly confirmed before installation:";
+        updatePermissions.append(note);
+        for (const permission of newPermissions) {
+          const label = document.createElement("label");
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.value = permission;
+          checkbox.dataset.updatePermission = "true";
+          const dangerous = preview.newDangerousPermissions?.includes(permission);
+          label.append(
+            checkbox,
+            document.createTextNode(
+              dangerous ? ` ${permission} — dangerous` : ` ${permission}`,
+            ),
+          );
+          updatePermissions.append(label, document.createElement("br"));
+        }
+      }
+      applyUpdateButton.hidden = false;
     }
 
     versionSelect.addEventListener("change", renderSelectedVersion);
@@ -5439,6 +5519,7 @@ function renderPackageLibrary(snapshot) {
         activeButton.disabled = false;
       }
     });
+
     saveButton.addEventListener("click", async () => {
       const version = selectedVersion();
       if (!version) return;
@@ -5462,6 +5543,73 @@ function renderPackageLibrary(snapshot) {
       }
     });
 
+    checkUpdateButton.addEventListener("click", async () => {
+      checkUpdateButton.disabled = true;
+      updateStatus.textContent = "Checking remote package version…";
+      try {
+        const preview = await postPackageLibrary("/api/packages/updates/check", {
+          packageId: packageEntry.packageId,
+        });
+        renderUpdatePreview(preview);
+        setFeedback(
+          preview.updateAvailable
+            ? `Update available for ${packageEntry.name}: ${preview.availableVersion}.`
+            : `${packageEntry.name} is up to date.`,
+          "success",
+        );
+      } catch (error) {
+        updatePreview = null;
+        applyUpdateButton.hidden = true;
+        updatePermissions.replaceChildren();
+        updateStatus.textContent = "Update check unavailable.";
+        setFeedback(`Package update check failed: ${error.message}`, "error");
+      } finally {
+        checkUpdateButton.disabled = !hasRemoteSource;
+      }
+    });
+
+    applyUpdateButton.addEventListener("click", async () => {
+      if (!updatePreview?.updateAvailable) return;
+      applyUpdateButton.disabled = true;
+      try {
+        const approvedNewPermissions = [...updatePermissions.querySelectorAll(
+          'input[data-update-permission="true"]:checked',
+        )].map((input) => input.value);
+        const result = await postPackageLibrary("/api/packages/updates/apply", {
+          packageId: packageEntry.packageId,
+          previewToken: updatePreview.previewToken,
+          approvedNewPermissions,
+        });
+        await refreshPackageLibrary();
+        setFeedback(
+          `Updated ${packageEntry.name} from ${result.previousVersion} to ${result.currentVersion}. No package code was executed.`,
+          "success",
+        );
+      } catch (error) {
+        setFeedback(`Package update was blocked: ${error.message}`, "error");
+      } finally {
+        applyUpdateButton.disabled = false;
+      }
+    });
+
+    rollbackButton.addEventListener("click", async () => {
+      rollbackButton.disabled = true;
+      try {
+        const result = await postPackageLibrary("/api/packages/updates/rollback", {
+          packageId: packageEntry.packageId,
+        });
+        await refreshPackageLibrary();
+        setFeedback(
+          `Restored ${packageEntry.name} from ${result.replacedVersion} to ${result.restoredVersion}. No package code was executed.`,
+          "success",
+        );
+      } catch (error) {
+        setFeedback(`Previous version could not be restored: ${error.message}`, "error");
+      } finally {
+        rollbackButton.disabled = false;
+      }
+    });
+
     renderSelectedVersion();
     item.append(
       heading,
@@ -5474,12 +5622,18 @@ function renderPackageLibrary(snapshot) {
       schema,
       configLabel,
       actions,
+      updateLabel,
+      updateStatus,
+      changelogLabel,
+      changelog,
+      updatePermissions,
+      updateActions,
     );
     elements.packageLibraryImported.append(item);
   }
 
   elements.packageLibraryNote.textContent =
-    "Active / inactive is persistent library metadata only. Activating an imported package does not load or execute package code. Updates and rollback belong to Slice 12.6.";
+    "Active / inactive, updates, and rollback only change persisted package-library state. Package code is not executed by these controls. Every permission newly requested by an update must be explicitly confirmed.";
 }
 
 async function refreshPackageLibrary() {
