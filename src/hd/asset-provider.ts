@@ -46,6 +46,18 @@ export interface AlhdAssetProviderState {
   readonly message: string;
 }
 
+export interface AlhdTextureGuardDiagnostics {
+  readonly schemaVersion: 1;
+  readonly maxTextureSize: number | null;
+  readonly available: number;
+  readonly eligible: number;
+  readonly blocked: readonly string[];
+  readonly hardwareSuitable: boolean | null;
+  readonly presentationOnly: true;
+  readonly originalFallback: true;
+  readonly message: string;
+}
+
 export interface AlhdAssetResolution {
   readonly schemaVersion: 1;
   readonly sourcePath: string;
@@ -55,6 +67,7 @@ export interface AlhdAssetResolution {
     | "hd-available"
     | "not-in-manifest"
     | "hd-file-missing"
+    | "texture-too-large"
     | "manifest-unavailable";
   readonly presentationOnly: true;
   readonly originalFallback: true;
@@ -140,7 +153,36 @@ export class AlhdAssetProvider {
     });
   }
 
-  resolve(sourcePath: string): AlhdAssetResolution {
+  diagnose(maxTextureSize?: number | null): AlhdTextureGuardDiagnostics {
+    const normalizedLimit = normalizeTextureLimit(maxTextureSize);
+    const active = (this.#manifest?.replacements ?? []).filter((entry) => entry.state === "active");
+    const blocked = active
+      .filter((entry) => textureExceedsLimit(entry, normalizedLimit))
+      .map((entry) => entry.sourcePath)
+      .sort();
+    const available = active.length;
+    const eligible = Math.max(0, available - blocked.length);
+    return Object.freeze({
+      schemaVersion: 1 as const,
+      maxTextureSize: normalizedLimit,
+      available,
+      eligible,
+      blocked: Object.freeze(blocked),
+      hardwareSuitable: normalizedLimit === null ? null : blocked.length === 0,
+      presentationOnly: true as const,
+      originalFallback: true as const,
+      message: normalizedLimit === null
+        ? "WebGL MAX_TEXTURE_SIZE is unavailable; no hardware block is applied."
+        : blocked.length === 0
+        ? `WebGL MAX_TEXTURE_SIZE ${normalizedLimit} supports all active ALHD textures.`
+        : `${blocked.length} active ALHD texture(s) exceed WebGL MAX_TEXTURE_SIZE ${normalizedLimit} and will use originals.`,
+    });
+  }
+
+  resolve(
+    sourcePath: string,
+    options: { readonly maxTextureSize?: number | null } = {},
+  ): AlhdAssetResolution {
     const source = normalizeAssetPath(sourcePath, "sourcePath");
     const manifest = this.#manifest;
     if (!manifest) {
@@ -152,6 +194,11 @@ export class AlhdAssetProvider {
     );
     if (!replacement) {
       return originalResolution(source, "not-in-manifest");
+    }
+
+    const maxTextureSize = normalizeTextureLimit(options.maxTextureSize);
+    if (textureExceedsLimit(replacement, maxTextureSize)) {
+      return originalResolution(source, "texture-too-large");
     }
 
     const hdFile = this.#hdAssetFile(replacement.hdPath);
@@ -272,6 +319,23 @@ function normalizeAssetPath(value: unknown, label: string): string {
     throw new Error(`${label} must stay inside the asset root`);
   }
   return normalized;
+}
+
+function normalizeTextureLimit(value: number | null | undefined): number | null {
+  if (value === undefined || value === null) return null;
+  if (!Number.isFinite(value) || !Number.isInteger(value) || value <= 0) {
+    throw new Error("maxTextureSize must be a positive integer when provided");
+  }
+  return value;
+}
+
+function textureExceedsLimit(
+  replacement: AlhdAssetReplacement,
+  maxTextureSize: number | null,
+): boolean {
+  if (maxTextureSize === null || !replacement.hdPixels) return false;
+  return replacement.hdPixels.width > maxTextureSize ||
+    replacement.hdPixels.height > maxTextureSize;
 }
 
 function originalResolution(
