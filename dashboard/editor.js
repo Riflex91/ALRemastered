@@ -23,6 +23,7 @@ function dashboardFieldKey(element, index) {
 }
 
 function sanitizeDuplicateContent(element) {
+  element.removeAttribute?.("id");
   element.querySelectorAll(".dashboard-widget-controls, .dashboard-widget-config, .dashboard-widget-character-badge, .dashboard-widget-character-context")
     .forEach((node) => node.remove());
   element.querySelectorAll("[id]").forEach((node) => node.removeAttribute("id"));
@@ -153,6 +154,7 @@ export class DashboardEditor {
         delete record.element.dataset.widgetCharacter;
       }
       this.#renderCharacterBadge(id);
+      this.#renderCharacterContext(id);
       this.#syncConfigurationPanel(id);
     }
     this.onChange();
@@ -818,6 +820,30 @@ export async function runDashboardWidgetConfigurationVerification(editor) {
       { id: "slice92-character-a", name: "Verification Character A" },
       { id: "slice92-character-b", name: "Verification Character B" },
     ]);
+    editor.setCharacterSnapshots([
+      {
+        characterId: "slice92-character-a",
+        characterName: "Verification Character A",
+        hp: 150,
+        maxHp: 200,
+        mp: 90,
+        maxMp: 120,
+        map: "main",
+        target: null,
+        health: { status: "healthy" },
+      },
+      {
+        characterId: "slice92-character-b",
+        characterName: "Verification Character B",
+        hp: 123,
+        maxHp: 200,
+        mp: 77,
+        maxMp: 120,
+        map: "main",
+        target: "goo",
+        health: { status: "healthy" },
+      },
+    ]);
 
     editor.configureWidget(candidateId, { characterId: "slice92-character-b" });
     const characterConfiguration = editor.widgetConfiguration(candidateId);
@@ -826,7 +852,9 @@ export async function runDashboardWidgetConfigurationVerification(editor) {
       key: "character-selection",
       outcome:
         characterConfiguration?.characterId === "slice92-character-b" &&
-        candidate?.dataset.widgetCharacter === "slice92-character-b"
+        candidate?.dataset.widgetCharacter === "slice92-character-b" &&
+        candidate?.querySelector(".dashboard-widget-character-context")?.textContent.includes("HP 123 / 200") &&
+        candidate?.querySelector(".dashboard-widget-character-context")?.textContent.includes("Target goo")
           ? "passed"
           : "failed",
     });
@@ -857,7 +885,8 @@ export async function runDashboardWidgetConfigurationVerification(editor) {
       outcome:
         Boolean(duplicateId) &&
         duplicate?.duplicateOf === candidateId &&
-        duplicate?.element.dataset.dashboardDuplicateOf === candidateId
+        duplicate?.element.dataset.dashboardDuplicateOf === candidateId &&
+        Boolean(duplicate?.mirrorObserver)
           ? "passed"
           : "failed",
     });
