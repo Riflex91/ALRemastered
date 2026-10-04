@@ -6,7 +6,7 @@
   <title>ALRemastered</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body data-current-verification-slice="9.1">
+<body data-current-verification-slice="9.2">
   <main class="shell">
     <header class="topbar">
       <div>
@@ -25,7 +25,7 @@
       <div>
         <p class="eyebrow">Dashboard editor</p>
         <strong id="dashboard-edit-status">Normal mode</strong>
-        <small>Changes apply only to this running dashboard. Layout persistence belongs to Slice 9.4.</small>
+        <small>Drag, resize, configure, duplicate, remove, or add widgets. Changes apply only to this running dashboard; layout persistence belongs to Slice 9.4.</small>
       </div>
       <div class="toolbar">
         <label>
@@ -113,6 +113,20 @@
         </div>
         <small class="selection-note" id="slice-9-1-live-test-note">
           Exercises Edit dashboard, widget drag/reorder, resize with grid snapping, remove/add, and return to normal mode. The test is dashboard-only, does not persist the layout, and does not dispatch gameplay actions.
+        </small>
+      </div>
+    </div>
+
+    <div class="selection-content" data-verification-test="9.2" hidden>
+      <div>
+        <h3>Slice 9.2 one-click widget configuration test</h3>
+        <div class="server-picker">
+          <button id="start-slice-9-2-live-test" type="button">Start widget configuration test</button>
+          <strong id="slice-9-2-live-test-status" aria-live="polite">Ready</strong>
+          <button id="copy-slice-9-2-live-test-result" type="button" hidden>Copy last test result</button>
+        </div>
+        <small class="selection-note" id="slice-9-2-live-test-note">
+          Exercises transient Character binding, field visibility, display options, widget duplication, independent duplicate configuration, and return to normal mode. The test does not persist layouts or dispatch gameplay actions.
         </small>
       </div>
     </div>
