@@ -62,6 +62,9 @@ const state = {
   templateConfig: null,
   slice83LiveTest: null,
   slice83LastReport: null,
+  explainability: null,
+  slice84LiveTest: null,
+  slice84LastReport: null,
   movementDebug: null,
   update: null,
   gameVersion: null,
@@ -316,6 +319,21 @@ const elements = {
   slice83LiveTestStatus: document.querySelector("#slice-8-3-live-test-status"),
   slice83LiveTestNote: document.querySelector("#slice-8-3-live-test-note"),
   copySlice83LiveTestResult: document.querySelector("#copy-slice-8-3-live-test-result"),
+  explainabilityStatus: document.querySelector("#explainability-status"),
+  explainabilityStrategy: document.querySelector("#explainability-strategy"),
+  explainabilityCurrentTarget: document.querySelector("#explainability-current-target"),
+  explainabilityRange: document.querySelector("#explainability-range"),
+  explainabilityCooldowns: document.querySelector("#explainability-cooldowns"),
+  explainabilityMovementTarget: document.querySelector("#explainability-movement-target"),
+  explainabilityNextAction: document.querySelector("#explainability-next-action"),
+  explainabilitySelectionReason: document.querySelector("#explainability-selection-reason"),
+  explainabilityRejectedTargets: document.querySelector("#explainability-rejected-targets"),
+  explainabilityBlockers: document.querySelector("#explainability-blockers"),
+  explainabilityNote: document.querySelector("#explainability-note"),
+  startSlice84LiveTest: document.querySelector("#start-slice-8-4-live-test"),
+  slice84LiveTestStatus: document.querySelector("#slice-8-4-live-test-status"),
+  slice84LiveTestNote: document.querySelector("#slice-8-4-live-test-note"),
+  copySlice84LiveTestResult: document.querySelector("#copy-slice-8-4-live-test-result"),
   movementDebugStatus: document.querySelector("#movement-debug-status"),
   movementDebugTrailCount: document.querySelector("#movement-debug-trail-count"),
   movementDebugMovementCount: document.querySelector("#movement-debug-movement-count"),
@@ -2633,6 +2651,159 @@ elements.copySlice83LiveTestResult.addEventListener("click", async () => {
     setFeedback("Complete Slice 8.3 Template Configuration result and sanitized diagnostic log copied.", "success");
   } catch (error) {
     setFeedback(`Template Configuration result copy failed: ${error.message}`, "error");
+  }
+});
+
+
+function replaceExplainabilityList(container, rows, emptyText) {
+  container.replaceChildren();
+  if (!rows?.length) {
+    const item = document.createElement("li");
+    item.textContent = emptyText;
+    container.append(item);
+    return;
+  }
+  for (const row of rows) {
+    const item = document.createElement("li");
+    item.textContent = row;
+    container.append(item);
+  }
+}
+
+function renderExplainability() {
+  const model = state.explainability;
+  elements.explainabilityStatus.textContent = model?.status === "ready" ? "Ready" : "Unavailable";
+  elements.explainabilityStrategy.textContent = model?.strategy
+    ? `${model.strategy.name} · ${model.strategy.active ? "active" : model.strategy.runtimeStatus}`
+    : "—";
+  elements.explainabilityCurrentTarget.textContent = model?.currentTarget
+    ? `${model.currentTarget.name} (${model.currentTarget.type})`
+    : "None";
+  elements.explainabilityRange.textContent = model?.range?.message ?? "—";
+  elements.explainabilityCooldowns.textContent = model?.cooldowns
+    ? `Attack ${model.cooldowns.attackMs} ms · HP ${model.cooldowns.hpMs} ms · MP ${model.cooldowns.mpMs} ms`
+    : "—";
+  elements.explainabilityMovementTarget.textContent = model?.movementTarget?.status === "telemetry"
+    ? `${model.movementTarget.map ?? "map"} @ ${model.movementTarget.x}, ${model.movementTarget.y}`
+    : "None";
+  elements.explainabilityNextAction.textContent = model?.nextAction?.label ?? "—";
+  elements.explainabilitySelectionReason.textContent = model?.selectionReason ?? "—";
+  replaceExplainabilityList(
+    elements.explainabilityRejectedTargets,
+    (model?.rejectedTargets ?? []).map((target) =>
+      `${target.name} (${target.type}) — ${target.reason}`
+    ),
+    "No rejected targets.",
+  );
+  replaceExplainabilityList(
+    elements.explainabilityBlockers,
+    model?.blockers ?? [],
+    "No blockers.",
+  );
+  elements.explainabilityNote.textContent = model?.nextAction
+    ? `${model.nextAction.reason} ${model.message ?? ""}`
+    : model?.message ?? "Explainability is unavailable.";
+}
+
+function renderSlice84LiveTest() {
+  const test = state.slice84LiveTest;
+  const labels = {
+    idle: "Ready", running: "Running…", passed: "PASSED",
+    blocked: "BLOCKED", failed: "FAILED", unavailable: "Unavailable",
+  };
+  const status = test?.status ?? "idle";
+  elements.slice84LiveTestStatus.textContent = labels[status] ?? status;
+  elements.startSlice84LiveTest.disabled = status === "running";
+  elements.copySlice84LiveTestResult.hidden = !state.slice84LastReport;
+  if (status === "running") {
+    elements.slice84LiveTestNote.textContent =
+      "Reading explainability twice and verifying zero Action Gateway dispatch.";
+  } else if (test?.message) {
+    elements.slice84LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function refreshExplainability() {
+  try {
+    const response = await fetch("/api/explainability", { cache: "no-store" });
+    state.explainability = await response.json();
+  } catch {
+    state.explainability = {
+      status: "unavailable",
+      message: "Explainability could not be loaded.",
+      blockers: [],
+      rejectedTargets: [],
+    };
+  }
+  renderExplainability();
+}
+
+async function refreshSlice84LiveTest() {
+  try {
+    const response = await fetch("/api/live-test/slice-8-4", { cache: "no-store" });
+    state.slice84LiveTest = response.ok
+      ? await response.json()
+      : { status: "unavailable", message: "Slice 8.4 explainability test is unavailable." };
+  } catch {
+    state.slice84LiveTest = {
+      status: "unavailable",
+      message: "Slice 8.4 explainability test status could not be loaded.",
+    };
+  }
+  renderSlice84LiveTest();
+}
+
+async function startSlice84LiveTest(clipboardWrite) {
+  state.slice84LiveTest = { status: "running", message: "Slice 8.4 explainability test is running." };
+  renderSlice84LiveTest();
+  const response = await fetch("/api/live-test/slice-8-4/start", { method: "POST" });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error ?? payload.message ?? `HTTP ${response.status}`);
+  if (!payload.reportText || typeof payload.reportText !== "string") {
+    throw new Error("Slice 8.4 explainability test returned no copyable report.");
+  }
+  state.slice84LastReport = payload.reportText;
+  state.slice84LiveTest = {
+    status: payload.result?.outcome ?? "failed",
+    message: payload.result?.message ?? "Slice 8.4 explainability test finished.",
+    lastResult: payload.result,
+  };
+  const copied = await clipboardWrite.finish(payload.reportText);
+  renderSlice84LiveTest();
+  await refreshExplainability();
+  return { payload, copied };
+}
+
+elements.startSlice84LiveTest.addEventListener("click", async () => {
+  if (state.slice84LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice84LastReport = null;
+  elements.copySlice84LiveTestResult.hidden = true;
+  setFeedback("Slice 8.4 explainability test started. It is read-only and dispatches no gameplay action.");
+  try {
+    const { payload, copied } = await startSlice84LiveTest(clipboardWrite);
+    const outcome = payload.result?.outcome ?? "failed";
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 8.4 test ${String(outcome).toUpperCase()}. ${copyMessage}`,
+      outcome === "passed" && copied ? "success" : outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    await refreshSlice84LiveTest();
+    setFeedback(`Slice 8.4 explainability test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice84LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice84LastReport) return;
+  try {
+    await writeClipboard(state.slice84LastReport);
+    setFeedback("Complete Slice 8.4 explainability result and sanitized diagnostic log copied.", "success");
+  } catch (error) {
+    setFeedback(`Explainability result copy failed: ${error.message}`, "error");
   }
 });
 
@@ -6036,6 +6207,8 @@ await refreshSetupWizard();
 await refreshSlice82LiveTest();
 await refreshTemplateConfig();
 await refreshSlice83LiveTest();
+await refreshExplainability();
+await refreshSlice84LiveTest();
 await refreshMovementDebug();
 await refreshGameVersion();
 await refreshGameData();
@@ -6080,6 +6253,8 @@ setInterval(refreshSetupWizard, 2000);
 setInterval(refreshSlice82LiveTest, 1500);
 setInterval(refreshTemplateConfig, 2000);
 setInterval(refreshSlice83LiveTest, 1500);
+setInterval(refreshExplainability, 1000);
+setInterval(refreshSlice84LiveTest, 1500);
 setInterval(refreshMovementDebug, 1500);
 setInterval(refreshGameVersion, 2000);
 setInterval(refreshGameData, 2000);

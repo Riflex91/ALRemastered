@@ -6,7 +6,7 @@
   <title>ALRemastered</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body data-current-verification-slice="">
+<body data-current-verification-slice="8.4">
   <main class="shell">
     <header class="topbar">
       <div>
@@ -85,6 +85,56 @@
         No manual verification test is currently required. Historical verification harnesses remain retained through their APIs and automated test suites.
       </p>
     </section>
+
+
+    <section class="explainability-panel" id="explainability-panel">
+      <div class="diagnostics-heading">
+        <div>
+          <p class="eyebrow">Phase 8 explainability</p>
+          <h2>Why is the bot doing this?</h2>
+        </div>
+        <strong id="explainability-status" aria-live="polite">Waiting</strong>
+      </div>
+      <div class="status-grid explainability-summary">
+        <article class="card"><span class="label">Strategy</span><strong id="explainability-strategy">—</strong></article>
+        <article class="card"><span class="label">Current target</span><strong id="explainability-current-target">—</strong></article>
+        <article class="card"><span class="label">Range</span><strong id="explainability-range">—</strong></article>
+        <article class="card"><span class="label">Cooldowns</span><strong id="explainability-cooldowns">—</strong></article>
+        <article class="card"><span class="label">Movement target</span><strong id="explainability-movement-target">—</strong></article>
+        <article class="card"><span class="label">Next action</span><strong id="explainability-next-action">—</strong></article>
+      </div>
+      <div class="explainability-details">
+        <article class="card">
+          <span class="label">Selection reason</span>
+          <p id="explainability-selection-reason">—</p>
+        </article>
+        <article class="card">
+          <span class="label">Rejected targets</span>
+          <ul id="explainability-rejected-targets"><li>None</li></ul>
+        </article>
+        <article class="card">
+          <span class="label">Blockers</span>
+          <ul id="explainability-blockers"><li>None</li></ul>
+        </article>
+      </div>
+      <small class="selection-note" id="explainability-note">
+        This panel is read-only. It explains existing live state and telemetry and never controls the bot.
+      </small>
+    </section>
+
+    <div class="selection-content" data-verification-test="8.4" hidden>
+      <div>
+        <h3>Slice 8.4 one-click explainability test</h3>
+        <div class="server-picker">
+          <button id="start-slice-8-4-live-test" type="button">Start explainability test</button>
+          <strong id="slice-8-4-live-test-status" aria-live="polite">Ready</strong>
+          <button id="copy-slice-8-4-live-test-result" type="button" hidden>Copy last test result</button>
+        </div>
+        <small class="selection-note" id="slice-8-4-live-test-note">
+          Requires one connected primary Character. The test reads explainability twice and verifies that no Action Gateway request, gameplay mutation, Script change, or raw socket path is introduced.
+        </small>
+      </div>
+    </div>
 
     <section class="account-panel">
       <div class="diagnostics-heading">

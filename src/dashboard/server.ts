@@ -21,6 +21,7 @@ import type { PartyTemplateService } from "../party/templates.ts";
 import type { CharacterCardsService } from "./character-cards.ts";
 import type { SetupWizardService, SetupWizardStartInput } from "./setup-wizard.ts";
 import type { TemplateConfigurationService } from "./template-config.ts";
+import type { ExplainabilityService } from "./explainability.ts";
 import type { CoreRuntime, HealthSnapshot } from "../core/app.ts";
 import type { DiagnosticsService } from "../diagnostics/service.ts";
 import type { AdventureLandGameDataService } from "../game/data-service.ts";
@@ -47,6 +48,7 @@ import type { Slice74LiveTestService } from "../live-test/slice-7-4.ts";
 import type { Slice81LiveTestService } from "../live-test/slice-8-1.ts";
 import type { Slice82LiveTestService } from "../live-test/slice-8-2.ts";
 import type { Slice83LiveTestService } from "../live-test/slice-8-3.ts";
+import type { Slice84LiveTestService } from "../live-test/slice-8-4.ts";
 import type { AdventureLandMapModelService } from "../navigation/map-model.ts";
 import type { MovementDebugService } from "../navigation/movement-debug.ts";
 import type { SimplePathPlannerService } from "../navigation/path-planner.ts";
@@ -71,6 +73,7 @@ export interface DashboardServerOptions {
   readonly characterCardsService?: CharacterCardsService;
   readonly setupWizardService?: SetupWizardService;
   readonly templateConfigurationService?: TemplateConfigurationService;
+  readonly explainabilityService?: ExplainabilityService;
   readonly actionGateway?: ActionGateway;
   readonly movementService?: AdventureLandMovementService;
   readonly attackService?: AdventureLandAttackService;
@@ -98,6 +101,7 @@ export interface DashboardServerOptions {
   readonly slice81LiveTestService?: Slice81LiveTestService;
   readonly slice82LiveTestService?: Slice82LiveTestService;
   readonly slice83LiveTestService?: Slice83LiveTestService;
+  readonly slice84LiveTestService?: Slice84LiveTestService;
   readonly mapModelService?: AdventureLandMapModelService;
   readonly movementDebugService?: MovementDebugService;
   readonly pathPlannerService?: SimplePathPlannerService;
@@ -125,6 +129,7 @@ export class DashboardServer {
   readonly #characterCardsService?: CharacterCardsService;
   readonly #setupWizardService?: SetupWizardService;
   readonly #templateConfigurationService?: TemplateConfigurationService;
+  readonly #explainabilityService?: ExplainabilityService;
   readonly #actionGateway?: ActionGateway;
   readonly #movementService?: AdventureLandMovementService;
   readonly #attackService?: AdventureLandAttackService;
@@ -152,6 +157,7 @@ export class DashboardServer {
   readonly #slice81LiveTestService?: Slice81LiveTestService;
   readonly #slice82LiveTestService?: Slice82LiveTestService;
   readonly #slice83LiveTestService?: Slice83LiveTestService;
+  readonly #slice84LiveTestService?: Slice84LiveTestService;
   readonly #mapModelService?: AdventureLandMapModelService;
   readonly #movementDebugService?: MovementDebugService;
   readonly #pathPlannerService?: SimplePathPlannerService;
@@ -182,6 +188,7 @@ export class DashboardServer {
     this.#characterCardsService = options.characterCardsService;
     this.#setupWizardService = options.setupWizardService;
     this.#templateConfigurationService = options.templateConfigurationService;
+    this.#explainabilityService = options.explainabilityService;
     this.#actionGateway = options.actionGateway;
     this.#movementService = options.movementService;
     this.#attackService = options.attackService;
@@ -209,6 +216,7 @@ export class DashboardServer {
     this.#slice81LiveTestService = options.slice81LiveTestService;
     this.#slice82LiveTestService = options.slice82LiveTestService;
     this.#slice83LiveTestService = options.slice83LiveTestService;
+    this.#slice84LiveTestService = options.slice84LiveTestService;
     this.#mapModelService = options.mapModelService;
     this.#movementDebugService = options.movementDebugService;
     this.#pathPlannerService = options.pathPlannerService;
@@ -1035,6 +1043,17 @@ export class DashboardServer {
     }
 
 
+
+    if (method === "GET" && path === "/api/explainability") {
+      if (!this.#explainabilityService) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Explainability is unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#explainabilityService.state());
+    }
+
     if (method === "GET" && path === "/api/template-config") {
       if (!this.#templateConfigurationService) {
         return this.#json(response, {
@@ -1665,6 +1684,42 @@ export class DashboardServer {
         templateConfiguration: this.#templateConfigurationService?.state(),
         simpleFarmer: this.#simpleFarmerService?.state(),
         primaryCharacter: this.#characterService?.state(),
+        userScriptRuntime: this.#scriptRuntime?.state(),
+        diagnostic,
+      };
+      return this.#json(response, {
+        result,
+        reportText: JSON.stringify(report, null, 2),
+        clipboardSuggested: true,
+      });
+    }
+
+
+    if (method === "GET" && path === "/api/live-test/slice-8-4") {
+      if (!this.#slice84LiveTestService) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Slice 8.4 explainability test service is unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#slice84LiveTestService.state());
+    }
+    if (method === "POST" && path === "/api/live-test/slice-8-4/start") {
+      if (!this.#slice84LiveTestService) {
+        return this.#json(response, {
+          error: "Slice 8.4 explainability test service is unavailable.",
+        }, 503);
+      }
+      const result = await this.#slice84LiveTestService.run();
+      const diagnostic = this.#exportPayload();
+      const report = {
+        schemaVersion: 1,
+        kind: "ALRemastered Slice 8.4 one-click explainability test",
+        result,
+        explainability: this.#explainabilityService?.state(),
+        primaryCharacter: this.#characterService?.state(),
+        simpleFarmer: this.#simpleFarmerService?.state(),
+        actionGateway: this.#actionGateway?.state(),
         userScriptRuntime: this.#scriptRuntime?.state(),
         diagnostic,
       };

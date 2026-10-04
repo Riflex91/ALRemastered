@@ -793,3 +793,24 @@ h2 {
 .current-verification-panel > #current-verification-slot > .selection-content {
   margin-top: 0.75rem;
 }
+
+
+.explainability-panel {
+  margin: 1.25rem 0;
+  padding: 1rem;
+  border: 1px solid #2b313c;
+  border-radius: 12px;
+  background: #0f1319;
+}
+
+.explainability-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.8rem;
+  margin-top: 0.8rem;
+}
+
+.explainability-details ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+}
