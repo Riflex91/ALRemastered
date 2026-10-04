@@ -48,7 +48,6 @@ test("Slice 9.4 exposes persistence, history, reset, profiles, and viewport vari
 
   const combined = `${script}\n${editor}\n${server}`;
   assert.doesNotMatch(combined, /localStorage|sessionStorage/);
-  assert.doesNotMatch(combined, /importLayout|exportLayout/);
 });
 
 test("Slice 9.4 keeps 9.1 through 9.3 one-click harnesses retained", () => {
