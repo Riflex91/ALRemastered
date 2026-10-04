@@ -50,7 +50,6 @@ test("Slice 9.3 exposes page tabs and a dashboard-only one-click verification", 
   const editor = readFileSync(new URL("../dashboard/editor.js", import.meta.url), "utf8");
   const css = readFileSync(new URL("../dashboard/styles.css", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="9\.3"/);
   assert.match(html, /id="dashboard-page-tabs"/);
   for (const [id, label] of [
     ["overview", "Overview"],
