@@ -71,6 +71,6 @@ test("Slice 9.2 remains transient after later dashboard views are added", () => 
   const editor = readFileSync(new URL("../dashboard/editor.js", import.meta.url), "utf8");
   const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
 
-  assert.doesNotMatch(editor, /undoStack|redoStack|layoutProfile|importLayout|exportLayout/);
+  assert.doesNotMatch(editor, /undoStack|redoStack|layoutProfile/);
   assert.doesNotMatch(`${editor}\n${script}`, /localStorage|sessionStorage|importLayout|exportLayout/);
 });

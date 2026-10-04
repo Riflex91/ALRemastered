@@ -198,6 +198,10 @@ export class DashboardEditor {
     return this.activePage;
   }
 
+  characters() {
+    return this.characterOptions.map((character) => ({ ...character }));
+  }
+
   setCharacterOptions(characters = []) {
     this.characterOptions = characters
       .filter((character) => character && character.id)
