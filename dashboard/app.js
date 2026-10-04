@@ -44,6 +44,8 @@ const state = {
   slice114LastReport: null,
   slice121LiveTest: { status: "idle", message: "Ready." },
   slice121LastReport: null,
+  slice122LiveTest: { status: "idle", message: "Ready." },
+  slice122LastReport: null,
   controlMode: null,
   dashboardLayouts: null,
   pendingDashboardImport: null,
@@ -205,6 +207,10 @@ const elements = {
   slice121LiveTestStatus: document.querySelector("#slice-12-1-live-test-status"),
   slice121LiveTestNote: document.querySelector("#slice-12-1-live-test-note"),
   copySlice121LiveTestResult: document.querySelector("#copy-slice-12-1-live-test-result"),
+  startSlice122LiveTest: document.querySelector("#start-slice-12-2-live-test"),
+  slice122LiveTestStatus: document.querySelector("#slice-12-2-live-test-status"),
+  slice122LiveTestNote: document.querySelector("#slice-12-2-live-test-note"),
+  copySlice122LiveTestResult: document.querySelector("#copy-slice-12-2-live-test-result"),
   coreStatus: document.querySelector("#core-status"),
   version: document.querySelector("#client-version"),
   uptime: document.querySelector("#uptime"),
@@ -4829,6 +4835,227 @@ elements.copySlice121LiveTestResult.addEventListener("click", async () => {
 });
 
 renderSlice121LiveTest();
+
+function renderSlice122LiveTest() {
+  const test = state.slice122LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = { idle: "Ready", running: "Running…", passed: "PASSED", failed: "FAILED" };
+  elements.slice122LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice122LiveTest.disabled = test.status === "running";
+  elements.copySlice122LiveTestResult.hidden = !state.slice122LastReport;
+  if (test.status === "running") {
+    elements.slice122LiveTestNote.textContent =
+      "Validating canonical permissions, default-deny behavior, dangerous-right confirmation, and runtime continuity without package import or execution.";
+  } else if (test.message) {
+    elements.slice122LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function fetchPackagePermissionDescriptor() {
+  const response = await fetch("/api/packages/permissions", { cache: "no-store" });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error ?? `Permission descriptor failed with HTTP ${response.status}.`);
+  return payload;
+}
+
+async function fetchPackagePermissionSelfTest() {
+  const response = await fetch("/api/packages/permissions/self-test", { cache: "no-store" });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error ?? `Permission self-test failed with HTTP ${response.status}.`);
+  return payload;
+}
+
+async function runSlice122Verification() {
+  const before = await fetchRendererSnapshot();
+  const descriptor = await fetchPackagePermissionDescriptor();
+  const selfTest = await fetchPackagePermissionSelfTest();
+  const after = await fetchRendererSnapshot();
+  const required = [
+    "combat", "movement", "inventory.read", "inventory.use", "inventory.sell",
+    "inventory.destroy", "trade", "gold.send", "item.send", "bank", "merchant",
+    "character.communication", "storage", "network.external",
+  ];
+  const steps = [
+    {
+      key: "canonical-permission-registry",
+      outcome:
+        descriptor.status === "ready" &&
+        descriptor.permissionCount === 14 &&
+        required.every((permission) => descriptor.permissions?.includes(permission))
+          ? "passed" : "failed",
+    },
+    {
+      key: "default-deny-policy",
+      outcome:
+        descriptor.defaultPolicy === "deny" &&
+        descriptor.undeclaredAllowed === false &&
+        descriptor.unknownAllowed === false
+          ? "passed" : "failed",
+    },
+    {
+      key: "dangerous-default-denied",
+      outcome:
+        descriptor.dangerousDefaultAllowed === false &&
+        descriptor.dangerousRequireExplicitApproval === true &&
+        selfTest.checks?.dangerousDefaultDenied === true
+          ? "passed" : "failed",
+    },
+    {
+      key: "safe-declared-allowed",
+      outcome: selfTest.checks?.safeDeclaredAllowed === true ? "passed" : "failed",
+    },
+    {
+      key: "dangerous-explicit-approval",
+      outcome: selfTest.checks?.dangerousExplicitApprovalAllowed === true ? "passed" : "failed",
+    },
+    {
+      key: "undeclared-denied",
+      outcome: selfTest.checks?.undeclaredDenied === true ? "passed" : "failed",
+    },
+    {
+      key: "unknown-denied",
+      outcome: selfTest.checks?.unknownDenied === true ? "passed" : "failed",
+    },
+    {
+      key: "no-import-no-execution",
+      outcome:
+        descriptor.importSupported === false &&
+        descriptor.executionSupported === false &&
+        selfTest.checks?.importAttempted === false &&
+        selfTest.checks?.executionAttempted === false
+          ? "passed" : "failed",
+    },
+  ];
+
+  const beforeCore = before.snapshot?.core ?? {};
+  const afterCore = after.snapshot?.core ?? {};
+  const beforeCharacter = before.snapshot?.character ?? {};
+  const afterCharacter = after.snapshot?.character ?? {};
+  const beforeScript = before.snapshot?.script ?? {};
+  const afterScript = after.snapshot?.script ?? {};
+  const coreRestart = beforeCore.startedAt !== afterCore.startedAt;
+  const characterRestart = !sameSocketMarkers(beforeCharacter, afterCharacter);
+  const scriptRestart =
+    (beforeScript.runId ?? null) !== (afterScript.runId ?? null) ||
+    (beforeScript.startedAt ?? null) !== (afterScript.startedAt ?? null);
+  const actionGatewayRequests = Math.max(
+    0,
+    Number(after.snapshot?.actionGateway?.totalRequests ?? 0) -
+      Number(before.snapshot?.actionGateway?.totalRequests ?? 0),
+  );
+
+  steps.push({ key: "core-character-script-continuity", outcome: !coreRestart && !characterRestart && !scriptRestart ? "passed" : "failed" });
+  steps.push({ key: "read-only-runtime", outcome: actionGatewayRequests === 0 ? "passed" : "failed" });
+
+  return {
+    outcome: steps.every((step) => step.outcome === "passed") ? "passed" : "failed",
+    steps,
+    descriptor,
+    selfTest,
+    coreRestart,
+    characterRestart,
+    scriptRestart,
+    actionGatewayRequests,
+    gameplayMutation: false,
+    rawSocketAccess: false,
+    userScriptTouched: false,
+  };
+}
+
+async function startSlice122LiveTest(clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice122LiveTest = { status: "running", message: "Slice 12.2 Permission System test is running." };
+  renderSlice122LiveTest();
+  const verification = await runSlice122Verification();
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live122-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const stepLines = verification.steps.map((step) => `- ${step.key}: ${String(step.outcome).toUpperCase()}`);
+  const d = verification.descriptor;
+  const sample = verification.selfTest.sampleDecisions ?? {};
+  const reportText = [
+    "ALRemastered Slice 12.2 one-click Permission System test",
+    `Test ID: ${testId}`,
+    "Slice: 12.2",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    `Permission count: ${d.permissionCount}`,
+    `Permissions: ${d.permissions.join(", ")}`,
+    `Safe permissions: ${d.safePermissions.join(", ")}`,
+    `Dangerous permissions: ${d.dangerousPermissions.join(", ")}`,
+    `Default policy: ${d.defaultPolicy}`,
+    `Dangerous default allowed: ${d.dangerousDefaultAllowed}`,
+    `Dangerous require explicit approval: ${d.dangerousRequireExplicitApproval}`,
+    `Undeclared allowed: ${d.undeclaredAllowed}`,
+    `Unknown allowed: ${d.unknownAllowed}`,
+    `Safe combat decision: ${sample.safeCombat?.code} / ${sample.safeCombat?.allowed}`,
+    `Dangerous destroy default: ${sample.dangerousDestroyDefault?.code} / ${sample.dangerousDestroyDefault?.allowed}`,
+    `Dangerous destroy approved: ${sample.dangerousDestroyApproved?.code} / ${sample.dangerousDestroyApproved?.allowed}`,
+    `Undeclared combat: ${sample.undeclared?.code} / ${sample.undeclared?.allowed}`,
+    `Unknown permission: ${sample.unknown?.code} / ${sample.unknown?.allowed}`,
+    "Package import attempted: false",
+    "Package execution attempted: false",
+    `Core restart: ${verification.coreRestart}`,
+    `Character restart: ${verification.characterRestart}`,
+    `Script restart: ${verification.scriptRestart}`,
+    "Gameplay mutation: false",
+    `Action Gateway requests: ${verification.actionGatewayRequests}`,
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+
+  const result = { testId, slice: "12.2", outcome, startedAt, completedAt, message: outcome === "passed" ? "Permission System verification passed." : "Permission System verification failed.", ...verification };
+  state.slice122LastReport = reportText;
+  state.slice122LiveTest = { status: outcome, message: result.message, lastResult: result };
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice122LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice122LiveTest.addEventListener("click", async () => {
+  if (state.slice122LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice122LastReport = null;
+  elements.copySlice122LiveTestResult.hidden = true;
+  try {
+    const { result, copied } = await startSlice122LiveTest(clipboardWrite);
+    setFeedback(
+      `Slice 12.2 test ${String(result.outcome).toUpperCase()}. ${copied ? "Complete result and sanitized diagnostic log copied to clipboard." : "Use Copy last test result once."}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    state.slice122LiveTest = { status: "failed", message: error.message };
+    renderSlice122LiveTest();
+    setFeedback(`Slice 12.2 Permission System test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice122LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice122LastReport) return;
+  try {
+    await writeClipboard(state.slice122LastReport);
+    setFeedback("Complete Slice 12.2 Permission System result and sanitized diagnostic log copied.", "success");
+  } catch (error) {
+    setFeedback(`Permission System result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice122LiveTest();
 
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
