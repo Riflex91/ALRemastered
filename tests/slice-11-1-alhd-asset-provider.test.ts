@@ -73,7 +73,7 @@ test("Slice 11.1 retains ALHD source semantics and is the only current verificat
   const app = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
   const server = readFileSync(new URL("../src/dashboard/server.js", import.meta.url), "utf8");
   const main = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
-  const build = readFileSync(new URL("../scripts/build.mjs", import.meta.url), "utf8");
+  const build = readFileSync(new URL("../../../scripts/build.mjs", import.meta.url), "utf8");
   const manifest = JSON.parse(
     readFileSync(new URL("../assets/alhd/hd-assets.json", import.meta.url), "utf8"),
   );
