@@ -2583,3 +2583,70 @@ Repository/release gate evidence:
 Result: the real Windows alpha.54 run proves fast local Character-to-Character messaging through the new in-process path, Adventure Land-compatible `send_cm()` return semantics, compatible `character.on("cm")` receive events, unavailable-target omission, complete local-only telemetry, and bounded cleanup without gameplay mutation, raw socket/server routing, or user Script interruption. **Slice 7.2 is VERIFIED.**
 
 Slice 7.3 – Party Coordinator may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
+
+
+
+---
+
+## Slice 7.3 Verification Record — Party Coordinator
+
+**Canonical status update: Slice 7.3 = VERIFIED.**
+
+Release/live environment:
+
+- verified release: `v0.1.0-alpha.55`
+- tested implementation main / release target: `eca584e5af4d5bd7d79c26f0cc62bbcea610af63`
+- Windows client: `0.1.0-alpha.55`
+- platform: `win32`
+- one-click test ID: `live73-a3aecc82-6240-4958-93b2-881d0b074c6f`
+- primary Character: `My_Merchant`
+- managed test Character: `My_Ranger1`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-04T00:39:54.747Z → 2026-10-04T00:39:54.982Z`
+- diagnostic export: 54 log lines, `Secrets sanitized: yes`.
+
+Party Coordinator evidence:
+
+- one active primary Character and one temporary managed Character participated as local Coordinator members;
+- `My_Merchant` was assigned Tank and `My_Ranger1` was assigned Healer around one shared logical Coordinator target;
+- Tank and Healer aggregates both reached `ready`;
+- `My_Ranger1` then changed from Healer to DPS, Healer returned to `unassigned`, and DPS reached `ready`;
+- clearing the shared target made both active members explicitly report `no-target`;
+- target state was restored before cleanup;
+- managed-member removal pruned only `My_Ranger1` and its DPS assignment;
+- after removal, exactly the primary member remained and DPS assigned count returned to zero;
+- the pre-test Coordinator configuration was restored;
+- no stale role or member state leaked across the session lifecycle.
+
+Isolation and safety evidence:
+
+- Coordinator communication used `coordinationTransport:"shared-process-state"`;
+- `localMessagingRequired:false`;
+- local messaging request delta: `0`;
+- local messaging delivery delta: `0`;
+- messaging remained `localOnly:true`;
+- `gameplayMutation:false`;
+- `rawSocketAccess:false`;
+- `partyTemplatesActive:false`;
+- the user Script runtime remained unloaded and `userScriptInterrupted:false`;
+- only the temporary managed session was removed;
+- final session state returned to `activeSessionCount:1` and `managedSessionCount:0`;
+- primary `My_Merchant` remained connected.
+
+Repository/release gate evidence:
+
+- implementation PR #107 final feature head: `469b0213f168068f7854e0ea265e6b1721bd3ba4`;
+- final implementation PR CI run `37164949495` completed with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #107 merged with method `merge` into exact implementation main `eca584e5af4d5bd7d79c26f0cc62bbcea610af63`;
+- exact post-implementation-main CI run `37165070088` completed successfully;
+- release publish run `37165210493` completed successfully;
+- release branch `release/v0.1.0-alpha.55`, tag `v0.1.0-alpha.55`, release target, and tested implementation main were verified commit-identical at `eca584e5af4d5bd7d79c26f0cc62bbcea610af63`;
+- published assets:
+  - Windows x64 installer SHA-256 `0f85d4bee480a36663fdc15e08d56cdead687fbddb0b4087c9e1b23341f94c9a`
+  - Linux x64 installer SHA-256 `ed0a38c728fca7d62185755356204e3b8e4baf70f5c16b89f965dc1b85d34c2d`
+  - updater manifest SHA-256 `8199b54449fe643579a04d25db6546fd73971c6c1a70cad4eac08b138d53f841`.
+
+Result: the real installed Windows alpha.55 run proves technical local Party Coordinator behavior for role assignment and change, one shared target, Tank/Healer/DPS status, explicit no-target state, managed-member removal, session isolation, configuration restoration, and read-only coordination without gameplay mutation, raw sockets, Party Templates, local messaging traffic, or user Script interruption. **Slice 7.3 is VERIFIED.**
+
+Slice 7.4 – Party Templates may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
