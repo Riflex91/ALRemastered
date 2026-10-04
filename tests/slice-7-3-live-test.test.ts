@@ -13,7 +13,7 @@ function connectedCharacter(characterId: string, name: string, type: string) {
     serverRegion: "EU",
     serverName: "II",
     connectedAt: "2026-10-04T01:00:00.000Z",
-    message: \`\${name} connected.\`,
+    message: `${name} connected.`,
     character: {
       id: characterId,
       name,

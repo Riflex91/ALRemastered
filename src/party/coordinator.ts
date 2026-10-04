@@ -128,7 +128,7 @@ export class PartyCoordinatorService {
       partyTemplatesActive: false as const,
       lastChangedAt: this.#lastChangedAt,
       message: ready
-        ? \`Party coordinator ready. \${members.length} local member(s) share target \${this.#target!.id}.\`
+        ? `Party coordinator ready. ${members.length} local member(s) share target ${this.#target!.id}.`
         : coordinatorMessage(members, this.#target?.id),
     }));
   }
@@ -324,9 +324,9 @@ function coordinatorMessage(
   const noRole = members.filter((member) => member.status === "no-role").length;
   const noTarget = members.filter((member) => member.status === "no-target").length;
   if (disconnected || unavailable) {
-    return \`Party coordinator degraded. \${disconnected} disconnected and \${unavailable} unavailable member(s).\`;
+    return `Party coordinator degraded. ${disconnected} disconnected and ${unavailable} unavailable member(s).`;
   }
-  if (noRole) return \`Party coordinator needs role assignments for \${noRole} member(s).\`;
+  if (noRole) return `Party coordinator needs role assignments for ${noRole} member(s).`;
   if (!targetId || noTarget) return "Party coordinator has no shared target.";
   return "Party coordinator state is incomplete.";
 }

@@ -21,7 +21,7 @@ function runtimeState(
       characterId,
       characterName: name,
       serverKey: "SR_EUII",
-      message: \`\${name} \${status}.\`,
+      message: `${name} ${status}.`,
       character: {
         id: characterId,
         name,

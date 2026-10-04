@@ -85,7 +85,7 @@ export class Slice73LiveTestService {
     this.#coordinator = options.coordinator;
     this.#messaging = options.messaging;
     this.#clock = options.clock ?? (() => new Date());
-    this.#idFactory = options.idFactory ?? (() => \`live73-\${randomUUID()}\`);
+    this.#idFactory = options.idFactory ?? (() => `live73-${randomUUID()}`);
   }
 
   state(): Slice73LiveTestState {
@@ -102,7 +102,7 @@ export class Slice73LiveTestService {
 
   async #runInternal(): Promise<Slice73LiveTestResult> {
     const testId = this.#idFactory();
-    const targetId = \`slice73-target-\${randomUUID()}\`;
+    const targetId = `slice73-target-${randomUUID()}`;
     const startedAt = this.#clock().toISOString();
     const steps: Slice73LiveTestStep[] = [];
     const userBefore = this.#userRuntime.state();
@@ -478,7 +478,7 @@ function assertMember(
   if (!member || member.role !== role || member.status !== status) {
     throw failure(
       "LIVE_TEST_COORDINATOR_MEMBER_MISMATCH",
-      \`Coordinator member \${characterId} did not report \${role}/\${status}.\`,
+      `Coordinator member ${characterId} did not report ${role}/${status}.`,
       stepName,
     );
   }
@@ -509,7 +509,7 @@ function sameCoordinatorConfiguration(
   if (before.target?.id !== after.target?.id) return false;
   const roles = (state: PartyCoordinatorState) => state.members
     .filter((member) => member.role)
-    .map((member) => \`\${member.characterId}:\${member.role}\`)
+    .map((member) => `${member.characterId}:${member.role}`)
     .sort();
   return JSON.stringify(roles(before)) === JSON.stringify(roles(after));
 }

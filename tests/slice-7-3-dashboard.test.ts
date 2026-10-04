@@ -17,7 +17,7 @@ test("dashboard exposes read-only Party Coordinator state and Slice 7.3 one-clic
     "start-slice-7-3-live-test",
     "slice-7-3-live-test-status",
     "copy-slice-7-3-live-test-result",
-  ]) assert.match(html, new RegExp(\`id=["']\${id}["']\`));
+  ]) assert.match(html, new RegExp(`id=["']${id}["']`));
   assert.match(html, /technical coordination state/i);
   assert.match(script, /\/api\/party-coordinator/);
   assert.match(script, /\/api\/live-test\/slice-7-3\/start/);
@@ -69,7 +69,7 @@ test("dashboard exposes read-only Party Coordinator state and Slice 7.3 one-clic
   });
   const url = await dashboard.start();
   try {
-    const current = await fetch(\`\${url}/api/party-coordinator\`);
+    const current = await fetch(`${url}/api/party-coordinator`);
     assert.equal(current.status, 200);
     const state = await current.json();
     assert.equal(state.memberCount, 2);
@@ -77,11 +77,11 @@ test("dashboard exposes read-only Party Coordinator state and Slice 7.3 one-clic
     assert.equal(state.gameplayMutation, false);
     assert.equal(state.partyTemplatesActive, false);
 
-    const status = await fetch(\`\${url}/api/live-test/slice-7-3\`);
+    const status = await fetch(`${url}/api/live-test/slice-7-3`);
     assert.equal(status.status, 200);
     assert.equal((await status.json()).status, "idle");
 
-    const live = await fetch(\`\${url}/api/live-test/slice-7-3/start\`, { method: "POST" });
+    const live = await fetch(`${url}/api/live-test/slice-7-3/start`, { method: "POST" });
     assert.equal(live.status, 200);
     const payload = await live.json();
     assert.equal(payload.result.outcome, "passed");
