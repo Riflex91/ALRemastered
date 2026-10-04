@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ALRemastered Browser View</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body data-browser-view-ready="false">
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Read-only Renderer Bridge</p>
+        <h1>Browser View</h1>
+      </div>
+      <div class="topbar-actions">
+        <strong class="status-pill" id="browser-view-connection">Connecting…</strong>
+        <button id="close-browser-view" type="button">Close browser view</button>
+      </div>
+    </header>
+
+    <section class="diagnostics-panel">
+      <div class="diagnostics-heading">
+        <div>
+          <p class="eyebrow">Current Character state</p>
+          <h2 id="browser-character-name">No Character connected</h2>
+        </div>
+        <strong id="browser-character-status">Waiting</strong>
+      </div>
+      <div class="status-grid">
+        <article class="card"><span class="label">Server</span><strong id="browser-character-server">—</strong></article>
+        <article class="card"><span class="label">Map</span><strong id="browser-character-map">—</strong></article>
+        <article class="card"><span class="label">Position</span><strong id="browser-character-position">—</strong></article>
+        <article class="card"><span class="label">Level</span><strong id="browser-character-level">—</strong></article>
+        <article class="card"><span class="label">HP</span><strong id="browser-character-hp">—</strong></article>
+        <article class="card"><span class="label">MP</span><strong id="browser-character-mp">—</strong></article>
+      </div>
+      <p class="selection-note" id="browser-character-message">
+        Waiting for the current read-only renderer snapshot.
+      </p>
+      <p class="selection-note">
+        This view only observes the existing Character/Core state. It cannot dispatch gameplay actions.
+      </p>
+    </section>
+
+    <section class="diagnostics-panel">
+      <div class="status-grid">
+        <article class="card"><span class="label">Bridge sequence</span><strong id="browser-bridge-sequence">—</strong></article>
+        <article class="card"><span class="label">Snapshot time</span><strong id="browser-snapshot-time">—</strong></article>
+        <article class="card"><span class="label">Core status</span><strong id="browser-core-status">—</strong></article>
+        <article class="card"><span class="label">Script status</span><strong id="browser-script-status">—</strong></article>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="/browser-view.js"></script>
+</body>
+</html>

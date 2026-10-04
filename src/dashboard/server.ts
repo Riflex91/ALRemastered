@@ -2044,6 +2044,9 @@ export class DashboardServer {
       "/index.html": "index.html",
       "/styles.css": "styles.css",
       "/app.js": "app.js",
+      "/browser-view": "browser-view.html",
+      "/browser-view.html": "browser-view.html",
+      "/browser-view.js": "browser-view.js",
       "/dashboard-editor.js": "editor.js",
       "/dashboard-layout-transfer.js": "layout-transfer.js",
     };

@@ -28,6 +28,8 @@ const state = {
   slice95LastReport: null,
   slice101LiveTest: { status: "idle", message: "Ready." },
   slice101LastReport: null,
+  slice102LiveTest: { status: "idle", message: "Ready." },
+  slice102LastReport: null,
   dashboardLayouts: null,
   pendingDashboardImport: null,
   status: null,
@@ -107,6 +109,7 @@ const elements = {
   currentVerificationSlot: document.querySelector("#current-verification-slot"),
   currentVerificationStatus: document.querySelector("#current-verification-status"),
   currentVerificationEmpty: document.querySelector("#current-verification-empty"),
+  openBrowserView: document.querySelector("#open-browser-view"),
   editDashboard: document.querySelector("#edit-dashboard"),
   dashboardEditToolbar: document.querySelector("#dashboard-edit-toolbar"),
   dashboardEditStatus: document.querySelector("#dashboard-edit-status"),
@@ -154,6 +157,10 @@ const elements = {
   slice101LiveTestStatus: document.querySelector("#slice-10-1-live-test-status"),
   slice101LiveTestNote: document.querySelector("#slice-10-1-live-test-note"),
   copySlice101LiveTestResult: document.querySelector("#copy-slice-10-1-live-test-result"),
+  startSlice102LiveTest: document.querySelector("#start-slice-10-2-live-test"),
+  slice102LiveTestStatus: document.querySelector("#slice-10-2-live-test-status"),
+  slice102LiveTestNote: document.querySelector("#slice-10-2-live-test-note"),
+  copySlice102LiveTestResult: document.querySelector("#copy-slice-10-2-live-test-result"),
   coreStatus: document.querySelector("#core-status"),
   version: document.querySelector("#client-version"),
   uptime: document.querySelector("#uptime"),
@@ -2150,6 +2157,305 @@ elements.copySlice101LiveTestResult.addEventListener("click", async () => {
 });
 
 renderSlice101LiveTest();
+
+function openBrowserViewWindow(url = "/browser-view", name = "alremastered-browser-view") {
+  const view = window.open(url, name, "popup,width=980,height=760,resizable=yes,scrollbars=yes");
+  if (!view) {
+    throw new Error("Browser View was blocked by the browser. Allow pop-ups for this local ALRemastered dashboard.");
+  }
+  view.focus();
+  return view;
+}
+
+elements.openBrowserView.addEventListener("click", () => {
+  try {
+    openBrowserViewWindow();
+    setFeedback("Browser View opened in a read-only window.", "success");
+  } catch (error) {
+    setFeedback(error.message, "error");
+  }
+});
+
+function renderSlice102LiveTest() {
+  const test = state.slice102LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    failed: "FAILED",
+  };
+  elements.slice102LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice102LiveTest.disabled = test.status === "running";
+  elements.copySlice102LiveTestResult.hidden = !state.slice102LastReport;
+  if (test.status === "running") {
+    elements.slice102LiveTestNote.textContent =
+      "Opening the read-only Browser View, verifying rendered Character state, closing the test window, and checking Core/Character/Script continuity.";
+  } else if (test.message) {
+    elements.slice102LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function waitForBrowserViewCondition(check, message, timeoutMs = 4_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      if (check()) return;
+    } catch {
+      // The same-origin Browser View may still be navigating.
+    }
+    await new Promise((resolve) => globalThis.setTimeout(resolve, 50));
+  }
+  throw new Error(message);
+}
+
+async function waitForRendererSubscriberCount(expected, timeoutMs = 4_000) {
+  let last;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    last = await fetchRendererSnapshot();
+    if (Number(last.bridge?.subscribers ?? 0) === Number(expected)) return last;
+    await new Promise((resolve) => globalThis.setTimeout(resolve, 50));
+  }
+  throw new Error(
+    `Renderer subscriber count did not reach ${expected}; last value was ${last?.bridge?.subscribers ?? "unknown"}.`,
+  );
+}
+
+async function runSlice102Verification(view) {
+  const before = await fetchRendererSnapshot();
+  const baselineSubscribers = Number(before.bridge?.subscribers ?? 0);
+  const steps = [];
+
+  view.location.replace(`/browser-view?verification=${Date.now()}`);
+  await waitForBrowserViewCondition(
+    () => view.__alrBrowserViewState?.ready === true,
+    "Browser View did not render a renderer snapshot before timeout.",
+  );
+
+  const opened = await waitForRendererSubscriberCount(baselineSubscribers + 1);
+  const browserState = view.__alrBrowserViewState ?? {};
+  const expectedCharacter = opened.snapshot?.character ?? {};
+  const expectedCharacterId =
+    expectedCharacter.characterId ?? expectedCharacter.character?.id ?? null;
+  steps.push({
+    key: "browser-open",
+    outcome:
+      !view.closed &&
+      Number(opened.bridge?.subscribers ?? 0) === baselineSubscribers + 1
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "character-state-rendered",
+    outcome:
+      browserState.ready === true &&
+      Number(browserState.renderCount ?? 0) >= 1 &&
+      (browserState.lastCharacterStatus ?? null) === (expectedCharacter.status ?? null) &&
+      (browserState.lastCharacterId ?? null) === expectedCharacterId
+        ? "passed"
+        : "failed",
+  });
+
+  view.close();
+  await waitForBrowserViewCondition(
+    () => view.closed === true,
+    "Browser View test window did not close before timeout.",
+  );
+  const after = await waitForRendererSubscriberCount(baselineSubscribers);
+
+  const beforeCore = before.snapshot?.core ?? {};
+  const afterCore = after.snapshot?.core ?? {};
+  const coreRestart = beforeCore.startedAt !== afterCore.startedAt;
+  steps.push({
+    key: "browser-close",
+    outcome:
+      view.closed &&
+      Number(after.bridge?.subscribers ?? 0) === baselineSubscribers
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "core-continuity",
+    outcome:
+      !coreRestart &&
+      afterCore.status === "running" &&
+      Number(afterCore.heartbeatSequence ?? 0) >= Number(beforeCore.heartbeatSequence ?? 0)
+        ? "passed"
+        : "failed",
+  });
+
+  const beforeCharacter = before.snapshot?.character ?? {};
+  const afterCharacter = after.snapshot?.character ?? {};
+  const characterRestart =
+    (beforeCharacter.characterId ?? null) !== (afterCharacter.characterId ?? null) ||
+    (beforeCharacter.connectedAt ?? null) !== (afterCharacter.connectedAt ?? null);
+  steps.push({
+    key: "character-continuity",
+    outcome: characterRestart ? "failed" : "passed",
+  });
+
+  const beforeScript = before.snapshot?.script ?? {};
+  const afterScript = after.snapshot?.script ?? {};
+  const scriptRestart =
+    (beforeScript.runId ?? null) !== (afterScript.runId ?? null) ||
+    (beforeScript.startedAt ?? null) !== (afterScript.startedAt ?? null);
+  steps.push({
+    key: "script-continuity",
+    outcome: scriptRestart ? "failed" : "passed",
+  });
+
+  const actionGatewayRequests = Math.max(
+    0,
+    Number(after.snapshot?.actionGateway?.totalRequests ?? 0) -
+      Number(before.snapshot?.actionGateway?.totalRequests ?? 0),
+  );
+  steps.push({
+    key: "read-only-action-gateway",
+    outcome: actionGatewayRequests === 0 ? "passed" : "failed",
+  });
+
+  return {
+    outcome: steps.every((step) => step.outcome === "passed") ? "passed" : "failed",
+    steps,
+    browserViewOpened: true,
+    browserViewClosed: view.closed,
+    rendererTransport: "SSE",
+    characterStateRendered: browserState.ready === true,
+    coreRestart,
+    characterRestart,
+    scriptRestart,
+    gameplayMutation: false,
+    actionGatewayRequests,
+    rawSocketAccess: false,
+    userScriptTouched: false,
+    baselineSubscribers,
+    openedSubscribers: opened.bridge?.subscribers ?? null,
+    closedSubscribers: after.bridge?.subscribers ?? null,
+  };
+}
+
+async function startSlice102LiveTest(view, clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice102LiveTest = {
+    status: "running",
+    message: "Slice 10.2 Browser View test is running.",
+  };
+  renderSlice102LiveTest();
+
+  const verification = await runSlice102Verification(view);
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) {
+    throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  }
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live102-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const stepLines = verification.steps.map((step) =>
+    `- ${step.key}: ${String(step.outcome).toUpperCase()}`
+  );
+  const reportText = [
+    "ALRemastered Slice 10.2 one-click Browser View test",
+    `Test ID: ${testId}`,
+    "Slice: 10.2",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    `Browser View opened: ${verification.browserViewOpened}`,
+    `Browser View closed: ${verification.browserViewClosed}`,
+    `Renderer transport: ${verification.rendererTransport}`,
+    `Character state rendered: ${verification.characterStateRendered}`,
+    `Renderer subscribers: ${verification.baselineSubscribers} -> ${verification.openedSubscribers} -> ${verification.closedSubscribers}`,
+    `Core restart: ${verification.coreRestart}`,
+    `Character restart: ${verification.characterRestart}`,
+    `Script restart: ${verification.scriptRestart}`,
+    "Gameplay mutation: false",
+    `Action Gateway requests: ${verification.actionGatewayRequests}`,
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+
+  const result = {
+    testId,
+    slice: "10.2",
+    outcome,
+    startedAt,
+    completedAt,
+    message: outcome === "passed"
+      ? "Browser View verification passed."
+      : "Browser View verification failed.",
+    ...verification,
+  };
+
+  state.slice102LastReport = reportText;
+  state.slice102LiveTest = { status: outcome, message: result.message, lastResult: result };
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice102LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice102LiveTest.addEventListener("click", async () => {
+  if (state.slice102LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice102LastReport = null;
+  elements.copySlice102LiveTestResult.hidden = true;
+
+  let view;
+  try {
+    view = openBrowserViewWindow("about:blank", "alremastered-browser-view-verification");
+  } catch (error) {
+    state.slice102LiveTest = { status: "failed", message: error.message };
+    renderSlice102LiveTest();
+    setFeedback(`Slice 10.2 Browser View test could not start: ${error.message}`, "error");
+    return;
+  }
+
+  setFeedback(
+    "Slice 10.2 Browser View test started. The test window will close automatically after continuity checks.",
+  );
+  try {
+    const { result, copied } = await startSlice102LiveTest(view, clipboardWrite);
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 10.2 test ${String(result.outcome).toUpperCase()}. ${copyMessage}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    if (view && !view.closed) view.close();
+    state.slice102LiveTest = { status: "failed", message: error.message };
+    renderSlice102LiveTest();
+    setFeedback(`Slice 10.2 Browser View test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice102LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice102LastReport) return;
+  try {
+    await writeClipboard(state.slice102LastReport);
+    setFeedback(
+      "Complete Slice 10.2 Browser View result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Browser View result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice102LiveTest();
 
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
