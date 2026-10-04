@@ -2548,3 +2548,81 @@ Scope and safety:
 **Canonical queue status: Slice 12.1 = VERIFIED.**
 
 Slice 12.2 – Permission System may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
+
+
+---
+
+### Alpha.75 real one-click result: PASSED — Slice 12.2 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.75`
+- release target / tested implementation main: `f3365ddea3605c4842b17cd626d4311e173f7506`
+- client: `0.1.0-alpha.75` / Windows
+- platform: `win32`
+- test ID: `live122-bf894904-4177-4024-8dba-b2f594152993`
+- outcome: `passed`
+- test window: `2026-10-04T17:30:02.069Z → 2026-10-04T17:30:02.076Z`
+- diagnostic export: 11 log lines, `Secrets sanitized: yes`.
+
+The one-click harness completed the full Slice 12.2 validation:
+
+- `canonical-permission-registry: PASSED`;
+- `default-deny-policy: PASSED`;
+- `dangerous-default-denied: PASSED`;
+- `safe-declared-allowed: PASSED`;
+- `dangerous-explicit-approval: PASSED`;
+- `undeclared-denied: PASSED`;
+- `unknown-denied: PASSED`;
+- `no-import-no-execution: PASSED`;
+- `core-character-script-continuity: PASSED`;
+- `read-only-runtime: PASSED`;
+- permission count: `14`;
+- permissions: `combat, movement, inventory.read, inventory.use, inventory.sell, inventory.destroy, trade, gold.send, item.send, bank, merchant, character.communication, storage, network.external`;
+- safe permissions: `combat, movement, inventory.read`;
+- dangerous permissions: `inventory.use, inventory.sell, inventory.destroy, trade, gold.send, item.send, bank, merchant, character.communication, storage, network.external`;
+- default policy: `deny`;
+- `Dangerous default allowed: false`;
+- `Dangerous require explicit approval: true`;
+- `Undeclared allowed: false`;
+- `Unknown allowed: false`;
+- safe combat decision: `PACKAGE_PERMISSION_ALLOWED / true`;
+- dangerous destroy default: `PACKAGE_PERMISSION_REQUIRES_CONFIRMATION / false`;
+- dangerous destroy approved: `PACKAGE_PERMISSION_ALLOWED / true`;
+- undeclared combat: `PACKAGE_PERMISSION_NOT_DECLARED / false`;
+- unknown permission: `PACKAGE_PERMISSION_UNKNOWN / false`;
+- `Package import attempted: false`;
+- `Package execution attempted: false`;
+- `Core restart: false`;
+- `Character restart: false`;
+- `Script restart: false`;
+- `Gameplay mutation: false`;
+- Action Gateway requests: `0`;
+- `Raw socket access: false`;
+- `User Script touched: false`.
+
+Repository/release evidence:
+
+- implementation PR #150 final feature head: `a8c77ebb25c1c3ca4c02837a8211fdbcaa786b9d`;
+- final implementation PR CI run `37219861337`: all four required jobs successful;
+- implementation main: `f3365ddea3605c4842b17cd626d4311e173f7506`;
+- exact post-implementation-main CI run `37220078631`: all four required jobs successful;
+- release publish run `37220314930`: Linux, Windows, and GitHub Release successful;
+- release branch, tag, release target, publish head, and tested implementation main are commit-identical at `f3365ddea3605c4842b17cd626d4311e173f7506`;
+- Windows x64 installer SHA-256: `978c5be627d7ed8e534c4e774c26974f6f5cfe5255fe5ecdcdf5fd81f2325257`;
+- Linux x64 installer SHA-256: `7a4ce1dddfa481b44e0c2c7505f7e69bd111a0a2a774a2d33ddc337d94615639`;
+- updater manifest SHA-256: `a61811ced93aa524cf52293b1c514d33d2f1e8e5e66c6bb70b9445ae8d665c6b`.
+
+Scope and safety:
+
+- the real Windows client validated all 14 canonical package permissions;
+- default-deny behavior passed for undeclared and unknown permissions;
+- dangerous permissions were denied by default and allowed only after explicit approval;
+- safe declared permissions were allowed;
+- no package import or execution occurred;
+- Core, Character, and Script remained continuous;
+- no gameplay mutation, Action Gateway requests, raw socket access, or user Script replacement occurred.
+
+**Canonical queue status: Slice 12.2 = VERIFIED.**
+
+Slice 12.3 – Paket-Datei importieren may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
