@@ -640,6 +640,16 @@ export class DashboardEditor {
     if (this.document?.body) this.document.body.dataset.dashboardPage = this.activePage;
     this.duplicateSequence = Number(snapshot.duplicateSequence ?? this.duplicateSequence);
     for (const id of snapshot.order ?? []) {
+      if (this.widgets.has(id)) continue;
+      const sourceId = snapshot.configurations?.[id]?.duplicateOf;
+      if (!sourceId || !this.widgets.has(sourceId)) continue;
+      this.duplicateWidget(sourceId, {
+        duplicateId: id,
+        notify: false,
+        history: false,
+      });
+    }
+    for (const id of snapshot.order ?? []) {
       const widget = this.widgets.get(id)?.element;
       if (widget) this.grid.append(widget);
     }
