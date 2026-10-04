@@ -2002,6 +2002,7 @@ export class DashboardServer {
       "/styles.css": "styles.css",
       "/app.js": "app.js",
       "/dashboard-editor.js": "editor.js",
+      "/dashboard-layout-transfer.js": "layout-transfer.js",
     };
     const assetName = assets[path];
     if (!assetName) {
