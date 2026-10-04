@@ -2152,3 +2152,75 @@ Scope and safety:
 
 Phase 11 / Slice 11.1 – ALHD Asset Provider may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
 
+---
+
+### Alpha.70 real one-click result: PASSED — Slice 11.1 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.70`
+- release target / tested implementation main: `6f5f8c47510b353646860048e3278d5fcfc3e269`
+- client: `0.1.0-alpha.70` / Windows
+- platform: `win32`
+- test ID: `live111-9ad30e4e-66b4-49e6-a1cc-c6a79225688a`
+- outcome: `passed`
+- test window: `2026-10-04T14:57:05.063Z → 2026-10-04T14:57:05.071Z`
+- diagnostic export: 11 log lines, `Secrets sanitized: yes`.
+
+The one-click harness completed the full Slice 11.1 validation:
+
+- `manifest-loaded: PASSED`;
+- `presentation-only: PASSED`;
+- `known-original-fallback: PASSED`;
+- `unknown-original-fallback: PASSED`;
+- `core-continuity: PASSED`;
+- `character-continuity: PASSED`;
+- `script-continuity: PASSED`;
+- `read-only-runtime: PASSED`;
+- provider status: `ready`;
+- manifest status: `loaded`;
+- manifest schema: `1`;
+- manifest phase: `4-vertical-pilot`;
+- manifest source: `Riflex91/Riflex91-Repo@43bcdee99ab12a92f7cbf8e7bcdac8f0e99983f2/Adventure Land HD/manifests/hd-assets.json`;
+- replacements: `2`;
+- active replacements: `2`;
+- packaged HD files available: `0`;
+- missing packaged HD files: `2`;
+- `presentationOnly:true`;
+- `originalFallback:true`;
+- `gameplaySemanticChanges:false`;
+- known source resolution: `original / hd-file-missing`;
+- unknown source resolution: `original / not-in-manifest`;
+- `coreRestart:false`;
+- `characterRestart:false`;
+- `scriptRestart:false`;
+- `dashboardGetOnly:true`;
+- `gameplayMutation:false`;
+- Action Gateway requests: `0`;
+- `rawSocketAccess:false`;
+- user Script runtime was not touched.
+
+Repository/release evidence:
+
+- implementation PR #140 final feature head: `fa69a8e50d7f145b77e5b59705f6d63f2e333831`;
+- final implementation PR CI run `37210560345`: all four required jobs successful;
+- implementation main: `6f5f8c47510b353646860048e3278d5fcfc3e269`;
+- exact post-implementation-main CI run `37210737660`: all four required jobs successful;
+- release publish run `37210929441`: Linux, Windows, and GitHub Release successful;
+- release branch, tag, release target, publish head, and tested implementation main are commit-identical at `6f5f8c47510b353646860048e3278d5fcfc3e269`;
+- Windows x64 installer SHA-256: `b87009f767aa20c37948210ab333ad49d7b59fbd965a48a65fdb4924b8cc176d`;
+- Linux x64 installer SHA-256: `7562cf7a17fba4b05423dfa6c85b756ce3824a652e50545d50ac653583d94fc1`;
+- updater manifest SHA-256: `2678ed35e79cff1a862e95d71dd777c681a30427674537da354f72485f0a7627`.
+
+Scope and safety:
+
+- ALHD provider is read-only and presentation-only;
+- original Adventure Land assets remain authoritative fallback;
+- Alpha.70 intentionally packages no HD replacement files, so both active manifest entries validate the original fallback path;
+- no gameplay semantic changes, gameplay mutation, raw socket access, or user Script replacement occurred;
+- WebGL guard, HD Browser defaults/application, and graphics profiles remain out of scope.
+
+**Canonical queue status: Slice 11.1 = VERIFIED.**
+
+Slice 11.2 – WebGL Texture-Size Guard may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
+
