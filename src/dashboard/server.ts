@@ -17,6 +17,7 @@ import type { AdventureLandCharacterService } from "../character/service.ts";
 import type { MultiCharacterSessionManager } from "../character/session-manager.ts";
 import type { LocalCharacterMessagingService } from "../character/messaging.ts";
 import type { PartyCoordinatorService } from "../party/coordinator.ts";
+import type { PartyTemplateService } from "../party/templates.ts";
 import type { CoreRuntime, HealthSnapshot } from "../core/app.ts";
 import type { DiagnosticsService } from "../diagnostics/service.ts";
 import type { AdventureLandGameDataService } from "../game/data-service.ts";
@@ -39,6 +40,7 @@ import type { Slice64LiveTestService } from "../live-test/slice-6-4.ts";
 import type { Slice71LiveTestService } from "../live-test/slice-7-1.ts";
 import type { Slice72LiveTestService } from "../live-test/slice-7-2.ts";
 import type { Slice73LiveTestService } from "../live-test/slice-7-3.ts";
+import type { Slice74LiveTestService } from "../live-test/slice-7-4.ts";
 import type { AdventureLandMapModelService } from "../navigation/map-model.ts";
 import type { MovementDebugService } from "../navigation/movement-debug.ts";
 import type { SimplePathPlannerService } from "../navigation/path-planner.ts";
@@ -59,6 +61,7 @@ export interface DashboardServerOptions {
   readonly multiCharacterSessionManager?: MultiCharacterSessionManager;
   readonly localCharacterMessagingService?: LocalCharacterMessagingService;
   readonly partyCoordinatorService?: PartyCoordinatorService;
+  readonly partyTemplateService?: PartyTemplateService;
   readonly actionGateway?: ActionGateway;
   readonly movementService?: AdventureLandMovementService;
   readonly attackService?: AdventureLandAttackService;
@@ -82,6 +85,7 @@ export interface DashboardServerOptions {
   readonly slice71LiveTestService?: Slice71LiveTestService;
   readonly slice72LiveTestService?: Slice72LiveTestService;
   readonly slice73LiveTestService?: Slice73LiveTestService;
+  readonly slice74LiveTestService?: Slice74LiveTestService;
   readonly mapModelService?: AdventureLandMapModelService;
   readonly movementDebugService?: MovementDebugService;
   readonly pathPlannerService?: SimplePathPlannerService;
@@ -105,6 +109,7 @@ export class DashboardServer {
   readonly #multiCharacterSessionManager?: MultiCharacterSessionManager;
   readonly #localCharacterMessagingService?: LocalCharacterMessagingService;
   readonly #partyCoordinatorService?: PartyCoordinatorService;
+  readonly #partyTemplateService?: PartyTemplateService;
   readonly #actionGateway?: ActionGateway;
   readonly #movementService?: AdventureLandMovementService;
   readonly #attackService?: AdventureLandAttackService;
@@ -128,6 +133,7 @@ export class DashboardServer {
   readonly #slice71LiveTestService?: Slice71LiveTestService;
   readonly #slice72LiveTestService?: Slice72LiveTestService;
   readonly #slice73LiveTestService?: Slice73LiveTestService;
+  readonly #slice74LiveTestService?: Slice74LiveTestService;
   readonly #mapModelService?: AdventureLandMapModelService;
   readonly #movementDebugService?: MovementDebugService;
   readonly #pathPlannerService?: SimplePathPlannerService;
@@ -154,6 +160,7 @@ export class DashboardServer {
     this.#multiCharacterSessionManager = options.multiCharacterSessionManager;
     this.#localCharacterMessagingService = options.localCharacterMessagingService;
     this.#partyCoordinatorService = options.partyCoordinatorService;
+    this.#partyTemplateService = options.partyTemplateService;
     this.#actionGateway = options.actionGateway;
     this.#movementService = options.movementService;
     this.#attackService = options.attackService;
@@ -177,6 +184,7 @@ export class DashboardServer {
     this.#slice71LiveTestService = options.slice71LiveTestService;
     this.#slice72LiveTestService = options.slice72LiveTestService;
     this.#slice73LiveTestService = options.slice73LiveTestService;
+    this.#slice74LiveTestService = options.slice74LiveTestService;
     this.#mapModelService = options.mapModelService;
     this.#movementDebugService = options.movementDebugService;
     this.#pathPlannerService = options.pathPlannerService;
@@ -409,6 +417,87 @@ export class DashboardServer {
         }, 503);
       }
       return this.#json(response, this.#partyCoordinatorService.state());
+    }
+
+
+
+    if (method === "GET" && path === "/api/party-templates") {
+      if (!this.#partyTemplateService) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Party Templates are unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#partyTemplateService.state());
+    }
+    if (method === "POST" && path === "/api/party-templates/assign") {
+      if (!this.#partyTemplateService) {
+        return this.#json(response, { error: "Party Templates are unavailable." }, 503);
+      }
+      let body: Record<string, unknown>;
+      try {
+        body = await this.#readJsonObject(request);
+      } catch (error) {
+        return this.#json(response, {
+          error: error instanceof Error ? error.message : "Invalid request body.",
+        }, 400);
+      }
+      const characterId = typeof body.characterId === "string" ? body.characterId : "";
+      const role = typeof body.role === "string" ? body.role : "";
+      if (!characterId.trim() || !["tank", "healer", "dps"].includes(role)) {
+        return this.#json(response, {
+          error: "Character selection and role (tank, healer, or dps) are required.",
+        }, 400);
+      }
+      try {
+        return this.#json(
+          response,
+          this.#partyTemplateService.assignRole(
+            characterId,
+            role as "tank" | "healer" | "dps",
+          ),
+        );
+      } catch (error) {
+        return this.#json(response, {
+          error: error instanceof Error ? error.message : String(error),
+        }, 400);
+      }
+    }
+    if (method === "POST" && path === "/api/party-templates/clear") {
+      if (!this.#partyTemplateService) {
+        return this.#json(response, { error: "Party Templates are unavailable." }, 503);
+      }
+      let body: Record<string, unknown>;
+      try {
+        body = await this.#readJsonObject(request);
+      } catch (error) {
+        return this.#json(response, {
+          error: error instanceof Error ? error.message : "Invalid request body.",
+        }, 400);
+      }
+      const characterId = typeof body.characterId === "string" ? body.characterId : "";
+      if (!characterId.trim()) {
+        return this.#json(response, { error: "Character selection is required." }, 400);
+      }
+      try {
+        return this.#json(response, this.#partyTemplateService.clearRole(characterId));
+      } catch (error) {
+        return this.#json(response, {
+          error: error instanceof Error ? error.message : String(error),
+        }, 400);
+      }
+    }
+    if (method === "POST" && path === "/api/party-templates/apply-recommended") {
+      if (!this.#partyTemplateService) {
+        return this.#json(response, { error: "Party Templates are unavailable." }, 503);
+      }
+      try {
+        return this.#json(response, this.#partyTemplateService.applyRecommendedRoles());
+      } catch (error) {
+        return this.#json(response, {
+          error: error instanceof Error ? error.message : String(error),
+        }, 400);
+      }
     }
 
     if (method === "GET" && path === "/api/action-gateway") {
@@ -1269,6 +1358,44 @@ export class DashboardServer {
         schemaVersion: 1,
         kind: "ALRemastered Slice 7.3 one-click Party Coordinator test",
         result,
+        partyCoordinator: this.#partyCoordinatorService?.state(),
+        characterMessaging: this.#localCharacterMessagingService?.state(),
+        characterSessions: this.#multiCharacterSessionManager?.state(),
+        primaryCharacter: this.#characterService?.state(),
+        selection: this.#selectionService?.state(),
+        userScriptRuntime: this.#scriptRuntime?.state(),
+        diagnostic,
+      };
+      return this.#json(response, {
+        result,
+        reportText: JSON.stringify(report, null, 2),
+        clipboardSuggested: true,
+      });
+    }
+
+
+    if (method === "GET" && path === "/api/live-test/slice-7-4") {
+      if (!this.#slice74LiveTestService) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Slice 7.4 Party Templates test service is unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#slice74LiveTestService.state());
+    }
+    if (method === "POST" && path === "/api/live-test/slice-7-4/start") {
+      if (!this.#slice74LiveTestService) {
+        return this.#json(response, {
+          error: "Slice 7.4 Party Templates test service is unavailable.",
+        }, 503);
+      }
+      const result = await this.#slice74LiveTestService.run();
+      const diagnostic = this.#exportPayload();
+      const report = {
+        schemaVersion: 1,
+        kind: "ALRemastered Slice 7.4 one-click Party Templates test",
+        result,
+        partyTemplates: this.#partyTemplateService?.state(),
         partyCoordinator: this.#partyCoordinatorService?.state(),
         characterMessaging: this.#localCharacterMessagingService?.state(),
         characterSessions: this.#multiCharacterSessionManager?.state(),
