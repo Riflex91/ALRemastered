@@ -1643,3 +1643,52 @@ Dashboard verification workflow:
 The out-of-range target and inactive template are expected live-state observations, not failures: the purpose of Slice 8.4 is to explain the existing decision state without changing it.
 
 Phase 8 is functionally complete. Phase 9 / Slice 9.1 – Dashboard Edit Mode may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
+
+---
+
+### Alpha.61 real one-click result: PASSED — Slice 9.1 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.61`
+- release target / tested implementation main: `9345ddbd9be81a17e993b766de2b0819cf6c0804`
+- client: `0.1.0-alpha.61` / Windows
+- platform: `win32`
+- test ID: `live91-8e196f02-0e2e-4d61-bfdd-e725d8eaf058`
+- outcome: `passed`
+- test window: `2026-10-04T10:09:33.476Z → 2026-10-04T10:09:33.486Z`
+- diagnostic export: 11 log lines, `Secrets sanitized: yes`.
+
+The one-click harness completed the full Slice 9.1 Dashboard Edit Mode validation:
+
+- `edit-mode-toggle: PASSED`;
+- `drag-and-drop: PASSED`;
+- `resize: PASSED`;
+- `grid-snapping: PASSED`;
+- `add-remove-widgets: PASSED`;
+- `normal-mode: PASSED`;
+- grid contract: 12 columns with 48 px row snapping;
+- layout persistence remained intentionally disabled for Slice 9.1: `Persistence:false`;
+- `gameplayMutation:false`;
+- Action Gateway requests: `0`;
+- `rawSocketAccess:false`;
+- user Script runtime was not touched;
+- the diagnostic export was sanitized and contained no reported secret exposure.
+
+Repository/release evidence:
+
+- implementation PR #120 final feature head: `ac10b06123ebceee458bfefb7ad9b413c16e01b7`;
+- final implementation PR CI run `37193902258` completed with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #120 merged with method `merge` into exact implementation main `9345ddbd9be81a17e993b766de2b0819cf6c0804`;
+- exact post-implementation-main CI run `37194083144` completed with all four required jobs successful;
+- release publish run `37194244198` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.61`, tag `v0.1.0-alpha.61`, GitHub release target, publish-run head, and tested implementation `main` were verified commit-identical at `9345ddbd9be81a17e993b766de2b0819cf6c0804`;
+- published assets:
+  - Windows x64 installer SHA-256 `512bb62f79133c34b728546731a0678c9c0b5bd6e4ebd3101f55773554f41379`
+  - Linux x64 installer SHA-256 `253a69dcf0e8fb082027344fac2282cdf41dd810f16cf97332cad2b4114fbb0f`
+  - updater manifest SHA-256 `e49658e6031e8d0c154b7b4b3db068f2ed03fcc73905df7f6a81e7e6de58c31b`.
+
+**Canonical queue status: Slice 9.1 = VERIFIED.**
+
+Slice 9.2 – Widget-Konfiguration may begin only after this verification documentation is merged and the exact post-merge `main` CI is fully green. Persistence/restart/undo-redo/profiles remain reserved for Slice 9.4 and were not part of this verification.
+
