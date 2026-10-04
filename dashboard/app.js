@@ -563,6 +563,7 @@ function renderDashboardEditorState() {
   renderDashboardEditMode();
   renderDashboardPages();
   renderDashboardLayoutControls();
+  renderDashboardImportPanel();
 }
 
 async function dashboardLayoutRequest(path, body) {
@@ -603,6 +604,105 @@ function dashboardProfileId(name) {
     .slice(0, 40) || "profile";
   const suffix = globalThis.crypto?.randomUUID?.().slice(0, 8) ?? Date.now().toString(36);
   return `${base}-${suffix}`;
+}
+
+function dashboardExportFilename(name) {
+  const base = String(name || "dashboard-profile")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 60) || "dashboard-profile";
+  return `${base}.alremastered-dashboard.json`;
+}
+
+function downloadDashboardExport(portable) {
+  const json = `${JSON.stringify(portable, null, 2)}\n`;
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = dashboardExportFilename(portable.profile.name);
+  anchor.hidden = true;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  globalThis.setTimeout(() => URL.revokeObjectURL(url), 0);
+  return json;
+}
+
+function dashboardImportMapping() {
+  const mapping = {};
+  for (const select of elements.dashboardLayoutRoleMappings.querySelectorAll("[data-dashboard-role]")) {
+    mapping[select.dataset.dashboardRole] = select.value;
+  }
+  return mapping;
+}
+
+function syncDashboardImportApply() {
+  const pending = state.pendingDashboardImport;
+  if (!pending) {
+    elements.dashboardLayoutImportApply.disabled = true;
+    return;
+  }
+  const roleIds = portableDashboardRoleIds(pending);
+  const mapping = dashboardImportMapping();
+  elements.dashboardLayoutImportApply.disabled =
+    roleIds.some((roleId) => !String(mapping[roleId] ?? "").trim());
+}
+
+function renderDashboardImportPanel() {
+  const pending = state.pendingDashboardImport;
+  elements.dashboardLayoutImportPanel.hidden = !pending;
+  elements.dashboardLayoutRoleMappings.replaceChildren();
+  if (!pending) {
+    elements.dashboardLayoutImportSummary.textContent =
+      "Choose a portable ALRemastered dashboard profile.";
+    elements.dashboardLayoutImportApply.disabled = true;
+    return;
+  }
+
+  const roles = pending.profile.roles;
+  const characters = dashboardEditor?.characters?.() ?? [];
+  const variants = ["desktop", "small"].filter((variant) => pending.profile.layouts[variant]);
+  elements.dashboardLayoutImportSummary.textContent =
+    `Profile "${pending.profile.name}" · ${variants.map((variant) => variant === "small" ? "Small screen" : "Desktop").join(" + ")} · ${roles.length} Character role(s).`;
+
+  if (!roles.length) {
+    const note = document.createElement("small");
+    note.textContent = "This profile has no Character-bound widgets and requires no role mapping.";
+    elements.dashboardLayoutRoleMappings.append(note);
+  }
+
+  for (const role of roles) {
+    const label = document.createElement("label");
+    label.className = "dashboard-layout-role-map";
+
+    const title = document.createElement("span");
+    title.className = "label";
+    title.textContent = role.label;
+
+    const select = document.createElement("select");
+    select.dataset.dashboardRole = role.id;
+    select.setAttribute("aria-label", `Map ${role.label}`);
+
+    const empty = document.createElement("option");
+    empty.value = "";
+    empty.textContent = characters.length ? "Choose Character…" : "No Characters available";
+    select.append(empty);
+
+    for (const character of characters) {
+      const option = document.createElement("option");
+      option.value = character.id;
+      option.textContent = character.name;
+      select.append(option);
+    }
+
+    select.addEventListener("change", syncDashboardImportApply);
+    label.append(title, select);
+    elements.dashboardLayoutRoleMappings.append(label);
+  }
+
+  syncDashboardImportApply();
 }
 
 dashboardEditor = new DashboardEditor({
@@ -719,6 +819,94 @@ elements.dashboardLayoutReset.addEventListener("click", async () => {
     setFeedback("Current viewport layout reset to defaults.", "success");
   } catch (error) {
     setFeedback(`Dashboard layout could not be reset: ${error.message}`, "error");
+  }
+});
+
+elements.dashboardLayoutExport.addEventListener("click", () => {
+  try {
+    const profile = activeDashboardLayoutProfile();
+    if (!profile) throw new Error("No active dashboard profile is available.");
+    const portable = createPortableDashboardProfile(profile);
+    downloadDashboardExport(portable);
+    setFeedback(
+      `Dashboard profile "${profile.name}" exported without fixed Character IDs or names.`,
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Dashboard profile export failed: ${error.message}`, "error");
+  }
+});
+
+elements.dashboardLayoutImport.addEventListener("click", () => {
+  elements.dashboardLayoutImportFile.value = "";
+  elements.dashboardLayoutImportFile.click();
+});
+
+elements.dashboardLayoutImportFile.addEventListener("change", async () => {
+  const file = elements.dashboardLayoutImportFile.files?.[0];
+  if (!file) return;
+  try {
+    state.pendingDashboardImport = parsePortableDashboardProfile(await file.text());
+    renderDashboardImportPanel();
+    setFeedback(
+      "Dashboard import file validated. Map every Character role before importing.",
+      "success",
+    );
+  } catch (error) {
+    state.pendingDashboardImport = null;
+    renderDashboardImportPanel();
+    setFeedback(`Dashboard import file is invalid: ${error.message}`, "error");
+  }
+});
+
+elements.dashboardLayoutImportCancel.addEventListener("click", () => {
+  state.pendingDashboardImport = null;
+  elements.dashboardLayoutImportFile.value = "";
+  renderDashboardImportPanel();
+  setFeedback("Dashboard import cancelled.");
+});
+
+elements.dashboardLayoutImportApply.addEventListener("click", async () => {
+  const pending = state.pendingDashboardImport;
+  if (!pending) return;
+  const roleMapping = dashboardImportMapping();
+  let importedProfileId = null;
+  try {
+    const resolved = resolvePortableDashboardProfile(pending, roleMapping);
+    importedProfileId = dashboardProfileId(resolved.name);
+    state.dashboardLayouts = await dashboardLayoutRequest("/api/dashboard-layout/profile/create", {
+      profileId: importedProfileId,
+      name: resolved.name,
+    });
+    for (const variant of ["desktop", "small"]) {
+      const layout = resolved.layouts[variant];
+      if (!layout) continue;
+      state.dashboardLayouts = await dashboardLayoutRequest("/api/dashboard-layout/save", {
+        profileId: importedProfileId,
+        variant,
+        layout,
+      });
+    }
+    await applyActiveDashboardLayout();
+    state.pendingDashboardImport = null;
+    elements.dashboardLayoutImportFile.value = "";
+    renderDashboardImportPanel();
+    setFeedback(
+      `Dashboard profile "${resolved.name}" imported with explicit Character role mapping.`,
+      "success",
+    );
+  } catch (error) {
+    if (importedProfileId) {
+      try {
+        state.dashboardLayouts = await dashboardLayoutRequest("/api/dashboard-layout/profile/delete", {
+          profileId: importedProfileId,
+        });
+      } catch {
+        // Preserve the import error; cleanup is best effort.
+      }
+    }
+    renderDashboardImportPanel();
+    setFeedback(`Dashboard profile import failed: ${error.message}`, "error");
   }
 });
 
