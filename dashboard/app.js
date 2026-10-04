@@ -5265,6 +5265,7 @@ elements.packageImportConfirm.addEventListener("click", async () => {
     elements.packageImportStatus.textContent = "Imported inactive";
     elements.packageImportNote.textContent =
       `${receipt.name} ${receipt.version} imported successfully and remains inactive. Package execution is not part of this flow.`;
+    await refreshPackageLibrary();
     setFeedback(
       `Imported ${receipt.name} ${receipt.version} as an inactive package. No code was executed.`,
       "success",
@@ -5276,6 +5277,219 @@ elements.packageImportConfirm.addEventListener("click", async () => {
     elements.packageImportConfirm.disabled = false;
   }
 });
+
+async function fetchPackageLibrary() {
+  const response = await fetch("/api/packages/library", { cache: "no-store" });
+  const result = await response.json();
+  if (!response.ok) {
+    throw new Error(result.error ?? `Script Library request failed with HTTP ${response.status}.`);
+  }
+  return result;
+}
+
+async function postPackageLibrary(path, payload) {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const result = await response.json();
+  if (!response.ok) {
+    const error = new Error(result.error ?? `Script Library request failed with HTTP ${response.status}.`);
+    error.code = result.errorCode;
+    throw error;
+  }
+  return result;
+}
+
+function renderPackageLibrary(snapshot) {
+  state.packageLibrary = snapshot;
+  const myScripts = snapshot.myScripts ?? [];
+  const imported = snapshot.imported ?? [];
+  const versionCount = imported.reduce((sum, entry) => sum + (entry.versions?.length ?? 0), 0);
+  elements.packageLibraryStatus.textContent =
+    `${myScripts.length} My Script${myScripts.length === 1 ? "" : "s"} · ${imported.length} imported package${imported.length === 1 ? "" : "s"} · ${versionCount} version${versionCount === 1 ? "" : "s"}`;
+
+  elements.packageLibraryMyScripts.replaceChildren();
+  if (myScripts.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "selection-note";
+    empty.textContent = "No user script is currently loaded.";
+    elements.packageLibraryMyScripts.append(empty);
+  } else {
+    for (const script of myScripts) {
+      const item = document.createElement("div");
+      item.className = "selection-content";
+      const name = document.createElement("strong");
+      name.textContent = script.name;
+      const status = document.createElement("p");
+      status.className = "selection-note";
+      status.textContent =
+        `Runtime status: ${script.status}. ${script.active ? "Running" : "Not running"}.`;
+      item.append(name, status);
+      elements.packageLibraryMyScripts.append(item);
+    }
+  }
+
+  elements.packageLibraryImported.replaceChildren();
+  if (imported.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "selection-note";
+    empty.textContent = "No imported packages yet.";
+    elements.packageLibraryImported.append(empty);
+  }
+
+  for (const packageEntry of imported) {
+    const item = document.createElement("div");
+    item.className = "selection-content";
+
+    const heading = document.createElement("strong");
+    heading.textContent = packageEntry.name;
+    const idLine = document.createElement("p");
+    idLine.className = "selection-note";
+    idLine.textContent = packageEntry.packageId;
+
+    const versionLabel = document.createElement("label");
+    const versionText = document.createElement("span");
+    versionText.className = "label";
+    versionText.textContent = "Version";
+    const versionSelect = document.createElement("select");
+    versionSelect.setAttribute("aria-label", `${packageEntry.name} version`);
+    for (const version of packageEntry.versions ?? []) {
+      const option = document.createElement("option");
+      option.value = version.version;
+      option.textContent = version.version === packageEntry.activeVersion
+        ? `${version.version} (active)`
+        : version.version;
+      versionSelect.append(option);
+    }
+    versionLabel.append(versionText, versionSelect);
+
+    const status = document.createElement("p");
+    status.className = "selection-note";
+    const description = document.createElement("p");
+    description.className = "selection-note";
+    const permissions = document.createElement("p");
+    permissions.className = "selection-note";
+    const schemaLabel = document.createElement("span");
+    schemaLabel.className = "label";
+    schemaLabel.textContent = "Configuration schema";
+    const schema = document.createElement("pre");
+    const configLabel = document.createElement("label");
+    const configText = document.createElement("span");
+    configText.className = "label";
+    configText.textContent = "Configuration";
+    const config = document.createElement("textarea");
+    config.rows = 7;
+    config.setAttribute("aria-label", `${packageEntry.name} configuration`);
+    configLabel.append(configText, config);
+
+    const actions = document.createElement("div");
+    actions.className = "toolbar";
+    const activeButton = document.createElement("button");
+    activeButton.type = "button";
+    const saveButton = document.createElement("button");
+    saveButton.type = "button";
+    saveButton.textContent = "Save configuration";
+    actions.append(activeButton, saveButton);
+
+    function selectedVersion() {
+      return packageEntry.versions?.find((version) => version.version === versionSelect.value)
+        ?? packageEntry.versions?.[0];
+    }
+
+    function renderSelectedVersion() {
+      const version = selectedVersion();
+      if (!version) return;
+      status.textContent =
+        `${version.active ? "Active" : "Inactive"} · imported ${version.importedAt ?? "time unknown"} · package execution: not supported`;
+      description.textContent = version.description;
+      permissions.textContent =
+        `Permissions: ${version.permissions?.join(", ") || "none"}`;
+      schema.textContent = JSON.stringify(version.configSchema ?? {}, null, 2);
+      config.value = JSON.stringify(version.configuration ?? {}, null, 2);
+      activeButton.textContent = version.active ? "Set inactive" : "Set active";
+    }
+
+    versionSelect.addEventListener("change", renderSelectedVersion);
+    activeButton.addEventListener("click", async () => {
+      const version = selectedVersion();
+      if (!version) return;
+      activeButton.disabled = true;
+      try {
+        const updated = await postPackageLibrary("/api/packages/library/active", {
+          packageId: packageEntry.packageId,
+          version: version.version,
+          active: !version.active,
+        });
+        renderPackageLibrary(updated);
+        setFeedback(
+          `${packageEntry.name} ${version.version} is now ${version.active ? "inactive" : "active"} in the library. No package code was executed.`,
+          "success",
+        );
+      } catch (error) {
+        setFeedback(`Script Library state change failed: ${error.message}`, "error");
+      } finally {
+        activeButton.disabled = false;
+      }
+    });
+    saveButton.addEventListener("click", async () => {
+      const version = selectedVersion();
+      if (!version) return;
+      saveButton.disabled = true;
+      try {
+        const configuration = JSON.parse(config.value);
+        const updated = await postPackageLibrary("/api/packages/library/configuration", {
+          packageId: packageEntry.packageId,
+          version: version.version,
+          configuration,
+        });
+        renderPackageLibrary(updated);
+        setFeedback(
+          `Saved configuration for ${packageEntry.name} ${version.version}. No package code was executed.`,
+          "success",
+        );
+      } catch (error) {
+        setFeedback(`Script Library configuration was not saved: ${error.message}`, "error");
+      } finally {
+        saveButton.disabled = false;
+      }
+    });
+
+    renderSelectedVersion();
+    item.append(
+      heading,
+      idLine,
+      versionLabel,
+      status,
+      description,
+      permissions,
+      schemaLabel,
+      schema,
+      configLabel,
+      actions,
+    );
+    elements.packageLibraryImported.append(item);
+  }
+
+  elements.packageLibraryNote.textContent =
+    "Active / inactive is persistent library metadata only. Activating an imported package does not load or execute package code. Updates and rollback belong to Slice 12.6.";
+}
+
+async function refreshPackageLibrary() {
+  elements.packageLibraryRefresh.disabled = true;
+  try {
+    renderPackageLibrary(await fetchPackageLibrary());
+  } catch (error) {
+    elements.packageLibraryStatus.textContent = "Unavailable";
+    setFeedback(`Script Library refresh failed: ${error.message}`, "error");
+  } finally {
+    elements.packageLibraryRefresh.disabled = false;
+  }
+}
+
+elements.packageLibraryRefresh.addEventListener("click", () => void refreshPackageLibrary());
+void refreshPackageLibrary();
 
 function renderSlice123LiveTest() {
   const test = state.slice123LiveTest ?? { status: "idle", message: "Ready." };
