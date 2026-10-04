@@ -3,7 +3,11 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AdventureLandAccountService } from "../account/service.ts";
-import type { ActionGateway, ActionGatewayResult } from "../action/gateway.ts";
+import type {
+  ActionGateway,
+  ActionGatewayResult,
+  ActionOrigin,
+} from "../action/gateway.ts";
 import type {
   AdventureLandMovementService,
   MovementDirection,
@@ -28,6 +32,10 @@ import type {
   DashboardPersistentLayout,
 } from "./layout-store.ts";
 import type { CoreRuntime, HealthSnapshot } from "../core/app.ts";
+import {
+  parseControlMode,
+  type ControlModeService,
+} from "../control/modes.ts";
 import type { DiagnosticsService } from "../diagnostics/service.ts";
 import type { AdventureLandGameDataService } from "../game/data-service.ts";
 import type { AdventureLandVersionService } from "../game/version-service.ts";
@@ -82,6 +90,7 @@ export interface DashboardServerOptions {
   readonly explainabilityService?: ExplainabilityService;
   readonly dashboardLayoutStore?: DashboardLayoutStore;
   readonly rendererBridge?: RendererBridge;
+  readonly controlModeService?: ControlModeService;
   readonly actionGateway?: ActionGateway;
   readonly movementService?: AdventureLandMovementService;
   readonly attackService?: AdventureLandAttackService;
@@ -140,6 +149,7 @@ export class DashboardServer {
   readonly #explainabilityService?: ExplainabilityService;
   readonly #dashboardLayoutStore?: DashboardLayoutStore;
   readonly #rendererBridge?: RendererBridge;
+  readonly #controlModeService?: ControlModeService;
   readonly #actionGateway?: ActionGateway;
   readonly #movementService?: AdventureLandMovementService;
   readonly #attackService?: AdventureLandAttackService;
@@ -202,6 +212,7 @@ export class DashboardServer {
     this.#explainabilityService = options.explainabilityService;
     this.#dashboardLayoutStore = options.dashboardLayoutStore;
     this.#rendererBridge = options.rendererBridge;
+    this.#controlModeService = options.controlModeService;
     this.#actionGateway = options.actionGateway;
     this.#movementService = options.movementService;
     this.#attackService = options.attackService;
@@ -627,6 +638,78 @@ export class DashboardServer {
           error: error instanceof Error ? error.message : String(error),
         }, 400);
       }
+    }
+
+    if (method === "GET" && path === "/api/control-mode") {
+      if (!this.#controlModeService) {
+        return this.#json(response, { status: "unavailable" }, 503);
+      }
+      return this.#json(response, this.#controlModeService.state());
+    }
+    if (method === "POST" && path === "/api/control-mode") {
+      if (!this.#controlModeService) {
+        return this.#json(response, { error: "Control modes are unavailable." }, 503);
+      }
+      let body: Record<string, unknown>;
+      try {
+        body = await this.#readJsonObject(request);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Invalid request body.";
+        return this.#json(response, { error: message }, 400);
+      }
+      const mode = parseControlMode(body.mode);
+      if (!mode) {
+        return this.#json(response, {
+          error: "Control mode must be automatic, assist, or manual.",
+        }, 400);
+      }
+      const state = this.#controlModeService.setMode(mode);
+      this.#logger.info("Control mode changed.", {
+        mode: state.mode,
+        label: state.label,
+        userScriptInterrupted: false,
+        characterRestarted: false,
+      });
+      return this.#json(response, state);
+    }
+    if (method === "POST" && path === "/api/control-mode/verification-probe") {
+      if (!this.#controlModeService || !this.#actionGateway) {
+        return this.#json(response, { error: "Control mode verification is unavailable." }, 503);
+      }
+      let body: Record<string, unknown>;
+      try {
+        body = await this.#readJsonObject(request);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Invalid request body.";
+        return this.#json(response, { error: message }, 400);
+      }
+      const origin = body.origin === "dashboard" ||
+          body.origin === "script" ||
+          body.origin === "system"
+        ? body.origin as ActionOrigin
+        : undefined;
+      if (!origin) {
+        return this.#json(response, {
+          error: "Verification probe origin must be dashboard, script, or system.",
+        }, 400);
+      }
+      const result = await this.#actionGateway.run({
+        action: "control-mode.verification-probe",
+        origin,
+        characterId: this.#characterService?.state().characterId,
+        input: {
+          kind: "non-gameplay-control-mode-probe",
+          mode: this.#controlModeService.state().mode,
+        },
+        timeoutMs: 1_000,
+        minIntervalMs: 0,
+        execute: () => ({
+          ok: true,
+          gameplayMutation: false,
+          mode: this.#controlModeService!.state().mode,
+        }),
+      });
+      return this.#json(response, result, gatewayStatusCode(result));
     }
 
     if (method === "GET" && path === "/api/action-gateway") {
