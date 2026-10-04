@@ -50,6 +50,9 @@ const state = {
   partyCoordinator: null,
   slice73LiveTest: null,
   slice73LastReport: null,
+  partyTemplates: null,
+  slice74LiveTest: null,
+  slice74LastReport: null,
   movementDebug: null,
   update: null,
   gameVersion: null,
@@ -236,6 +239,20 @@ const elements = {
   slice73LiveTestStatus: document.querySelector("#slice-7-3-live-test-status"),
   slice73LiveTestNote: document.querySelector("#slice-7-3-live-test-note"),
   copySlice73LiveTestResult: document.querySelector("#copy-slice-7-3-live-test-result"),
+  partyTemplatesStatus: document.querySelector("#party-templates-status"),
+  partyTemplatesMatched: document.querySelector("#party-templates-matched"),
+  partyTemplatesSafety: document.querySelector("#party-templates-safety"),
+  partyTemplateMember: document.querySelector("#party-template-member"),
+  partyTemplateRole: document.querySelector("#party-template-role"),
+  assignPartyTemplateRole: document.querySelector("#assign-party-template-role"),
+  clearPartyTemplateRole: document.querySelector("#clear-party-template-role"),
+  applyRecommendedPartyRoles: document.querySelector("#apply-recommended-party-roles"),
+  partyTemplatesList: document.querySelector("#party-templates-list"),
+  partyTemplatesNote: document.querySelector("#party-templates-note"),
+  startSlice74LiveTest: document.querySelector("#start-slice-7-4-live-test"),
+  slice74LiveTestStatus: document.querySelector("#slice-7-4-live-test-status"),
+  slice74LiveTestNote: document.querySelector("#slice-7-4-live-test-note"),
+  copySlice74LiveTestResult: document.querySelector("#copy-slice-7-4-live-test-result"),
   movementDebugStatus: document.querySelector("#movement-debug-status"),
   movementDebugTrailCount: document.querySelector("#movement-debug-trail-count"),
   movementDebugMovementCount: document.querySelector("#movement-debug-movement-count"),
@@ -1690,6 +1707,86 @@ function renderSlice73LiveTest() {
   }
 }
 
+
+
+function renderPartyTemplates() {
+  const templates = state.partyTemplates;
+  const assignments = Array.isArray(templates?.assignments) ? templates.assignments : [];
+  elements.partyTemplatesStatus.textContent = templates?.status === "ready"
+    ? "Ready"
+    : templates?.status === "degraded"
+      ? "Needs assignment"
+      : templates?.status === "idle"
+        ? "Waiting"
+        : "Unavailable";
+  elements.partyTemplatesMatched.textContent =
+    `${templates?.matchedCount ?? 0} / ${templates?.memberCount ?? 0}`;
+  elements.partyTemplatesSafety.textContent =
+    templates?.gameplayMutation === false && templates?.rawSocketAccess === false
+      ? "Local roles only"
+      : "Check status";
+
+  const previous = elements.partyTemplateMember.value;
+  elements.partyTemplateMember.replaceChildren();
+  for (const assignment of assignments) {
+    const option = document.createElement("option");
+    option.value = assignment.characterId;
+    option.textContent =
+      `${assignment.characterName ?? assignment.characterId} (${assignment.characterType ?? "unknown"})`;
+    elements.partyTemplateMember.append(option);
+  }
+  if (assignments.some((item) => item.characterId === previous)) {
+    elements.partyTemplateMember.value = previous;
+  }
+  const selected = assignments.find((item) =>
+    item.characterId === elements.partyTemplateMember.value
+  ) ?? assignments[0];
+  if (selected?.currentRole) elements.partyTemplateRole.value = selected.currentRole;
+
+  const disabled = assignments.length === 0;
+  elements.partyTemplateMember.disabled = disabled;
+  elements.partyTemplateRole.disabled = disabled;
+  elements.assignPartyTemplateRole.disabled = disabled;
+  elements.clearPartyTemplateRole.disabled = disabled;
+  elements.applyRecommendedPartyRoles.disabled = disabled;
+
+  elements.partyTemplatesList.value = assignments.length
+    ? assignments.map((item) => {
+      const current = item.currentRole?.toUpperCase() ?? "NO ROLE";
+      const recommended = item.recommendedRole?.toUpperCase() ?? "NO RECOMMENDATION";
+      return `${item.characterName ?? item.characterId} — ${item.characterType ?? "unknown"} — current ${current} — recommended ${recommended} — ${item.status}`;
+    }).join("\n")
+    : "No local Party Template assignments.";
+  elements.partyTemplatesNote.textContent = templates?.message ??
+    "Warrior Tank, Priest Healer, and DPS recommendations reuse the Party Coordinator without gameplay automation.";
+}
+
+function renderSlice74LiveTest() {
+  const test = state.slice74LiveTest;
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    blocked: "BLOCKED",
+    failed: "FAILED",
+    unavailable: "Unavailable",
+  };
+  const status = test?.status ?? "idle";
+  elements.slice74LiveTestStatus.textContent = labels[status] ?? status;
+  elements.startSlice74LiveTest.disabled = status === "running";
+  elements.copySlice74LiveTestResult.hidden = !state.slice74LastReport;
+  if (status === "running") {
+    elements.slice74LiveTestNote.textContent =
+      "Connecting two bounded managed Characters to cover the missing Warrior Tank / Priest Healer / DPS roles, exercising manual assignment, then restoring the original Coordinator state.";
+  } else if (test?.message) {
+    elements.slice74LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  } else {
+    elements.slice74LiveTestNote.textContent =
+      "Requires one connected primary Character, offline Characters covering the two missing template roles, two free session slots, and no running or paused user script. No gameplay mutation, raw sockets, or messaging traffic are used.";
+  }
+}
+
 function renderMovementDebug() {
   const debug = state.movementDebug;
   if (!debug) {
@@ -2460,6 +2557,42 @@ async function refreshSlice73LiveTest() {
       message: "Slice 7.3 Party Coordinator test status could not be loaded.",
     };
     renderSlice73LiveTest();
+  }
+}
+
+
+
+async function refreshPartyTemplates() {
+  try {
+    const response = await fetch("/api/party-templates", { cache: "no-store" });
+    state.partyTemplates = response.ok
+      ? await response.json()
+      : { status: "unavailable", memberCount: 0, assignments: [], message: "Party Templates are unavailable." };
+    renderPartyTemplates();
+  } catch {
+    state.partyTemplates = {
+      status: "unavailable",
+      memberCount: 0,
+      assignments: [],
+      message: "Party Templates status could not be loaded.",
+    };
+    renderPartyTemplates();
+  }
+}
+
+async function refreshSlice74LiveTest() {
+  try {
+    const response = await fetch("/api/live-test/slice-7-4", { cache: "no-store" });
+    state.slice74LiveTest = response.ok
+      ? await response.json()
+      : { status: "unavailable", message: "Slice 7.4 Party Templates test is unavailable." };
+    renderSlice74LiveTest();
+  } catch {
+    state.slice74LiveTest = {
+      status: "unavailable",
+      message: "Slice 7.4 Party Templates test status could not be loaded.",
+    };
+    renderSlice74LiveTest();
   }
 }
 
@@ -4585,6 +4718,61 @@ elements.copySlice72LiveTestResult.addEventListener("click", async () => {
   }
 });
 
+
+
+async function partyTemplateAction(path, body) {
+  const options = { method: "POST" };
+  if (body !== undefined) {
+    options.headers = { "Content-Type": "application/json" };
+    options.body = JSON.stringify(body);
+  }
+  const response = await fetch(path, options);
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error ?? payload.message ?? `HTTP ${response.status}`);
+  }
+  state.partyTemplates = payload;
+  renderPartyTemplates();
+  await refreshPartyCoordinator();
+  return payload;
+}
+
+async function startSlice74LiveTest(clipboardWrite) {
+  state.slice74LiveTest = {
+    status: "running",
+    message: "Slice 7.4 Party Templates test is running.",
+  };
+  renderSlice74LiveTest();
+  const response = await fetch("/api/live-test/slice-7-4/start", { method: "POST" });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      payload.error ?? payload.message ??
+        `Slice 7.4 Party Templates test failed with HTTP ${response.status}`,
+    );
+  }
+  if (!payload.reportText || typeof payload.reportText !== "string") {
+    throw new Error("Slice 7.4 Party Templates test returned no copyable report.");
+  }
+  state.slice74LastReport = payload.reportText;
+  state.slice74LiveTest = {
+    status: payload.result?.outcome ?? "failed",
+    message: payload.result?.message ?? "Slice 7.4 Party Templates test finished.",
+    lastResult: payload.result,
+  };
+  const copied = await clipboardWrite.finish(payload.reportText);
+  renderSlice74LiveTest();
+  await refreshCharacterConnection();
+  await refreshCharacterSessions();
+  await refreshCharacterMessaging();
+  await refreshPartyCoordinator();
+  await refreshPartyTemplates();
+  await refreshScriptRuntime();
+  await refreshDiagnostics();
+  return { payload, copied };
+}
+
+
 elements.startSlice73LiveTest.addEventListener("click", async () => {
   if (state.slice73LiveTest?.status === "running") return;
   const clipboardWrite = beginDeferredClipboardWrite();
@@ -4626,6 +4814,91 @@ elements.copySlice73LiveTestResult.addEventListener("click", async () => {
     setFeedback(`Party Coordinator result copy failed: ${error.message}`, "error");
   }
 });
+
+
+
+elements.partyTemplateMember.addEventListener("change", () => {
+  const assignment = state.partyTemplates?.assignments?.find((item) =>
+    item.characterId === elements.partyTemplateMember.value
+  );
+  if (assignment?.currentRole) elements.partyTemplateRole.value = assignment.currentRole;
+});
+
+elements.assignPartyTemplateRole.addEventListener("click", async () => {
+  const characterId = elements.partyTemplateMember.value;
+  const role = elements.partyTemplateRole.value;
+  if (!characterId) return;
+  try {
+    await partyTemplateAction("/api/party-templates/assign", { characterId, role });
+    setFeedback(`Assigned ${role.toUpperCase()} to the selected Coordinator member.`, "success");
+  } catch (error) {
+    setFeedback(`Party Template assignment failed: ${error.message}`, "error");
+  }
+});
+
+elements.clearPartyTemplateRole.addEventListener("click", async () => {
+  const characterId = elements.partyTemplateMember.value;
+  if (!characterId) return;
+  try {
+    await partyTemplateAction("/api/party-templates/clear", { characterId });
+    setFeedback("Cleared the selected Coordinator role.", "success");
+  } catch (error) {
+    setFeedback(`Party Template clear failed: ${error.message}`, "error");
+  }
+});
+
+elements.applyRecommendedPartyRoles.addEventListener("click", async () => {
+  try {
+    await partyTemplateAction("/api/party-templates/apply-recommended");
+    setFeedback("Applied Warrior Tank, Priest Healer, and DPS recommendations.", "success");
+  } catch (error) {
+    setFeedback(`Recommended Party Template assignment failed: ${error.message}`, "error");
+  }
+});
+
+elements.startSlice74LiveTest.addEventListener("click", async () => {
+  if (state.slice74LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice74LastReport = null;
+  elements.copySlice74LiveTestResult.hidden = true;
+  setFeedback(
+    "Slice 7.4 Party Templates test started. Two bounded managed Characters will cover the missing template roles without gameplay automation.",
+  );
+  try {
+    const { payload, copied } = await startSlice74LiveTest(clipboardWrite);
+    const outcome = payload.result?.outcome ?? "failed";
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 7.4 test ${String(outcome).toUpperCase()}. ${copyMessage}`,
+      outcome === "passed" && copied ? "success" : outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    await refreshSlice74LiveTest();
+    setFeedback(`Slice 7.4 Party Templates test could not finish: ${error.message}`, "error");
+  } finally {
+    renderSlice74LiveTest();
+    await refreshCharacterSessions();
+    await refreshCharacterMessaging();
+    await refreshPartyCoordinator();
+    await refreshPartyTemplates();
+  }
+});
+
+elements.copySlice74LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice74LastReport) return;
+  try {
+    await writeClipboard(state.slice74LastReport);
+    setFeedback(
+      "Complete Slice 7.4 Party Templates result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Party Templates result copy failed: ${error.message}`, "error");
+  }
+});
+
 
 elements.reloadGameData.addEventListener("click", async () => {
   elements.reloadGameData.disabled = true;
@@ -4757,6 +5030,8 @@ await refreshCharacterMessaging();
 await refreshSlice72LiveTest();
 await refreshPartyCoordinator();
 await refreshSlice73LiveTest();
+await refreshPartyTemplates();
+await refreshSlice74LiveTest();
 await refreshMovementDebug();
 await refreshGameVersion();
 await refreshGameData();
@@ -4793,6 +5068,8 @@ setInterval(refreshCharacterMessaging, 1500);
 setInterval(refreshSlice72LiveTest, 1500);
 setInterval(refreshPartyCoordinator, 1500);
 setInterval(refreshSlice73LiveTest, 1500);
+setInterval(refreshPartyTemplates, 1500);
+setInterval(refreshSlice74LiveTest, 1500);
 setInterval(refreshMovementDebug, 1500);
 setInterval(refreshGameVersion, 2000);
 setInterval(refreshGameData, 2000);

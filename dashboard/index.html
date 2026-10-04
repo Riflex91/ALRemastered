@@ -859,6 +859,66 @@
         </div>
       </div>
 
+
+
+      <div class="selection-content">
+        <div>
+          <h3>Party Templates</h3>
+          <div class="status-grid" aria-label="Party Templates status">
+            <article class="card">
+              <span class="label">Templates</span>
+              <strong id="party-templates-status">Waiting</strong>
+            </article>
+            <article class="card">
+              <span class="label">Recommended match</span>
+              <strong id="party-templates-matched">0 / 0</strong>
+            </article>
+            <article class="card">
+              <span class="label">Safety</span>
+              <strong id="party-templates-safety">Local roles only</strong>
+            </article>
+          </div>
+          <div class="server-picker">
+            <label>
+              <span class="label">Coordinator member</span>
+              <select id="party-template-member"></select>
+            </label>
+            <label>
+              <span class="label">Role</span>
+              <select id="party-template-role">
+                <option value="tank">Tank</option>
+                <option value="healer">Healer</option>
+                <option value="dps">DPS</option>
+              </select>
+            </label>
+            <button id="assign-party-template-role" type="button">Assign role</button>
+            <button id="clear-party-template-role" type="button">Clear role</button>
+            <button id="apply-recommended-party-roles" type="button">Apply recommended roles</button>
+          </div>
+          <label>
+            <span class="label">Template assignments</span>
+            <textarea id="party-templates-list" rows="5" readonly spellcheck="false">No local Party Template assignments.</textarea>
+          </label>
+          <small class="selection-note" id="party-templates-note">
+            Warrior Tank recommends Tank for warriors, Priest Healer recommends Healer for priests, and DPS recommends DPS for other local Character classes. Assignments reuse the Slice 7.3 Party Coordinator and do not execute combat, movement, raw-socket access, or Character messaging.
+          </small>
+        </div>
+      </div>
+
+      <div class="selection-content">
+        <div>
+          <h3>Slice 7.4 one-click Party Templates test</h3>
+          <div class="server-picker">
+            <button id="start-slice-7-4-live-test" type="button">Start Party Templates test</button>
+            <strong id="slice-7-4-live-test-status" aria-live="polite">Ready</strong>
+            <button id="copy-slice-7-4-live-test-result" type="button" hidden>Copy last test result</button>
+          </div>
+          <small class="selection-note" id="slice-7-4-live-test-note">
+            Requires one connected primary Character, offline Characters covering the two missing template roles, at least two free session slots, and no running or paused user script. The test verifies Warrior Tank, Priest Healer, DPS, manual role assignment, cleanup, and Coordinator restoration without gameplay mutation or messaging traffic.
+          </small>
+        </div>
+      </div>
+
       <details id="script-runtime-developer-controls">
         <summary>Script runtime developer controls</summary>
         <div class="selection-content">
