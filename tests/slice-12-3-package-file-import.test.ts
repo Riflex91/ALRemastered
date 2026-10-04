@@ -13,6 +13,7 @@ import { DashboardServer } from "../src/dashboard/server.ts";
 import { Logger } from "../src/logging/logger.ts";
 import {
   createScriptPackage,
+  sha256Text,
   validateScriptPackage,
 } from "../src/packages/format.ts";
 import {
@@ -104,9 +105,7 @@ test("Slice 12.3 blocks unapproved dangerous rights and imports approved package
     assert.equal(receipt.gameplayMutation, false);
     assert.deepEqual(receipt.approvedDangerous, ["inventory.destroy"]);
 
-    const packageDir = join(root, preview.packageId === "org.example.import-fixture"
-      ? "1d9cd2fb05e330c86607d177bea310e6a289c863c816580803265121ceaf5bdc"
-      : "unexpected");
+    const packageDir = join(root, sha256Text(preview.packageId));
     const importedPath = join(packageDir, receipt.importedFileName);
     const receiptPath = join(packageDir, receipt.receiptFileName);
     assert.equal(existsSync(importedPath), true);
