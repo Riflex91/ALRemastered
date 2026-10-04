@@ -118,12 +118,17 @@ test("Slice 10.4 is the current one-click verification and preserves prior Slice
   assert.match(html, /data-verification-test="10\.3" hidden/);
   assert.match(html, /data-verification-test="10\.4" hidden/);
   assert.match(html, /id="start-slice-10-4-live-test"/);
-  assert.match(html, /existing headless Character socket is preserved/);
+  assert.match(html, /preserves an active headless Character socket when present/);
+  assert.match(html, /keeps a disconnected socket baseline disconnected/);
 
   assert.match(app, /renderer-attach/);
   assert.match(app, /renderer-detach/);
   assert.match(app, /socket-continuity-browser/);
-  assert.match(app, /socket-preserved/);
+  assert.match(app, /headless-socket-baseline/);
+  assert.match(app, /socket-state-preserved/);
+  assert.match(app, /activeSocketPreservationApplicable/);
+  assert.match(app, /beforeCharacter\.status === "disconnected"/);
+  assert.match(app, /Socket state preserved:/);
   assert.match(app, /soft-handoff-policy/);
   assert.match(app, /Reconnect fallback:/);
   assert.match(app, /Action Gateway requests:/);
