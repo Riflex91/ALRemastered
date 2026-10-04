@@ -4173,3 +4173,97 @@ Scope/safety evidence:
 
 Slice 12.6 – Updates and Rollback may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
 
+---
+
+## Verification Evidence — Slice 12.6 Updates and Rollback
+
+**Status: VERIFIED**
+
+> 2026-10-04: VERIFIED on Windows with `0.1.0-alpha.79`. Real installed one-click test `live126-991d1ff2-8ba6-4d82-9551-14566302f1ff` passed available-version detection, Changelog visibility, explicit confirmation of every newly requested permission, update installation, dangerous-permission approval persistence, compatible configuration migration, previous-version rollback, stale-preview/source-change protection, verification cleanup, runtime continuity, and read-only gameplay safety without package execution.
+
+Live verification evidence:
+
+- client: `0.1.0-alpha.79`;
+- platform: `win32`;
+- test ID: `live126-991d1ff2-8ba6-4d82-9551-14566302f1ff`;
+- outcome: `PASSED`;
+- test window: `2026-10-04T19:59:23.151Z → 2026-10-04T19:59:23.197Z`;
+- `update-descriptor: PASSED`;
+- `remote-update-source-persisted: PASSED`;
+- `available-version-visible: PASSED`;
+- `changelog-visible: PASSED`;
+- `new-permissions-detected: PASSED`;
+- `new-permissions-confirmation-required: PASSED`;
+- `update-installed: PASSED`;
+- `dangerous-permission-confirmation-persisted: PASSED`;
+- `configuration-migrated: PASSED`;
+- `previous-version-rollback: PASSED`;
+- `stale-update-protection: PASSED`;
+- `no-package-execution: PASSED`;
+- `verification-cleanup: PASSED`;
+- `core-character-script-continuity: PASSED`;
+- `read-only-gameplay-runtime: PASSED`;
+- available version supported: `true`;
+- Changelog supported: `true`;
+- update supported: `true`;
+- rollback supported: `true`;
+- new permissions require confirmation: `true`;
+- dangerous permissions still require confirmation: `true`;
+- remote source persisted: `true`;
+- current version before update: `1.0.0`;
+- available version: `1.1.0`;
+- update available: `true`;
+- Changelog contained the `1.1.0` inventory-inspection and explicitly confirmed destroy-capability entries;
+- new permissions: `inventory.read, inventory.destroy`;
+- new dangerous permissions: `inventory.destroy`;
+- every new permission confirmation required: `true`;
+- unapproved update error: `PACKAGE_UPDATE_PERMISSION_CONFIRMATION_REQUIRED`;
+- updated from `1.0.0` to `1.1.0`;
+- active version after update: `1.1.0`;
+- configuration migrated: `true`;
+- approved new permissions: `inventory.read, inventory.destroy`;
+- rollback restored `1.0.0` and replaced `1.1.0`;
+- active version after rollback: `1.0.0`;
+- stale update rejected: `true`;
+- source re-fetched: `true`;
+- package execution attempted: `false`;
+- verification cleanup: `true`;
+- `Core restart: false`;
+- `Character restart: false`;
+- `Script restart: false`;
+- `Gameplay mutation: false`;
+- Action Gateway requests: `0`;
+- `Raw socket access: false`;
+- `User Script touched: false`;
+- diagnostic export: 11 log lines covering `2026-10-04T19:59:20.770Z → 2026-10-04T19:59:21.040Z`, `Secrets sanitized: yes`.
+
+Repository/release evidence:
+
+- implementation PR #158 final feature head: `6ee6dc0868b601995fd61657ca3a95654eb11d4d`;
+- final implementation PR CI run `37229792827` completed on that exact head with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #158 merged with method `merge` into exact implementation main `231d1b25cb89826c1cb84fdd34accd67b7d77128`;
+- exact post-implementation-main CI run `37229989190` completed on `231d1b25cb89826c1cb84fdd34accd67b7d77128` with all four required jobs successful;
+- release publish run `37230172068` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.79`, tag `v0.1.0-alpha.79`, GitHub Release target, publish-run head, and tested implementation `main` are commit-identical at `231d1b25cb89826c1cb84fdd34accd67b7d77128`;
+- published assets:
+  - Windows x64 installer SHA-256 `89932a6cb6f71321b27aed0048eb19370c91148d1494f8c356109a30c4cd185e`
+  - Linux x64 installer SHA-256 `1109b3d6beef2bb5af1643a715fde74bcee815c20c999675c721b9b5d7859d32`
+  - updater manifest SHA-256 `bb5a90d6c78d5dd19434bae8ad96d82c70f179f9c5d64802f4f5e22bd4a08884`.
+
+Scope/safety evidence:
+
+- update discovery uses the persisted validated HTTPS/GitHub remote source and exposes the available semantic version plus Changelog before installation;
+- every permission newly requested by the update, including `inventory.read`, required explicit confirmation;
+- dangerous permission `inventory.destroy` remained separately subject to the dangerous-permission approval boundary and its approval persisted;
+- update confirmation re-fetched the source and stale preview/source changes were rejected;
+- the confirmed update imported and activated version `1.1.0` as library metadata without executing package code;
+- compatible package configuration migrated to the new version;
+- rollback restored the previous imported version `1.0.0` as active without executing package code;
+- verification fixture files/state were removed by cleanup;
+- Core, Character, and Script remained continuous;
+- no gameplay mutation, Action Gateway request, raw socket access, package execution, or User Script replacement occurred.
+
+**Canonical roadmap status: Slice 12.6 = VERIFIED.**
+
+Phase 12 is complete only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green. Phase 13 must not begin before that gate is satisfied.
+
