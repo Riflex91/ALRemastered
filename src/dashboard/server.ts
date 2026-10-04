@@ -26,6 +26,10 @@ import {
   runScriptPackageFormatSelfTest,
   scriptPackageFormatDescriptor,
 } from "../packages/format.ts";
+import {
+  runScriptPackagePermissionSelfTest,
+  scriptPackagePermissionDescriptor,
+} from "../packages/permissions.ts";
 import type { CharacterCardsService } from "./character-cards.ts";
 import type { SetupWizardService, SetupWizardStartInput } from "./setup-wizard.ts";
 import type { TemplateConfigurationService } from "./template-config.ts";
@@ -331,6 +335,12 @@ export class DashboardServer {
     }
     if (method === "GET" && path === "/api/packages/format/self-test") {
       return this.#json(response, runScriptPackageFormatSelfTest());
+    }
+    if (method === "GET" && path === "/api/packages/permissions") {
+      return this.#json(response, scriptPackagePermissionDescriptor());
+    }
+    if (method === "GET" && path === "/api/packages/permissions/self-test") {
+      return this.#json(response, runScriptPackagePermissionSelfTest());
     }
 
     if (method === "GET" && path === "/api/hd/assets") {
