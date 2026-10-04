@@ -20,7 +20,6 @@ test("Slice 9.2 exposes transient widget configuration without later-slice persi
   const editor = readFileSync(new URL("../dashboard/editor.js", import.meta.url), "utf8");
   const css = readFileSync(new URL("../dashboard/styles.css", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="9\.2"/);
   assert.match(html, /data-verification-test="9\.2" hidden/);
   assert.match(html, /id="start-slice-9-2-live-test"/);
   assert.match(html, /Character binding/);
@@ -60,18 +59,18 @@ test("Slice 9.2 exposes transient widget configuration without later-slice persi
   assert.match(css, /data-dashboard-duplicate-of/);
 });
 
-test("Slice 9.2 keeps Slice 9.1 harness retained while Current verification advances", () => {
+test("Slice 9.2 harness remains retained after Current verification advances", () => {
   const html = readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
   assert.match(html, /data-verification-test="9\.1" hidden/);
   assert.match(html, /id="start-slice-9-1-live-test"/);
-  const current = html.match(/<body data-current-verification-slice="([^"]*)">/)?.[1];
-  assert.equal(current, "9.2");
+  assert.match(html, /data-verification-test="9\.2" hidden/);
+  assert.match(html, /id="start-slice-9-2-live-test"/);
 });
 
-test("Slice 9.2 remains dashboard-only and does not add page, profile, or import/export features", () => {
+test("Slice 9.2 remains transient after later dashboard views are added", () => {
   const editor = readFileSync(new URL("../dashboard/editor.js", import.meta.url), "utf8");
-  const html = readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
+  const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
 
   assert.doesNotMatch(editor, /undoStack|redoStack|layoutProfile|importLayout|exportLayout/);
-  assert.doesNotMatch(html, /Dashboard pages|Dashboard tabs|Import dashboard|Export dashboard/);
+  assert.doesNotMatch(`${editor}\n${script}`, /localStorage|sessionStorage|\/api\/dashboard-layout/);
 });
