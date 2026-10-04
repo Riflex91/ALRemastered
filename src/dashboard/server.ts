@@ -22,6 +22,10 @@ import type { MultiCharacterSessionManager } from "../character/session-manager.
 import type { LocalCharacterMessagingService } from "../character/messaging.ts";
 import type { PartyCoordinatorService } from "../party/coordinator.ts";
 import type { PartyTemplateService } from "../party/templates.ts";
+import {
+  runScriptPackageFormatSelfTest,
+  scriptPackageFormatDescriptor,
+} from "../packages/format.ts";
 import type { CharacterCardsService } from "./character-cards.ts";
 import type { SetupWizardService, SetupWizardStartInput } from "./setup-wizard.ts";
 import type { TemplateConfigurationService } from "./template-config.ts";
@@ -321,6 +325,13 @@ export class DashboardServer {
     const pathWithQuery = request.url ?? "/";
     const method = request.method ?? "GET";
     const path = pathWithQuery.split("?", 1)[0];
+
+    if (method === "GET" && path === "/api/packages/format") {
+      return this.#json(response, scriptPackageFormatDescriptor());
+    }
+    if (method === "GET" && path === "/api/packages/format/self-test") {
+      return this.#json(response, runScriptPackageFormatSelfTest());
+    }
 
     if (method === "GET" && path === "/api/hd/assets") {
       if (!this.#alhdAssetProvider) {
