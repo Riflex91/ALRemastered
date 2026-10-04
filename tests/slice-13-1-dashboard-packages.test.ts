@@ -299,6 +299,7 @@ test("Slice 13.1 is current verification and UI exposes Dashboard package sharin
   const server = readFileSync(new URL("../src/dashboard/server.js", import.meta.url), "utf8");
   const format = readFileSync(new URL("../src/packages/format.js", import.meta.url), "utf8");
   const service = readFileSync(new URL("../src/packages/dashboard.js", import.meta.url), "utf8");
+  const updater = readFileSync(new URL("../src/packages/updater.js", import.meta.url), "utf8");
 
   assert.match(html, /data-current-verification-slice="13\.1"/);
   assert.match(html, /Slice 13\.1 one-click Dashboard Packages test/);
@@ -326,4 +327,6 @@ test("Slice 13.1 is current verification and UI exposes Dashboard package sharin
   assert.match(service, /resolvePortableDashboardProfile/);
   assert.match(service, /executionAttempted: false/);
   assert.match(service, /gameplayMutation: false/);
+  assert.match(updater, /dashboardPackageUpdatesSupported: false/);
+  assert.match(updater, /PACKAGE_UPDATE_KIND_UNSUPPORTED/);
 });
