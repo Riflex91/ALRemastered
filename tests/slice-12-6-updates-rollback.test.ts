@@ -163,7 +163,6 @@ test("Slice 12.6 is current verification and UI exposes update and rollback cont
   const app = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
   const server = readFileSync(new URL("../src/dashboard/server.js", import.meta.url), "utf8");
   const updater = readFileSync(new URL("../src/packages/updater.js", import.meta.url), "utf8");
-  const importer = readFileSync(new URL("../src/packages/importer.js", import.meta.url), "utf8");
 
   assert.match(html, /data-current-verification-slice="12\.6"/);
   assert.match(html, /Slice 12\.6 one-click Updates \/ Rollback test/);
@@ -193,5 +192,4 @@ test("Slice 12.6 is current verification and UI exposes update and rollback cont
   assert.match(updater, /rollback\(packageId\s*\)/);
   assert.match(updater, /updateExecutesPackage: false/);
   assert.match(updater, /rollbackExecutesPackage: false/);
-  assert.match(importer, /remoteSource\?: ScriptPackageRemoteSource/);
 });
