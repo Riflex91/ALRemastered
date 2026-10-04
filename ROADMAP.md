@@ -3282,3 +3282,72 @@ Scope/safety evidence:
 
 Slice 10.3 – Control Modes may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
 
+---
+
+## Verification Evidence — Slice 10.3 Control Modes
+
+**Status: VERIFIED**
+
+> 2026-10-04: VERIFIED on Windows with `0.1.0-alpha.68`. The real installed one-click test `live103-f0b2d8de-1475-4875-8718-2fdc21c7a523` passed Automatic, Assist, and Manual control-mode policy, explicit user-action routing through the Action Gateway, starting-mode restoration, and Core/Character/Script continuity. The test used eight non-gameplay Action Gateway verification probes, caused no gameplay mutation, performed no raw socket access, did not touch the user Script runtime, and did not restart Core, Character, or Script. The sanitized diagnostic export contained 28 lines and reported `Secrets sanitized: yes`.
+
+Live verification evidence:
+
+- client: `0.1.0-alpha.68`;
+- platform: `win32`;
+- test ID: `live103-f0b2d8de-1475-4875-8718-2fdc21c7a523`;
+- outcome: `PASSED`;
+- test window: `2026-10-04T13:37:22.826Z → 2026-10-04T13:37:22.860Z`;
+- `automatic-policy: PASSED`;
+- `assist-policy: PASSED`;
+- `manual-policy: PASSED`;
+- `user-actions-through-gateway: PASSED`;
+- `mode-restored: PASSED`;
+- `core-continuity: PASSED`;
+- `character-continuity: PASSED`;
+- `script-continuity: PASSED`;
+- modes verified: `Automatic / Assist / Manual`;
+- starting mode: `automatic`;
+- restored mode: `automatic`;
+- `User actions through Action Gateway: true`;
+- Action Gateway verification probes: `8`;
+- `Core restart: false`;
+- `Character restart: false`;
+- `Script restart: false`;
+- `Gameplay mutation: false`;
+- `Raw socket access: false`;
+- `User Script touched: false`;
+- diagnostic export: 28 log lines, `Secrets sanitized: yes`.
+
+Observed policy evidence:
+
+- Automatic accepted script-origin and explicit dashboard-origin verification probes;
+- Assist blocked script-origin verification with `CONTROL_MODE_SCRIPT_BLOCKED` while accepting system-origin and explicit dashboard-origin probes;
+- Manual blocked script-origin verification with `CONTROL_MODE_SCRIPT_BLOCKED` and system-origin verification with `CONTROL_MODE_SYSTEM_BLOCKED` while accepting the explicit dashboard-origin probe;
+- all accepted verification probes were explicitly non-gameplay and passed through the Action Gateway;
+- the control mode was restored to `automatic` after verification without interrupting the user Script or Character.
+
+Repository/release evidence:
+
+- implementation PR #135 final feature head: `aa96d830b4979241d46d9c7dd7cbf8852723b9f1`;
+- final implementation PR CI run `37205646028` completed on that exact head with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #135 merged with method `merge` into exact implementation main `1214cda8e62d318824f60cea51d9b60009c629c7`;
+- exact post-implementation-main CI run `37205869011` completed with all four required jobs successful;
+- release publish run `37206002263` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.68`, tag `v0.1.0-alpha.68`, GitHub Release target, publish-run head, and tested implementation `main` were verified commit-identical at `1214cda8e62d318824f60cea51d9b60009c629c7`;
+- published assets:
+  - Windows x64 installer SHA-256 `4c3bdf534fdd2fed2e8c0419de5574a8e3152edf9ecc6b0e8fb54adf10385971`
+  - Linux x64 installer SHA-256 `4a706050fd07f940fdaad2a5216a29c5610546cc1ea9d78f71c1a1007cc89cdd`
+  - updater manifest SHA-256 `b7cfc02eaaa08eee125ee984d8538a133c43e5ac53c0b125b1cdf2cd265c7e87`.
+
+Scope/safety evidence:
+
+- control-mode enforcement is centralized in the existing Action Gateway;
+- explicit user gameplay actions continue to flow through the Action Gateway;
+- changing modes does not stop, replace, or restart the running user Script or Character;
+- no new gameplay mutation route, raw-socket shortcut, renderer ownership transfer, or Socket handoff was introduced;
+- Slice 10.4 Headless ↔ Browser Live Handoff remains explicitly out of scope.
+
+**Canonical roadmap status: Slice 10.3 = VERIFIED.**
+
+Slice 10.4 – Headless ↔ Browser Live Handoff may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
+
