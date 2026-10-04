@@ -3908,3 +3908,86 @@ Scope/safety evidence:
 **Canonical roadmap status: Slice 12.2 = VERIFIED.**
 
 Slice 12.3 – Paket-Datei importieren may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
+
+---
+
+## Verification Evidence — Slice 12.3 Package File Import
+
+**Status: VERIFIED**
+
+> 2026-10-04: VERIFIED on Windows with `0.1.0-alpha.76`. Real installed one-click test `live123-75ec77c4-2923-4008-8079-c3b2c577c51c` passed the canonical local `.alrpkg` preview → confirm → import flow, dangerous-permission confirmation, inactive persistence, cleanup, and runtime continuity without package execution or gameplay mutation.
+
+Live verification evidence:
+
+- client: `0.1.0-alpha.76`;
+- platform: `win32`;
+- test ID: `live123-75ec77c4-2923-4008-8079-c3b2c577c51c`;
+- outcome: `PASSED`;
+- test window: `2026-10-04T18:00:53.276Z → 2026-10-04T18:00:53.287Z`;
+- `import-flow-descriptor: PASSED`;
+- `preview-description: PASSED`;
+- `permissions-preview: PASSED`;
+- `configuration-preview: PASSED`;
+- `code-visible: PASSED`;
+- `dangerous-confirmation-required: PASSED`;
+- `confirmed-import-persisted: PASSED`;
+- `imported-inactive-no-execution: PASSED`;
+- `verification-cleanup: PASSED`;
+- `core-character-script-continuity: PASSED`;
+- `read-only-gameplay-runtime: PASSED`;
+- flow: `preview -> confirm -> import`;
+- file extension: `.alrpkg`;
+- preview package: `org.alremastered.slice123-fixture @ 1.0.0`;
+- preview description visible: `true`;
+- permissions: `movement, inventory.destroy`;
+- dangerous permissions: `inventory.destroy`;
+- Config Schema visible: `true`;
+- code files visible: `2`;
+- dangerous confirmation required: `true`;
+- unapproved import rejected: `true`;
+- unapproved error: `PACKAGE_IMPORT_PERMISSION_CONFIRMATION_REQUIRED`;
+- confirmed import persisted: `true`;
+- approved dangerous permission persisted: `true`;
+- imported inactive: `true`;
+- package execution attempted: `false`;
+- verification cleanup: `true`;
+- `Core restart: false`;
+- `Character restart: false`;
+- `Script restart: false`;
+- `Gameplay mutation: false`;
+- Action Gateway requests: `0`;
+- `Raw socket access: false`;
+- `User Script touched: false`;
+- diagnostic export: 11 log lines, `Secrets sanitized: yes`.
+
+Repository/release evidence:
+
+- implementation PR #152 final feature head: `2f1f8d16790c8a3fbe3b089f8056b5ef9b906274`;
+- final implementation PR CI run `37221996787` completed on that exact head with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #152 merged with method `merge` into exact implementation main `0b075c551d5887fedaad90d691c78a8d875221f1`;
+- exact post-implementation-main CI run `37222188733` completed with all four required jobs successful;
+- release publish run `37222404595` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.76`, tag `v0.1.0-alpha.76`, GitHub Release target, publish-run head, and tested implementation `main` were verified commit-identical at `0b075c551d5887fedaad90d691c78a8d875221f1`;
+- published assets:
+  - Windows x64 installer SHA-256 `3b75aec9cd01b8070deee5ce33fb7375724478caa6f4efdb2346ce866aa3a812`
+  - Linux x64 installer SHA-256 `557fde13906761ac0cffdac3dc5d1204c4166b3bfe288595a90fec6053094efe`
+  - updater manifest SHA-256 `13acde23efacb1571ac36b6e29b94824255eaa7e976dcd268882bd923daa5246`.
+
+Scope/safety evidence:
+
+- Slice 12.3 imports local `.alrpkg` files only after a complete preview and explicit confirmation of every dangerous declared permission;
+- preview exposes package metadata, README description, compatibility, permissions, Config Schema, script list, entry script, source code, file count, package size, manifest SHA-256, and preview token;
+- changing package content after preview is rejected with `PACKAGE_IMPORT_PREVIEW_STALE`;
+- same package ID/version with different content is rejected with `PACKAGE_IMPORT_VERSION_CONFLICT`;
+- the real test confirmed `inventory.destroy` cannot be imported without explicit approval;
+- the approved dangerous permission is persisted in the import receipt;
+- imported packages remain `inactive: true` and no package code is executed;
+- Verification fixture files were removed by cleanup;
+- link import, GitHub import, library management, activation, updates, and rollback remain out of scope for this slice;
+- Core, Character, and Script remained continuous;
+- no gameplay mutation, Action Gateway request, raw socket access, or user Script replacement occurred.
+
+**Canonical roadmap status: Slice 12.3 = VERIFIED.**
+
+The next ROADMAP slice may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
+

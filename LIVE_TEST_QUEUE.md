@@ -2626,3 +2626,81 @@ Scope and safety:
 **Canonical queue status: Slice 12.2 = VERIFIED.**
 
 Slice 12.3 – Paket-Datei importieren may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
+
+---
+
+### Alpha.76 real one-click result: PASSED — Slice 12.3 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.76`
+- release target / tested implementation main: `0b075c551d5887fedaad90d691c78a8d875221f1`
+- client: `0.1.0-alpha.76` / Windows
+- platform: `win32`
+- test ID: `live123-75ec77c4-2923-4008-8079-c3b2c577c51c`
+- outcome: `passed`
+- test window: `2026-10-04T18:00:53.276Z → 2026-10-04T18:00:53.287Z`
+- diagnostic export: 11 log lines, `Secrets sanitized: yes`.
+
+The one-click harness completed the full Slice 12.3 validation:
+
+- `import-flow-descriptor: PASSED`;
+- `preview-description: PASSED`;
+- `permissions-preview: PASSED`;
+- `configuration-preview: PASSED`;
+- `code-visible: PASSED`;
+- `dangerous-confirmation-required: PASSED`;
+- `confirmed-import-persisted: PASSED`;
+- `imported-inactive-no-execution: PASSED`;
+- `verification-cleanup: PASSED`;
+- `core-character-script-continuity: PASSED`;
+- `read-only-gameplay-runtime: PASSED`;
+- flow: `preview -> confirm -> import`;
+- fixture package: `org.alremastered.slice123-fixture @ 1.0.0`;
+- description visible: `true`;
+- permissions: `movement, inventory.destroy`;
+- dangerous permissions: `inventory.destroy`;
+- Config Schema visible: `true`;
+- code files visible: `2`;
+- dangerous confirmation required: `true`;
+- unapproved import rejected: `true`;
+- unapproved error: `PACKAGE_IMPORT_PERMISSION_CONFIRMATION_REQUIRED`;
+- confirmed import persisted: `true`;
+- approved dangerous permission persisted: `true`;
+- imported inactive: `true`;
+- package execution attempted: `false`;
+- verification cleanup: `true`;
+- `Core restart: false`;
+- `Character restart: false`;
+- `Script restart: false`;
+- `Gameplay mutation: false`;
+- Action Gateway requests: `0`;
+- `Raw socket access: false`;
+- `User Script touched: false`.
+
+Repository/release evidence:
+
+- implementation PR #152 final feature head: `2f1f8d16790c8a3fbe3b089f8056b5ef9b906274`;
+- final implementation PR CI run `37221996787`: all four required jobs successful;
+- implementation main: `0b075c551d5887fedaad90d691c78a8d875221f1`;
+- exact post-implementation-main CI run `37222188733`: all four required jobs successful;
+- release publish run `37222404595`: Linux, Windows, and GitHub Release successful;
+- release branch, tag, release target, publish head, and tested implementation main are commit-identical at `0b075c551d5887fedaad90d691c78a8d875221f1`;
+- Windows x64 installer SHA-256: `3b75aec9cd01b8070deee5ce33fb7375724478caa6f4efdb2346ce866aa3a812`;
+- Linux x64 installer SHA-256: `557fde13906761ac0cffdac3dc5d1204c4166b3bfe288595a90fec6053094efe`;
+- updater manifest SHA-256: `13acde23efacb1571ac36b6e29b94824255eaa7e976dcd268882bd923daa5246`.
+
+Scope and safety:
+
+- the real Windows client validated the complete local package-file preview → confirm → import flow;
+- dangerous permission `inventory.destroy` was rejected without approval and persisted only after explicit confirmation;
+- imported package state remained inactive and no package execution occurred;
+- verification cleanup completed successfully;
+- Core, Character, and Script remained continuous;
+- no gameplay mutation, Action Gateway requests, raw socket access, or user Script replacement occurred;
+- later link/GitHub import, library management, activation, update, and rollback features were not exercised.
+
+**Canonical queue status: Slice 12.3 = VERIFIED.**
+
+The next ROADMAP slice may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
+
