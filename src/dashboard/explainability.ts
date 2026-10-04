@@ -231,7 +231,13 @@ export class ExplainabilityService {
 }
 
 function configFromTemplate(
-  values: Readonly<Record<string, string | number | boolean>> | undefined,
+  values: Readonly<{
+    readonly monster?: unknown;
+    readonly hpThresholdPercent?: unknown;
+    readonly mpThresholdPercent?: unknown;
+    readonly loot?: unknown;
+    readonly respawn?: unknown;
+  }> | undefined,
 ): {
   readonly monster: string;
   readonly hpThresholdPercent: number;
