@@ -2376,3 +2376,86 @@ Scope and safety:
 **Canonical queue status: Slice 11.3 = VERIFIED.**
 
 Slice 11.4 – Graphics Profiles may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
+
+
+---
+
+### Alpha.73 real one-click result: PASSED — Slice 11.4 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.73`
+- release target / tested implementation main: `7477bb26967164e46372a420b73be6673d6b0931`
+- client: `0.1.0-alpha.73` / Windows
+- platform: `win32`
+- test ID: `live114-b5ffdb37-4d41-4ffc-aaa6-a3e317f0c6b0`
+- outcome: `passed`
+- test window: `2026-10-04T16:31:45.732Z → 2026-10-04T16:31:45.968Z`
+- diagnostic export: 11 log lines, `Secrets sanitized: yes`.
+
+The one-click harness completed the full Slice 11.4 validation:
+
+- `headless-no-hd-payload: PASSED`;
+- `browser-profile-default-auto: PASSED`;
+- `profile-original: PASSED`;
+- `profile-hd-performance: PASSED`;
+- `profile-hd-auto: PASSED`;
+- `profile-hd-maximum: PASSED`;
+- `profile-switch-renderer-reinitialized: PASSED`;
+- `core-character-script-continuity-during-switch: PASSED`;
+- `browser-renderer-detached: PASSED`;
+- `headless-stays-metadata-only: PASSED`;
+- `core-character-script-continuity: PASSED`;
+- `read-only-runtime: PASSED`;
+- profile sequence: `hd-auto → original → hd-performance → hd-auto → hd-maximum → hd-auto`;
+- Renderer generations: `1 → 2 → 3 → 4 → 5 → 6`;
+- hardware texture limit: `16384`;
+- Original applied HD assets: `0`;
+- HD Performance applied assets: `1`;
+- HD Auto applied assets: `1`;
+- HD Maximum applied assets: `1`;
+- Original texture limit: `original-only`;
+- HD Performance texture limit: `2048`;
+- HD Auto texture limit: `4096`;
+- HD Maximum texture limit: `16384`;
+- Original payload read delta: `0`;
+- Browser HD payload reads: `5`;
+- Browser HD payload bytes: `3807290`;
+- `Headless loads HD assets: false`;
+- `Presentation only: true`;
+- `Original fallback: true`;
+- Renderer subscribers: `0 → 1 → 1 → 0`;
+- `Core restart: false`;
+- `Character restart: false`;
+- `Script restart: false`;
+- `Gameplay mutation: false`;
+- Action Gateway requests: `0`;
+- `Raw socket access: false`;
+- `User Script touched: false`.
+
+Repository/release evidence:
+
+- implementation PR #146 final feature head: `2f84574a772fb7ab50996129032ca4c656f58a1e`;
+- final implementation PR CI run `37216602521`: all four required jobs successful;
+- implementation main: `7477bb26967164e46372a420b73be6673d6b0931`;
+- exact post-implementation-main CI run `37216749104`: all four required jobs successful;
+- release publish run `37216917511`: Linux, Windows, and GitHub Release successful;
+- release branch, tag, release target, publish head, and tested implementation main are commit-identical at `7477bb26967164e46372a420b73be6673d6b0931`;
+- Windows x64 installer SHA-256: `fede5369662a05d8ff75b77e70a6d84a3c33adba972f20968ac9f4665224fc0f`;
+- Linux x64 installer SHA-256: `d305e472c41d724a7ea964f1f8a116f4ba407f5f2f2c149e9afb88fd9c78a76f`;
+- updater manifest SHA-256: `3229985b38256d6ba37fdb6b2bb10932253d384d2dd7091218bee0f48a3ce87b`.
+
+Scope and safety:
+
+- Original, HD Performance, HD Auto, and HD Maximum all passed on the real installed Windows client;
+- Original loaded no HD payloads;
+- Performance, Auto, and Maximum used their intended effective texture limits while retaining the real hardware guard;
+- Browser graphics-layer generations advanced exactly once per profile application without replacing the Renderer Bridge subscriber;
+- Core, Character, and Script remained continuous through all profile switches and after Browser close;
+- Headless remained metadata-only;
+- original Adventure Land assets remain fallback;
+- no gameplay semantic changes, gameplay mutation, raw socket access, Action Gateway requests, or user Script replacement occurred.
+
+**Canonical queue status: Slice 11.4 = VERIFIED. Phase 11 = VERIFIED.**
+
+Phase 12 / Slice 12.1 – Paketformat may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
