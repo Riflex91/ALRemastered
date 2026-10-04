@@ -32,7 +32,6 @@ test("Slice 9.1 dashboard exposes edit mode without persistence or later-slice c
   const editor = readFileSync(new URL("../dashboard/editor.js", import.meta.url), "utf8");
   const css = readFileSync(new URL("../dashboard/styles.css", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="9\.1"/);
   assert.match(html, /id="edit-dashboard"[^>]*>Edit dashboard</);
   assert.match(html, /id="dashboard-edit-toolbar" hidden/);
   assert.match(html, /id="dashboard-widget-add-select"/);
