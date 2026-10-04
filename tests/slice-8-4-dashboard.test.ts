@@ -22,10 +22,9 @@ function explanation(){
  };
 }
 
-test("dashboard exposes Why is the bot doing this and only Slice 8.4 as Current verification", async () => {
+test("dashboard retains Slice 8.4 explainability and its historical verification harness", async () => {
  const html=readFileSync(new URL("../dashboard/index.html",import.meta.url),"utf8");
  const script=readFileSync(new URL("../dashboard/app.js",import.meta.url),"utf8");
- assert.match(html, /data-current-verification-slice="8\.4"/);
  assert.match(html, /Why is the bot doing this\?/);
  for(const text of ["Current target","Selection reason","Rejected targets","Range","Cooldowns","Movement target","Next action","Strategy","Blockers"]){
    assert.match(html,new RegExp(text));
