@@ -312,7 +312,7 @@ test("Slice 12.4 remains retained while Slice 12.6 owns Updates / Rollback verif
   const server = readFileSync(new URL("../src/dashboard/server.js", import.meta.url), "utf8");
   const importer = readFileSync(new URL("../src/packages/importer.js", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="12\.6"/);
+  assert.match(html, /data-current-verification-slice="13\.1"/);
   assert.match(html, /id="package-import-source"/);
   assert.match(html, /id="package-import-remote-preview"/);
   assert.match(html, /Slice 12\.4 one-click Link \/ GitHub Import test/);
