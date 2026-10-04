@@ -174,12 +174,14 @@ test("ALHD texture guard accepts unknown capability without fabricating a hardwa
 
 test("ALHD Browser payloads are lazy and do not load in Headless metadata paths", () => {
   const sidecar = "/virtual/hd-assets/map/source@8x.png.base64";
+  const normalized = (path: string) => path.replaceAll("\\", "/");
   const provider = new AlhdAssetProvider({
     manifestPath: "/virtual/hd-assets.json",
     hdAssetRoot: "/virtual/hd-assets",
     sourceRef: "test-ref",
-    readText: (path) => path === sidecar ? "aVZCT1J3MEtHZ28=" : manifest,
-    fileExists: (path) => path === "/virtual/hd-assets.json" || path === sidecar,
+    readText: (path) => normalized(path) === sidecar ? "aVZCT1J3MEtHZ28=" : manifest,
+    fileExists: (path) =>
+      normalized(path) === "/virtual/hd-assets.json" || normalized(path) === sidecar,
   });
 
   const before = provider.state();
