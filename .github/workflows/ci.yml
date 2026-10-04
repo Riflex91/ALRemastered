@@ -43,7 +43,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ALREMASTERED_BUILD_VERSION=0.1.0-alpha.71 npm run build
+          ALREMASTERED_BUILD_VERSION=0.1.0-alpha.72 npm run build
           npm run installer:linux
           cp artifacts/ALRemastered-Linux-*.run "$RUNNER_TEMP/ALRemastered-A.run"
       - name: Install version A to a custom path
@@ -52,7 +52,7 @@ jobs:
           set -euo pipefail
           test_dir="$RUNNER_TEMP/ALRemastered Custom Path"
           "$RUNNER_TEMP/ALRemastered-A.run" --install-dir "$test_dir" --yes --no-desktop
-          test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.71"
+          test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.72"
           paths_json="$("$test_dir/alremastered" --paths)"
           data_dir="$(node -e 'console.log(JSON.parse(process.argv[1]).dataDir)' "$paths_json")"
           mkdir -p "$data_dir"
@@ -88,7 +88,7 @@ jobs:
           test "$("$test_dir/alremastered" --version)" = "0.1.0-alpha.72"
           test "$(cat "$data_dir/upgrade-sentinel.txt")" = "keep-me"
           previous_version="$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).version" "$test_dir/.previous/app/package.json")"
-          test "$previous_version" = "0.1.0-alpha.71"
+          test "$previous_version" = "0.1.0-alpha.72"
           grep 'event=install_success version=0.1.0-alpha.72' "$data_dir/logs/installer.log"
           grep 'event=auto_restart version=0.1.0-alpha.72' "$data_dir/logs/installer.log"
           dashboard_ready=0
@@ -252,7 +252,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
-          $env:ALREMASTERED_BUILD_VERSION = "0.1.0-alpha.71"
+          $env:ALREMASTERED_BUILD_VERSION = "0.1.0-alpha.72"
           npm run build
           npm run installer:windows
           Copy-Item (Get-ChildItem "artifacts\ALRemastered-Windows-*-Setup.exe" | Select-Object -First 1).FullName "$env:RUNNER_TEMP\ALRemastered-A.exe"
@@ -264,7 +264,7 @@ jobs:
           $installProcess = Start-Process -FilePath "$env:RUNNER_TEMP\ALRemastered-A.exe" -ArgumentList @("/S", "/D=$testDir") -Wait -PassThru
           if ($installProcess.ExitCode -ne 0) { throw "Version A installer returned exit code $($installProcess.ExitCode)" }
           $version = & "$testDir\ALRemastered.exe" --version
-          if ($version.Trim() -ne "0.1.0-alpha.71") { throw "Expected version A, got $version" }
+          if ($version.Trim() -ne "0.1.0-alpha.72") { throw "Expected version A, got $version" }
           $paths = (& "$testDir\ALRemastered.exe" --paths) | ConvertFrom-Json
           New-Item -ItemType Directory -Path $paths.dataDir -Force | Out-Null
           Set-Content -Path (Join-Path $paths.dataDir "upgrade-sentinel.txt") -Value "keep-me" -NoNewline
@@ -304,7 +304,7 @@ jobs:
           for ($attempt = 0; $attempt -lt 40; $attempt++) {
             try {
               $oldDashboardStatus = Invoke-RestMethod "http://127.0.0.1:3210/api/status"
-              if ($oldDashboardStatus.version -eq "0.1.0-alpha.71") {
+              if ($oldDashboardStatus.version -eq "0.1.0-alpha.72") {
                 $oldDashboardReady = $true
                 break
               }
@@ -322,7 +322,7 @@ jobs:
           Start-Sleep -Milliseconds 750
 
           $versionWhileWaiting = & "$testDir\ALRemastered.exe" --version
-          if ($versionWhileWaiting.Trim() -ne "0.1.0-alpha.71") {
+          if ($versionWhileWaiting.Trim() -ne "0.1.0-alpha.72") {
             throw "Automatic updater modified the installation before the previous client exited."
           }
 
@@ -357,7 +357,7 @@ jobs:
           if ($version.Trim() -ne "0.1.0-alpha.72") { throw "Expected version B, got $version" }
           if ((Get-Content (Join-Path $dataDir "upgrade-sentinel.txt") -Raw) -ne "keep-me") { throw "User data was not preserved." }
           $previous = Get-Content "$testDir\.previous\app\package.json" -Raw | ConvertFrom-Json
-          if ($previous.version -ne "0.1.0-alpha.71") { throw "Previous version was not retained for rollback." }
+          if ($previous.version -ne "0.1.0-alpha.72") { throw "Previous version was not retained for rollback." }
 
           if (Test-Path "$testDir\ALRemastered.cmd") { throw "Legacy batch launcher must not be installed." }
 
