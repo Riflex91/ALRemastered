@@ -23,7 +23,7 @@ function dashboardFieldKey(element, index) {
 }
 
 function sanitizeDuplicateContent(element) {
-  element.querySelectorAll(".dashboard-widget-controls, .dashboard-widget-config, .dashboard-widget-character-badge")
+  element.querySelectorAll(".dashboard-widget-controls, .dashboard-widget-config, .dashboard-widget-character-badge, .dashboard-widget-character-context")
     .forEach((node) => node.remove());
   element.querySelectorAll("[id]").forEach((node) => node.removeAttribute("id"));
   element.querySelectorAll("[data-verification-test]").forEach((node) => {
@@ -87,6 +87,7 @@ export class DashboardEditor {
     this.draggedId = null;
     this.resizeSession = null;
     this.characterOptions = [];
+    this.characterSnapshots = new Map();
     this.activeConfigId = null;
     this.duplicateSequence = 0;
   }
@@ -157,6 +158,29 @@ export class DashboardEditor {
     this.onChange();
   }
 
+  setCharacterSnapshots(cards = []) {
+    this.characterSnapshots = new Map(
+      cards
+        .filter((card) => card && card.characterId)
+        .map((card) => [
+          String(card.characterId),
+          {
+            id: String(card.characterId),
+            name: String(card.characterName || card.characterId),
+            hp: card.hp,
+            maxHp: card.maxHp,
+            mp: card.mp,
+            maxMp: card.maxMp,
+            map: card.map,
+            target: card.target,
+            health: card.health?.status ?? "offline",
+          },
+        ]),
+    );
+    for (const id of this.widgets.keys()) this.#renderCharacterContext(id);
+    this.onChange();
+  }
+
   widgetFields(id) {
     const record = this.widgets.get(id);
     if (!record) return [];
@@ -211,6 +235,7 @@ export class DashboardEditor {
       field.element.hidden = field.baselineHidden || record.hiddenFields.has(field.key);
     }
     this.#renderCharacterBadge(id);
+    this.#renderCharacterContext(id);
     this.#syncConfigurationPanel(id);
     if (notify) this.onChange();
     return true;
@@ -255,6 +280,7 @@ export class DashboardEditor {
       hiddenFields: [...source.hiddenFields],
       displayMode: source.displayMode,
     }, { notify: false });
+    this.#startDuplicateMirror(duplicateId);
     this.onChange();
     return duplicateId;
   }
@@ -364,6 +390,7 @@ export class DashboardEditor {
       sizes,
       configurations,
       characterOptions: this.characterOptions.map((character) => ({ ...character })),
+      characterSnapshots: [...this.characterSnapshots.entries()].map(([id, value]) => [id, { ...value }]),
       duplicateSequence: this.duplicateSequence,
     };
   }
@@ -374,12 +401,16 @@ export class DashboardEditor {
     const existingIds = new Set(snapshot.existingIds ?? snapshot.order ?? []);
     for (const [id, record] of [...this.widgets]) {
       if (existingIds.has(id)) continue;
+      record.mirrorObserver?.disconnect?.();
       record.element.remove();
       this.widgets.delete(id);
       this.removed.delete(id);
     }
 
     this.characterOptions = (snapshot.characterOptions ?? []).map((character) => ({ ...character }));
+    this.characterSnapshots = new Map(
+      (snapshot.characterSnapshots ?? []).map(([id, value]) => [id, { ...value }]),
+    );
     this.duplicateSequence = Number(snapshot.duplicateSequence ?? this.duplicateSequence);
     for (const id of snapshot.order ?? []) {
       const widget = this.widgets.get(id)?.element;
@@ -425,7 +456,8 @@ export class DashboardEditor {
       .filter((child) =>
         !child.classList.contains("dashboard-widget-controls") &&
         !child.classList.contains("dashboard-widget-config") &&
-        !child.classList.contains("dashboard-widget-character-badge")
+        !child.classList.contains("dashboard-widget-character-badge") &&
+        !child.classList.contains("dashboard-widget-character-context")
       )
       .map((element, index) => ({
         element,
@@ -438,6 +470,11 @@ export class DashboardEditor {
     badge.className = "dashboard-widget-character-badge";
     badge.hidden = true;
     widget.append(badge);
+
+    const characterContext = this.document.createElement("div");
+    characterContext.className = "dashboard-widget-character-context";
+    characterContext.hidden = true;
+    widget.append(characterContext);
 
     const configPanel = this.document.createElement("div");
     configPanel.className = "dashboard-widget-config";
@@ -453,7 +490,9 @@ export class DashboardEditor {
       hiddenFields: new Set(),
       displayMode: "standard",
       badge,
+      characterContext,
       configPanel,
+      mirrorObserver: null,
     });
     widget.dataset.widgetDisplay = "standard";
     this.#installWidgetControls(id, widget);
@@ -467,6 +506,79 @@ export class DashboardEditor {
     const character = this.characterOptions.find((item) => item.id === record.characterId);
     record.badge.hidden = !character;
     record.badge.textContent = character ? `Character: ${character.name}` : "";
+  }
+
+  #renderCharacterContext(id) {
+    const record = this.widgets.get(id);
+    if (!record) return;
+    if (!record.characterId) {
+      record.characterContext.hidden = true;
+      record.characterContext.textContent = "";
+      return;
+    }
+
+    const character = this.characterOptions.find((item) => item.id === record.characterId);
+    const snapshot = this.characterSnapshots.get(record.characterId);
+    record.characterContext.hidden = false;
+    if (!snapshot) {
+      record.characterContext.textContent =
+        `${character?.name ?? record.characterId}: live Character Card data unavailable.`;
+      return;
+    }
+
+    const hp = typeof snapshot.hp === "number" && typeof snapshot.maxHp === "number"
+      ? `${Math.round(snapshot.hp)} / ${Math.round(snapshot.maxHp)}`
+      : "—";
+    const mp = typeof snapshot.mp === "number" && typeof snapshot.maxMp === "number"
+      ? `${Math.round(snapshot.mp)} / ${Math.round(snapshot.maxMp)}`
+      : "—";
+    record.characterContext.textContent = [
+      snapshot.name,
+      `HP ${hp}`,
+      `MP ${mp}`,
+      `Map ${snapshot.map ?? "—"}`,
+      `Target ${snapshot.target ?? "None"}`,
+      `Health ${snapshot.health}`,
+    ].join(" · ");
+  }
+
+  #startDuplicateMirror(id) {
+    const record = this.widgets.get(id);
+    const source = record?.duplicateOf ? this.widgets.get(record.duplicateOf) : null;
+    const Observer = this.document?.defaultView?.MutationObserver ?? globalThis.MutationObserver;
+    if (!record || !source || typeof Observer !== "function") return;
+
+    record.mirrorObserver?.disconnect?.();
+    record.mirrorObserver = new Observer(() => this.#syncDuplicateFields(id));
+    record.mirrorObserver.observe(source.element, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    });
+  }
+
+  #syncDuplicateFields(id) {
+    const record = this.widgets.get(id);
+    const source = record?.duplicateOf ? this.widgets.get(record.duplicateOf) : null;
+    if (!record || !source) return;
+
+    const nextFields = source.fields.map((sourceField) => {
+      const element = sourceField.element.cloneNode(true);
+      sanitizeDuplicateContent(element);
+      element.hidden = sourceField.baselineHidden || record.hiddenFields.has(sourceField.key);
+      return {
+        element,
+        key: sourceField.key,
+        label: sourceField.label,
+        baselineHidden: sourceField.baselineHidden,
+      };
+    });
+
+    for (const field of record.fields) field.element.remove();
+    for (const field of nextFields) record.element.insertBefore(field.element, record.badge);
+    record.fields = nextFields;
+    this.#buildConfigurationPanel(id);
+    this.#renderCharacterContext(id);
   }
 
   #buildConfigurationPanel(id) {
