@@ -41,6 +41,7 @@ import type { AdventureLandGameDataService } from "../game/data-service.ts";
 import type { AdventureLandVersionService } from "../game/version-service.ts";
 import type { Logger, LogRecord } from "../logging/logger.ts";
 import type { RendererBridge } from "../renderer/bridge.ts";
+import type { RendererHandoffService } from "../renderer/handoff.ts";
 import type { Slice35LiveTestService } from "../live-test/slice-3-5.ts";
 import type { Slice41LiveTestService } from "../live-test/slice-4-1.ts";
 import type { Slice42LiveTestService } from "../live-test/slice-4-2.ts";
@@ -90,6 +91,7 @@ export interface DashboardServerOptions {
   readonly explainabilityService?: ExplainabilityService;
   readonly dashboardLayoutStore?: DashboardLayoutStore;
   readonly rendererBridge?: RendererBridge;
+  readonly rendererHandoffService?: RendererHandoffService;
   readonly controlModeService?: ControlModeService;
   readonly actionGateway?: ActionGateway;
   readonly movementService?: AdventureLandMovementService;
@@ -149,6 +151,7 @@ export class DashboardServer {
   readonly #explainabilityService?: ExplainabilityService;
   readonly #dashboardLayoutStore?: DashboardLayoutStore;
   readonly #rendererBridge?: RendererBridge;
+  readonly #rendererHandoffService?: RendererHandoffService;
   readonly #controlModeService?: ControlModeService;
   readonly #actionGateway?: ActionGateway;
   readonly #movementService?: AdventureLandMovementService;
@@ -212,6 +215,7 @@ export class DashboardServer {
     this.#explainabilityService = options.explainabilityService;
     this.#dashboardLayoutStore = options.dashboardLayoutStore;
     this.#rendererBridge = options.rendererBridge;
+    this.#rendererHandoffService = options.rendererHandoffService;
     this.#controlModeService = options.controlModeService;
     this.#actionGateway = options.actionGateway;
     this.#movementService = options.movementService;
@@ -2012,6 +2016,13 @@ export class DashboardServer {
       return;
     }
 
+    if (method === "GET" && path === "/api/renderer/handoff") {
+      if (!this.#rendererHandoffService) {
+        return this.#json(response, { status: "unavailable" }, 503);
+      }
+      return this.#json(response, this.#rendererHandoffService.state());
+    }
+
     if (method === "GET" && path === "/api/renderer/snapshot") {
       if (!this.#rendererBridge) {
         return this.#json(response, { error: "Renderer bridge is unavailable." }, 503);
@@ -2025,6 +2036,10 @@ export class DashboardServer {
       if (!this.#rendererBridge) {
         return this.#json(response, { error: "Renderer bridge is unavailable." }, 503);
       }
+      const rendererId = rendererClientId(pathWithQuery);
+      if (rendererId && this.#rendererHandoffService) {
+        this.#rendererHandoffService.attach(rendererId);
+      }
       response.writeHead(200, {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache, no-transform",
@@ -2032,19 +2047,25 @@ export class DashboardServer {
       });
       response.write(": renderer connected\n\n");
       let unsubscribe: (() => void) | undefined;
+      let released = false;
+      const release = () => {
+        if (released) return;
+        released = true;
+        unsubscribe?.();
+        unsubscribe = undefined;
+        if (rendererId && this.#rendererHandoffService) {
+          this.#rendererHandoffService.detach(rendererId);
+        }
+        this.#rendererUnsubscribes.delete(release);
+      };
       unsubscribe = this.#rendererBridge.subscribe((event) => {
         if (response.writableEnded) return;
         response.write(
           `id: ${event.sequence}\nevent: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`,
         );
       });
-      this.#rendererUnsubscribes.add(unsubscribe);
-      response.on("close", () => {
-        if (!unsubscribe) return;
-        unsubscribe();
-        this.#rendererUnsubscribes.delete(unsubscribe);
-        unsubscribe = undefined;
-      });
+      this.#rendererUnsubscribes.add(release);
+      response.on("close", release);
       return;
     }
 
@@ -2343,6 +2364,17 @@ function parsePathLocation(
     x: record.x,
     y: record.y,
   };
+}
+
+function rendererClientId(pathWithQuery: string): string | undefined {
+  try {
+    const url = new URL(pathWithQuery, "http://127.0.0.1");
+    const clientId = url.searchParams.get("clientId")?.trim();
+    if (!clientId || clientId.length > 160) return undefined;
+    return clientId;
+  } catch {
+    return undefined;
+  }
 }
 
 function parseMovementMode(value: unknown): MovementMode | undefined {

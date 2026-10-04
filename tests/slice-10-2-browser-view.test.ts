@@ -71,7 +71,7 @@ test("Slice 10.2 serves a read-only Browser View over the existing Renderer Brid
     assert.equal(script.status, 200);
     const javascript = await script.text();
     assert.match(javascript, /fetch\("\/api\/renderer\/snapshot"/);
-    assert.match(javascript, /new EventSource\("\/api\/renderer\/stream"\)/);
+    assert.match(javascript, /\/api\/renderer\/stream\?clientId=/);
     assert.match(javascript, /window\.close\(\)/);
     assert.doesNotMatch(javascript, /method:\s*["']POST["']/);
     assert.doesNotMatch(javascript, /api\/action-gateway/);
@@ -93,7 +93,7 @@ test("Slice 10.2 is the single current one-click verification and preserves 10.1
   const browser = readFileSync(new URL("../dashboard/browser-view.js", import.meta.url), "utf8");
   const server = readFileSync(new URL("../src/dashboard/server.js", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="10\.3"/);
+  assert.match(html, /data-current-verification-slice="10\.4"/);
   assert.match(html, /data-verification-test="10\.1" hidden/);
   assert.match(html, /data-verification-test="10\.2" hidden/);
   assert.match(html, /id="open-browser-view"/);

@@ -6,7 +6,7 @@
   <title>ALRemastered</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body data-current-verification-slice="10.3">
+<body data-current-verification-slice="10.4">
   <main class="shell">
     <header class="topbar">
       <div>
@@ -266,6 +266,20 @@
         </div>
         <small class="selection-note" id="slice-10-3-live-test-note">
           Verifies Automatic, Assist, and Manual gateway policy with non-gameplay probes, confirms explicit user actions still pass through the Action Gateway, restores the starting mode, and does not restart or replace the running Character or user Script.
+        </small>
+      </div>
+    </div>
+
+    <div class="selection-content" data-verification-test="10.4" hidden>
+      <div>
+        <h3>Slice 10.4 one-click live handoff test</h3>
+        <div class="server-picker">
+          <button id="start-slice-10-4-live-test" type="button">Start test</button>
+          <strong id="slice-10-4-live-test-status" aria-live="polite">Ready</strong>
+          <button id="copy-slice-10-4-live-test-result" type="button" hidden>Copy last test result</button>
+        </div>
+        <small class="selection-note" id="slice-10-4-live-test-note">
+          Dynamically attaches and detaches one Browser renderer, verifies the user Script and Character continue unchanged, confirms the existing headless Character socket is preserved, and uses no gameplay mutation.
         </small>
       </div>
     </div>

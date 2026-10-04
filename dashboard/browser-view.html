@@ -39,7 +39,7 @@
         Waiting for the current read-only renderer snapshot.
       </p>
       <p class="selection-note">
-        This view only observes the existing Character/Core state. It cannot dispatch gameplay actions.
+        This view dynamically attaches to the existing headless Core. The Adventure Land Character socket remains Core-owned, and this renderer cannot dispatch gameplay actions.
       </p>
     </section>
 
@@ -49,6 +49,8 @@
         <article class="card"><span class="label">Snapshot time</span><strong id="browser-snapshot-time">—</strong></article>
         <article class="card"><span class="label">Core status</span><strong id="browser-core-status">—</strong></article>
         <article class="card"><span class="label">Script status</span><strong id="browser-script-status">—</strong></article>
+        <article class="card"><span class="label">Renderer mode</span><strong id="browser-handoff-mode">—</strong></article>
+        <article class="card"><span class="label">Socket strategy</span><strong id="browser-socket-strategy">—</strong></article>
       </div>
     </section>
   </main>

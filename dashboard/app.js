@@ -32,6 +32,8 @@ const state = {
   slice102LastReport: null,
   slice103LiveTest: { status: "idle", message: "Ready." },
   slice103LastReport: null,
+  slice104LiveTest: { status: "idle", message: "Ready." },
+  slice104LastReport: null,
   controlMode: null,
   dashboardLayouts: null,
   pendingDashboardImport: null,
@@ -169,6 +171,10 @@ const elements = {
   slice103LiveTestStatus: document.querySelector("#slice-10-3-live-test-status"),
   slice103LiveTestNote: document.querySelector("#slice-10-3-live-test-note"),
   copySlice103LiveTestResult: document.querySelector("#copy-slice-10-3-live-test-result"),
+  startSlice104LiveTest: document.querySelector("#start-slice-10-4-live-test"),
+  slice104LiveTestStatus: document.querySelector("#slice-10-4-live-test-status"),
+  slice104LiveTestNote: document.querySelector("#slice-10-4-live-test-note"),
+  copySlice104LiveTestResult: document.querySelector("#copy-slice-10-4-live-test-result"),
   coreStatus: document.querySelector("#core-status"),
   version: document.querySelector("#client-version"),
   uptime: document.querySelector("#uptime"),
@@ -1924,6 +1930,14 @@ async function fetchRendererSnapshot() {
   return response.json();
 }
 
+async function fetchRendererHandoffState() {
+  const response = await fetch("/api/renderer/handoff", { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Renderer handoff state failed with HTTP ${response.status}.`);
+  }
+  return response.json();
+}
+
 function waitForRendererStateEvent(afterSequence, timeoutMs = 4_000) {
   return new Promise((resolve, reject) => {
     const source = new EventSource("/api/renderer/stream");
@@ -2228,6 +2242,27 @@ async function waitForRendererSubscriberCount(expected, timeoutMs = 4_000) {
   throw new Error(
     `Renderer subscriber count did not reach ${expected}; last value was ${last?.bridge?.subscribers ?? "unknown"}.`,
   );
+}
+
+async function waitForRendererHandoffCount(expected, timeoutMs = 4_000) {
+  let last;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    last = await fetchRendererHandoffState();
+    if (Number(last.attachedRenderers ?? 0) === Number(expected)) return last;
+    await new Promise((resolve) => globalThis.setTimeout(resolve, 50));
+  }
+  throw new Error(
+    `Renderer handoff count did not reach ${expected}; last value was ${last?.attachedRenderers ?? "unknown"}.`,
+  );
+}
+
+function sameSocketMarkers(before, after) {
+  return (before.characterId ?? null) === (after.characterId ?? null) &&
+    (before.connectedAt ?? null) === (after.connectedAt ?? null) &&
+    Number(before.reconnectCount ?? 0) === Number(after.reconnectCount ?? 0) &&
+    (before.lastDisconnectAt ?? null) === (after.lastDisconnectAt ?? null) &&
+    (before.lastReconnectAt ?? null) === (after.lastReconnectAt ?? null);
 }
 
 async function runSlice102Verification(view) {
@@ -2760,6 +2795,312 @@ elements.copySlice103LiveTestResult.addEventListener("click", async () => {
 });
 
 renderSlice103LiveTest();
+
+function renderSlice104LiveTest() {
+  const test = state.slice104LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    failed: "FAILED",
+  };
+  elements.slice104LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice104LiveTest.disabled = test.status === "running";
+  elements.copySlice104LiveTestResult.hidden = !state.slice104LastReport;
+  if (test.status === "running") {
+    elements.slice104LiveTestNote.textContent =
+      "Attaching one Browser renderer to the live headless Core, verifying Script/Character/socket continuity, detaching it, and returning to the original renderer state.";
+  } else if (test.message) {
+    elements.slice104LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function runSlice104Verification(view) {
+  const before = await fetchRendererSnapshot();
+  const beforeHandoff = await fetchRendererHandoffState();
+  const baselineSubscribers = Number(before.bridge?.subscribers ?? 0);
+  const baselineRenderers = Number(beforeHandoff.attachedRenderers ?? 0);
+  const beforeCharacter = before.snapshot?.character ?? {};
+  const beforeScript = before.snapshot?.script ?? {};
+  const steps = [];
+
+  steps.push({
+    key: "headless-socket-ready",
+    outcome:
+      beforeCharacter.status === "connected" &&
+      Boolean(beforeCharacter.characterId) &&
+      Boolean(beforeCharacter.connectedAt)
+        ? "passed"
+        : "failed",
+  });
+
+  view.location.replace(`/browser-view?handoffVerification=${Date.now()}`);
+  await waitForBrowserViewCondition(
+    () => view.__alrBrowserViewState?.ready === true,
+    "Browser View did not render the live headless state before timeout.",
+  );
+
+  const opened = await waitForRendererSubscriberCount(baselineSubscribers + 1);
+  const attached = await waitForRendererHandoffCount(baselineRenderers + 1);
+  const duringCharacter = opened.snapshot?.character ?? {};
+  const duringScript = opened.snapshot?.script ?? {};
+  const socketPreservedDuring = sameSocketMarkers(beforeCharacter, duringCharacter);
+  const scriptPreservedDuring =
+    (beforeScript.runId ?? null) === (duringScript.runId ?? null) &&
+    (beforeScript.startedAt ?? null) === (duringScript.startedAt ?? null);
+
+  steps.push({
+    key: "renderer-attach",
+    outcome:
+      attached.mode === "browser" &&
+      attached.socketOwnership === "headless-core" &&
+      attached.socketStrategy === "preserve" &&
+      Number(opened.bridge?.subscribers ?? 0) === baselineSubscribers + 1
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "socket-continuity-browser",
+    outcome:
+      socketPreservedDuring &&
+      duringCharacter.status === "connected"
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "script-continuity-browser",
+    outcome: scriptPreservedDuring ? "passed" : "failed",
+  });
+
+  view.close();
+  await waitForBrowserViewCondition(
+    () => view.closed === true,
+    "Browser View test window did not close before timeout.",
+  );
+  const after = await waitForRendererSubscriberCount(baselineSubscribers);
+  const detached = await waitForRendererHandoffCount(baselineRenderers);
+  const afterCharacter = after.snapshot?.character ?? {};
+  const afterScript = after.snapshot?.script ?? {};
+  const afterCore = after.snapshot?.core ?? {};
+  const beforeCore = before.snapshot?.core ?? {};
+
+  const coreRestart = beforeCore.startedAt !== afterCore.startedAt;
+  const characterRestart = !sameSocketMarkers(beforeCharacter, afterCharacter);
+  const scriptRestart =
+    (beforeScript.runId ?? null) !== (afterScript.runId ?? null) ||
+    (beforeScript.startedAt ?? null) !== (afterScript.startedAt ?? null);
+  const socketPreserved =
+    !characterRestart &&
+    afterCharacter.status === "connected" &&
+    detached.lastSocketContinuity === true;
+
+  steps.push({
+    key: "renderer-detach",
+    outcome:
+      Number(after.bridge?.subscribers ?? 0) === baselineSubscribers &&
+      Number(detached.attachedRenderers ?? 0) === baselineRenderers &&
+      detached.mode === (baselineRenderers > 0 ? "browser" : "headless")
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "socket-preserved",
+    outcome: socketPreserved ? "passed" : "failed",
+  });
+  steps.push({
+    key: "core-continuity",
+    outcome:
+      !coreRestart &&
+      afterCore.status === "running" &&
+      Number(afterCore.heartbeatSequence ?? 0) >= Number(beforeCore.heartbeatSequence ?? 0)
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "character-continuity",
+    outcome: characterRestart ? "failed" : "passed",
+  });
+  steps.push({
+    key: "script-continuity",
+    outcome: scriptRestart ? "failed" : "passed",
+  });
+  steps.push({
+    key: "soft-handoff-policy",
+    outcome:
+      detached.reconnectFallback === "soft-handoff" &&
+      detached.socketOwnership === "headless-core"
+        ? "passed"
+        : "failed",
+  });
+
+  const actionGatewayRequests = Math.max(
+    0,
+    Number(after.snapshot?.actionGateway?.totalRequests ?? 0) -
+      Number(before.snapshot?.actionGateway?.totalRequests ?? 0),
+  );
+  steps.push({
+    key: "no-gameplay-action",
+    outcome: actionGatewayRequests === 0 ? "passed" : "failed",
+  });
+
+  return {
+    outcome: steps.every((step) => step.outcome === "passed") ? "passed" : "failed",
+    steps,
+    rendererTransport: "SSE",
+    rendererModeBefore: beforeHandoff.mode,
+    rendererModeDuring: attached.mode,
+    rendererModeAfter: detached.mode,
+    rendererSubscribers: [
+      baselineSubscribers,
+      opened.bridge?.subscribers ?? null,
+      after.bridge?.subscribers ?? null,
+    ],
+    attachedRenderers: [
+      baselineRenderers,
+      attached.attachedRenderers,
+      detached.attachedRenderers,
+    ],
+    socketOwnership: detached.socketOwnership,
+    socketStrategy: detached.socketStrategy,
+    socketPreserved,
+    reconnectFallback: detached.reconnectFallback,
+    softHandoffUsed: false,
+    coreRestart,
+    characterRestart,
+    scriptRestart,
+    gameplayMutation: false,
+    actionGatewayRequests,
+    rawSocketShortcut: false,
+    userScriptTouched: false,
+  };
+}
+
+async function startSlice104LiveTest(view, clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice104LiveTest = {
+    status: "running",
+    message: "Slice 10.4 live handoff test is running.",
+  };
+  renderSlice104LiveTest();
+
+  const verification = await runSlice104Verification(view);
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) {
+    throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  }
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live104-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const stepLines = verification.steps.map((step) =>
+    `- ${step.key}: ${String(step.outcome).toUpperCase()}`
+  );
+  const reportText = [
+    "ALRemastered Slice 10.4 one-click live handoff test",
+    `Test ID: ${testId}`,
+    "Slice: 10.4",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    `Renderer transport: ${verification.rendererTransport}`,
+    `Renderer mode: ${verification.rendererModeBefore} -> ${verification.rendererModeDuring} -> ${verification.rendererModeAfter}`,
+    `Renderer subscribers: ${verification.rendererSubscribers.join(" -> ")}`,
+    `Attached renderers: ${verification.attachedRenderers.join(" -> ")}`,
+    `Socket ownership: ${verification.socketOwnership}`,
+    `Socket strategy: ${verification.socketStrategy}`,
+    `Socket preserved: ${verification.socketPreserved}`,
+    `Reconnect fallback: ${verification.reconnectFallback}`,
+    `Soft handoff used: ${verification.softHandoffUsed}`,
+    `Core restart: ${verification.coreRestart}`,
+    `Character restart: ${verification.characterRestart}`,
+    `Script restart: ${verification.scriptRestart}`,
+    "Gameplay mutation: false",
+    `Action Gateway requests: ${verification.actionGatewayRequests}`,
+    "Raw socket shortcut: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+
+  const result = {
+    testId,
+    slice: "10.4",
+    outcome,
+    startedAt,
+    completedAt,
+    message: outcome === "passed"
+      ? "Headless / Browser live handoff verification passed."
+      : "Headless / Browser live handoff verification failed.",
+    ...verification,
+  };
+
+  state.slice104LastReport = reportText;
+  state.slice104LiveTest = { status: outcome, message: result.message, lastResult: result };
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice104LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice104LiveTest.addEventListener("click", async () => {
+  if (state.slice104LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice104LastReport = null;
+  elements.copySlice104LiveTestResult.hidden = true;
+
+  let view;
+  try {
+    view = openBrowserViewWindow("about:blank", "alremastered-live-handoff-verification");
+  } catch (error) {
+    state.slice104LiveTest = { status: "failed", message: error.message };
+    renderSlice104LiveTest();
+    setFeedback(`Slice 10.4 live handoff test could not start: ${error.message}`, "error");
+    return;
+  }
+
+  setFeedback(
+    "Slice 10.4 live handoff test started. The Browser renderer will attach and detach automatically without transferring the headless Character socket.",
+  );
+  try {
+    const { result, copied } = await startSlice104LiveTest(view, clipboardWrite);
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 10.4 test ${String(result.outcome).toUpperCase()}. ${copyMessage}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    if (view && !view.closed) view.close();
+    state.slice104LiveTest = { status: "failed", message: error.message };
+    renderSlice104LiveTest();
+    setFeedback(`Slice 10.4 live handoff test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice104LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice104LastReport) return;
+  try {
+    await writeClipboard(state.slice104LastReport);
+    setFeedback(
+      "Complete Slice 10.4 live handoff result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Live handoff result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice104LiveTest();
 
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));

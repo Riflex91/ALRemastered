@@ -66,6 +66,7 @@ import { SimplePathPlannerService } from "./navigation/path-planner.ts";
 import { SmartMoveService } from "./navigation/smart-move.ts";
 import { WatchdogService } from "./recovery/watchdog.ts";
 import { RendererBridge } from "./renderer/bridge.ts";
+import { RendererHandoffService } from "./renderer/handoff.ts";
 import {
   dashboardUpdateInstallerArguments,
   scheduleInstallerAfterCurrentProcess,
@@ -167,6 +168,7 @@ if (args.has("--health-check")) {
 let shuttingDown = false;
 let dashboard: DashboardServer | undefined;
 let rendererBridge: RendererBridge | undefined;
+let rendererHandoffService: RendererHandoffService | undefined;
 let controlModeService: ControlModeService | undefined;
 let accountService: AdventureLandAccountService | undefined;
 let selectionService: AdventureLandSelectionService | undefined;
@@ -918,6 +920,18 @@ diagnostics.registerComponent("script-runtime", () => {
   };
 });
 
+rendererHandoffService = new RendererHandoffService({
+  character: () => characterService!.state(),
+});
+diagnostics.registerComponent("renderer-handoff", () => {
+  const state = rendererHandoffService!.state();
+  return {
+    name: "renderer-handoff",
+    status: "healthy",
+    message: `Renderer handoff mode: ${state.mode}; ${state.attachedRenderers} Browser renderer(s) attached.`,
+  };
+});
+
 rendererBridge = new RendererBridge({
   logger,
   core: () => runtime.health(),
@@ -960,6 +974,7 @@ dashboard = new DashboardServer({
   explainabilityService,
   dashboardLayoutStore,
   rendererBridge,
+  rendererHandoffService,
   controlModeService,
   actionGateway,
   movementService,
