@@ -3430,3 +3430,76 @@ Scope/safety evidence:
 
 Phase 11 / Slice 11.1 – ALHD Asset Provider may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
 
+---
+
+## Verification Evidence — Slice 11.1 ALHD Asset Provider
+
+**Status: VERIFIED**
+
+> 2026-10-04: VERIFIED on Windows with `0.1.0-alpha.70`. Real installed one-click test `live111-9ad30e4e-66b4-49e6-a1cc-c6a79225688a` passed ALHD manifest loading, presentation-only semantics, original-asset fallback for known missing-HD and unknown entries, and Core/Character/Script/Action-Gateway continuity. The test used dashboard GET-only reads, caused no gameplay mutation, dispatched zero Action Gateway requests, used no raw socket access, and did not touch the user Script runtime.
+
+Live verification evidence:
+
+- client: `0.1.0-alpha.70`;
+- platform: `win32`;
+- test ID: `live111-9ad30e4e-66b4-49e6-a1cc-c6a79225688a`;
+- outcome: `PASSED`;
+- test window: `2026-10-04T14:57:05.063Z → 2026-10-04T14:57:05.071Z`;
+- `manifest-loaded: PASSED`;
+- `presentation-only: PASSED`;
+- `known-original-fallback: PASSED`;
+- `unknown-original-fallback: PASSED`;
+- `core-continuity: PASSED`;
+- `character-continuity: PASSED`;
+- `script-continuity: PASSED`;
+- `read-only-runtime: PASSED`;
+- provider status: `ready`;
+- manifest status: `loaded`;
+- manifest: `hd-assets.json`;
+- manifest schema: `1`;
+- manifest phase: `4-vertical-pilot`;
+- manifest source: `Riflex91/Riflex91-Repo@43bcdee99ab12a92f7cbf8e7bcdac8f0e99983f2/Adventure Land HD/manifests/hd-assets.json`;
+- replacements: `2`;
+- active replacements: `2`;
+- packaged HD files available: `0`;
+- missing packaged HD files: `2`;
+- `Presentation only: true`;
+- `Original fallback: true`;
+- `Gameplay semantic changes: false`;
+- known source resolution: `original / hd-file-missing`;
+- unknown source resolution: `original / not-in-manifest`;
+- `Core restart: false`;
+- `Character restart: false`;
+- `Script restart: false`;
+- `Dashboard GET only: true`;
+- `Gameplay mutation: false`;
+- Action Gateway requests: `0`;
+- `Raw socket access: false`;
+- `User Script touched: false`;
+- diagnostic export: 11 log lines, `Secrets sanitized: yes`.
+
+Repository/release evidence:
+
+- implementation PR #140 final feature head: `fa69a8e50d7f145b77e5b59705f6d63f2e333831`;
+- final implementation PR CI run `37210560345` completed on that exact head with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #140 merged with method `merge` into exact implementation main `6f5f8c47510b353646860048e3278d5fcfc3e269`;
+- exact post-implementation-main CI run `37210737660` completed with all four required jobs successful;
+- release publish run `37210929441` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.70`, tag `v0.1.0-alpha.70`, GitHub Release target, publish-run head, and tested implementation `main` were verified commit-identical at `6f5f8c47510b353646860048e3278d5fcfc3e269`;
+- published assets:
+  - Windows x64 installer SHA-256 `b87009f767aa20c37948210ab333ad49d7b59fbd965a48a65fdb4924b8cc176d`
+  - Linux x64 installer SHA-256 `7562cf7a17fba4b05423dfa6c85b756ce3824a652e50545d50ac653583d94fc1`
+  - updater manifest SHA-256 `2678ed35e79cff1a862e95d71dd777c681a30427674537da354f72485f0a7627`.
+
+Scope/safety evidence:
+
+- ALHD integration is manifest-backed and read-only;
+- provider output is presentation-only and does not modify gameplay data or game semantics;
+- original Adventure Land asset paths remain the fallback whenever HD data is unavailable, absent, or invalid;
+- packaged Alpha.70 intentionally contains the manifest but no HD replacement files yet; this correctly exercises the required original fallback;
+- no WebGL texture-size guard, HD-by-default Browser application, graphics profiles, gameplay mutation route, raw socket access, or user Script replacement was introduced.
+
+**Canonical roadmap status: Slice 11.1 = VERIFIED.**
+
+Slice 11.2 – WebGL Texture-Size Guard may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
+
