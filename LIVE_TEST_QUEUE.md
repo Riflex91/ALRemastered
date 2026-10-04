@@ -1256,3 +1256,75 @@ Repository/release evidence:
 **Canonical queue status: Slice 7.2 = VERIFIED.**
 
 Do not repeat Slice 7.2 merely because implementation planning text or historical failed CI attempts remain elsewhere. Slice 7.3 – Party Coordinator may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
+
+
+
+---
+
+### Alpha.55 real one-click result: PASSED — Slice 7.3 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.55`
+- release target / tested implementation main: `eca584e5af4d5bd7d79c26f0cc62bbcea610af63`
+- client: `0.1.0-alpha.55` / Windows
+- platform: `win32`
+- test ID: `live73-a3aecc82-6240-4958-93b2-881d0b074c6f`
+- primary Character: `My_Merchant`
+- managed test Character: `My_Ranger1`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-04T00:39:54.747Z → 2026-10-04T00:39:54.982Z`
+- diagnostic export: 54 log lines, `Secrets sanitized: yes`
+
+The one-click harness completed the full Slice 7.3 Party Coordinator validation:
+
+- preflight began with exactly one active primary Character session, one offline secondary Character, three free managed-session slots, an unloaded user Script runtime, and safe local coordination infrastructure;
+- `My_Merchant` and temporary managed `My_Ranger1` were coordinated around one shared logical target;
+- initial role assignment was Tank for `My_Merchant` and Healer for `My_Ranger1`, both reporting `ready`;
+- the Coordinator transport was `shared-process-state`, with `localMessagingRequired:false`;
+- no gameplay automation was invoked: `gameplayMutation:false`;
+- no raw socket path was used: `rawSocketAccess:false`;
+- Slice 7.4 Party Templates remained inactive: `partyTemplatesActive:false`;
+- the managed Character changed from Healer to DPS and the Healer aggregate returned to `unassigned`, proving no stale cross-role state leaked;
+- clearing the shared target produced explicit `no-target` status for both active members;
+- restoring the target returned coordinated state before cleanup;
+- removing only the temporary managed session pruned its Coordinator member and DPS assignment while the primary remained present;
+- after removal the Coordinator contained exactly one member, the primary Character, and DPS assigned count returned to zero;
+- the pre-test Coordinator configuration was restored;
+- final active session state returned to one primary Character and zero managed Characters;
+- primary `My_Merchant` remained connected;
+- the user Script runtime was not replaced or interrupted: `userScriptInterrupted:false`;
+- local Character messaging was untouched: request delta `0`, delivery delta `0`;
+- messaging remained `localOnly:true`;
+- final safety flags remained `gameplayMutation:false`, `rawSocketAccess:false`, and `partyTemplatesActive:false`.
+
+Diagnostic/runtime evidence:
+
+1. installed client started as `ALRemastered 0.1.0-alpha.55` on `win32`;
+2. the application reported an automatic restart after update;
+3. primary `My_Merchant` connected headlessly on EU II with automation disabled;
+4. Slice 7.3 preflight observed one active primary session and an unloaded user Script runtime;
+5. the temporary `My_Ranger1` managed session was used only for local coordinator validation;
+6. Tank/Healer role assignment and one shared logical target reached ready state;
+7. managed role changed Healer → DPS without stale Healer membership;
+8. shared target clearing exposed `no-target` for both active members;
+9. managed-session removal pruned only the managed member and its DPS assignment;
+10. final state restored the pre-test Coordinator configuration and left only the primary session connected.
+
+Repository/release evidence:
+
+- implementation PR #107 final feature head: `469b0213f168068f7854e0ea265e6b1721bd3ba4`;
+- final implementation PR CI run `37164949495` completed with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #107 merged with method `merge` into exact implementation main `eca584e5af4d5bd7d79c26f0cc62bbcea610af63`;
+- exact post-implementation-main CI run `37165070088` completed successfully;
+- release publish run `37165210493` completed successfully;
+- release branch `release/v0.1.0-alpha.55`, tag `v0.1.0-alpha.55`, GitHub release target, and tested implementation `main` were verified commit-identical at `eca584e5af4d5bd7d79c26f0cc62bbcea610af63`;
+- published assets:
+  - Windows x64 installer SHA-256 `0f85d4bee480a36663fdc15e08d56cdead687fbddb0b4087c9e1b23341f94c9a`
+  - Linux x64 installer SHA-256 `ed0a38c728fca7d62185755356204e3b8e4baf70f5c16b89f965dc1b85d34c2d`
+  - updater manifest SHA-256 `8199b54449fe643579a04d25db6546fd73971c6c1a70cad4eac08b138d53f841`.
+
+**Canonical queue status: Slice 7.3 = VERIFIED.**
+
+Do not repeat Slice 7.3 merely because implementation planning text remains elsewhere. Slice 7.4 – Party Templates may begin only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
