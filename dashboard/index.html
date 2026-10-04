@@ -6,7 +6,7 @@
   <title>ALRemastered</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body data-current-verification-slice="12.2">
+<body data-current-verification-slice="12.3">
   <main class="shell">
     <header class="topbar">
       <div>
@@ -364,6 +364,63 @@
         </div>
         <small class="selection-note" id="slice-12-2-live-test-note">
           Validates the canonical package permission registry, default-deny decisions, explicit approval for dangerous rights, and read-only runtime continuity. No package is imported or executed.
+        </small>
+      </div>
+    </div>
+
+    <section class="account-panel" id="package-import-panel">
+      <div class="diagnostics-heading">
+        <div>
+          <p class="eyebrow">Phase 12 community packages</p>
+          <h2>Import Script Package</h2>
+        </div>
+        <strong id="package-import-status" aria-live="polite">Choose a .alrpkg file</strong>
+      </div>
+      <div class="server-picker">
+        <input id="package-import-file" type="file" accept=".alrpkg,application/json">
+        <button id="package-import-preview" type="button">Preview package</button>
+        <button id="package-import-confirm" type="button" hidden>Import inactive package</button>
+      </div>
+      <div id="package-import-preview-panel" hidden>
+        <div class="status-grid">
+          <article class="card"><span class="label">Package</span><strong id="package-import-name">—</strong></article>
+          <article class="card"><span class="label">Version</span><strong id="package-import-version">—</strong></article>
+          <article class="card"><span class="label">Author</span><strong id="package-import-author">—</strong></article>
+          <article class="card"><span class="label">Integrity</span><strong id="package-import-integrity">—</strong></article>
+        </div>
+        <article class="card">
+          <span class="label">Description</span>
+          <p id="package-import-description">—</p>
+        </article>
+        <article class="card">
+          <span class="label">Permissions</span>
+          <div id="package-import-permissions"></div>
+        </article>
+        <article class="card">
+          <span class="label">Configuration schema</span>
+          <pre id="package-import-config">—</pre>
+        </article>
+        <article class="card">
+          <span class="label">Code</span>
+          <select id="package-import-code-file" aria-label="Package code file"></select>
+          <pre id="package-import-code">—</pre>
+        </article>
+      </div>
+      <small class="selection-note" id="package-import-note">
+        Preview validates hashes before import. Dangerous permissions require explicit confirmation. Imported packages stay inactive and are never executed by this flow.
+      </small>
+    </section>
+
+    <div class="selection-content" data-verification-test="12.3" hidden>
+      <div>
+        <h3>Slice 12.3 one-click Package File Import test</h3>
+        <div class="server-picker">
+          <button id="start-slice-12-3-live-test" type="button">Start test</button>
+          <strong id="slice-12-3-live-test-status" aria-live="polite">Ready</strong>
+          <button id="copy-slice-12-3-live-test-result" type="button" hidden>Copy last test result</button>
+        </div>
+        <small class="selection-note" id="slice-12-3-live-test-note">
+          Exercises preview, description, permissions, configuration, code visibility, dangerous-right confirmation, inactive persistence, cleanup, and runtime continuity. The imported fixture is never executed.
         </small>
       </div>
     </div>
