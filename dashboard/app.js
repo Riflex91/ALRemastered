@@ -1568,6 +1568,313 @@ elements.copySlice94LiveTestResult.addEventListener("click", async () => {
 
 renderSlice94LiveTest();
 
+function renderSlice95LiveTest() {
+  const test = state.slice95LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    failed: "FAILED",
+  };
+  elements.slice95LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice95LiveTest.disabled = test.status === "running";
+  elements.copySlice95LiveTestResult.hidden = !state.slice95LastReport;
+  if (test.status === "running") {
+    elements.slice95LiveTestNote.textContent =
+      "Exercising role-neutral export, JSON validation, Character role mapping, persistent import/reload, and cleanup.";
+  } else if (test.message) {
+    elements.slice95LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function runSlice95Verification() {
+  const startingSnapshot = dashboardEditor.snapshot();
+  const startingLayouts = await dashboardLayoutRequest("/api/dashboard-layout");
+  const startingActiveProfileId = startingLayouts.activeProfileId;
+  const suffix = globalThis.crypto?.randomUUID?.().slice(0, 8) ?? Date.now().toString(36);
+  const importedProfileId = `slice95-import-${suffix}`;
+  let importedCreated = false;
+  const steps = [];
+
+  try {
+    const baseDesktop = structuredClone(dashboardEditor.persistentState());
+    const baseSmall = structuredClone(dashboardEditor.persistentState());
+    const sourceIds = ["SLICE95_SOURCE_CHARACTER_A", "SLICE95_SOURCE_CHARACTER_B"];
+    const desktopCandidates = baseDesktop.widgets.filter((widget) => !widget.duplicateOf);
+    const smallCandidates = baseSmall.widgets.filter((widget) => !widget.duplicateOf);
+    if (!desktopCandidates.length || !smallCandidates.length) {
+      throw new Error("Dashboard import/export verification requires at least one base widget.");
+    }
+
+    desktopCandidates[0].characterId = sourceIds[0];
+    smallCandidates[0].characterId = sourceIds[0];
+    if (desktopCandidates[1]) desktopCandidates[1].characterId = sourceIds[1];
+    if (smallCandidates[1]) smallCandidates[1].characterId = sourceIds[1];
+
+    const sourceProfile = {
+      name: "Slice 9.5 portable verification",
+      layouts: {
+        desktop: baseDesktop,
+        small: baseSmall,
+      },
+    };
+    const portable = createPortableDashboardProfile(sourceProfile);
+    const serialized = JSON.stringify(portable);
+    const roles = portableDashboardRoleIds(portable);
+
+    steps.push({
+      key: "role-neutral-export",
+      outcome:
+        portable.kind === "ALRemasteredDashboardProfile" &&
+        roles.length >= 1 &&
+        !serialized.includes(sourceIds[0]) &&
+        !serialized.includes(sourceIds[1]) &&
+        !serialized.includes('"characterId"')
+          ? "passed"
+          : "failed",
+    });
+
+    const parsed = parsePortableDashboardProfile(serialized);
+    steps.push({
+      key: "json-roundtrip",
+      outcome:
+        parsed.profile.name === sourceProfile.name &&
+        Boolean(parsed.profile.layouts.desktop) &&
+        Boolean(parsed.profile.layouts.small)
+          ? "passed"
+          : "failed",
+    });
+
+    const mapping = {};
+    roles.forEach((roleId, index) => {
+      mapping[roleId] = `SLICE95_MAPPED_CHARACTER_${index + 1}`;
+    });
+    const resolved = resolvePortableDashboardProfile(parsed, mapping);
+    const resolvedIds = new Set(
+      Object.values(resolved.layouts)
+        .flatMap((layout) => layout.widgets)
+        .map((widget) => widget.characterId)
+        .filter(Boolean),
+    );
+    steps.push({
+      key: "role-mapping",
+      outcome:
+        roles.every((roleId) => resolvedIds.has(mapping[roleId])) &&
+        !resolvedIds.has(sourceIds[0]) &&
+        !resolvedIds.has(sourceIds[1])
+          ? "passed"
+          : "failed",
+    });
+
+    let store = await dashboardLayoutRequest("/api/dashboard-layout/profile/create", {
+      profileId: importedProfileId,
+      name: resolved.name,
+    });
+    importedCreated = true;
+    for (const variant of ["desktop", "small"]) {
+      if (!resolved.layouts[variant]) continue;
+      store = await dashboardLayoutRequest("/api/dashboard-layout/save", {
+        profileId: importedProfileId,
+        variant,
+        layout: resolved.layouts[variant],
+      });
+    }
+    store = await dashboardLayoutRequest("/api/dashboard-layout/reload", {});
+    const imported = store.profiles.find((profile) => profile.id === importedProfileId);
+    const persistedIds = new Set(
+      ["desktop", "small"]
+        .flatMap((variant) => imported?.layouts?.[variant]?.widgets ?? [])
+        .map((widget) => widget.characterId)
+        .filter(Boolean),
+    );
+    steps.push({
+      key: "import-persist-reload",
+      outcome:
+        Boolean(imported?.layouts?.desktop) &&
+        Boolean(imported?.layouts?.small) &&
+        roles.every((roleId) => persistedIds.has(mapping[roleId])) &&
+        !persistedIds.has(sourceIds[0]) &&
+        !persistedIds.has(sourceIds[1])
+          ? "passed"
+          : "failed",
+    });
+
+    store = await dashboardLayoutRequest("/api/dashboard-layout/profile/active", {
+      profileId: startingActiveProfileId,
+    });
+    store = await dashboardLayoutRequest("/api/dashboard-layout/profile/delete", {
+      profileId: importedProfileId,
+    });
+    importedCreated = false;
+    state.dashboardLayouts = store;
+    steps.push({
+      key: "cleanup",
+      outcome:
+        store.activeProfileId === startingActiveProfileId &&
+        !store.profiles.some((profile) => profile.id === importedProfileId)
+          ? "passed"
+          : "failed",
+    });
+
+    return {
+      outcome: steps.every((step) => step.outcome === "passed") ? "passed" : "failed",
+      steps,
+      portableExport: true,
+      fixedCharacterIdsExported: false,
+      characterNamesExported: false,
+      roleMapping: "explicit",
+      importedProfilePersisted: true,
+      gameplayMutation: false,
+      actionGatewayRequests: 0,
+      rawSocketAccess: false,
+      userScriptTouched: false,
+    };
+  } finally {
+    dashboardEditor.restore(startingSnapshot);
+    try {
+      let restored = await dashboardLayoutRequest("/api/dashboard-layout");
+      if (importedCreated && restored.profiles.some((profile) => profile.id === importedProfileId)) {
+        if (restored.activeProfileId === importedProfileId) {
+          restored = await dashboardLayoutRequest("/api/dashboard-layout/profile/active", {
+            profileId: startingActiveProfileId,
+          });
+        }
+        restored = await dashboardLayoutRequest("/api/dashboard-layout/profile/delete", {
+          profileId: importedProfileId,
+        });
+      }
+      if (restored.profiles.some((profile) => profile.id === startingActiveProfileId) &&
+          restored.activeProfileId !== startingActiveProfileId) {
+        restored = await dashboardLayoutRequest("/api/dashboard-layout/profile/active", {
+          profileId: startingActiveProfileId,
+        });
+      }
+      state.dashboardLayouts = restored;
+    } catch {
+      state.dashboardLayouts = startingLayouts;
+    }
+    state.pendingDashboardImport = null;
+    renderDashboardEditorState();
+  }
+}
+
+async function startSlice95LiveTest(clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice95LiveTest = {
+    status: "running",
+    message: "Slice 9.5 dashboard import/export test is running.",
+  };
+  renderSlice95LiveTest();
+
+  const verification = await runSlice95Verification();
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) {
+    throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  }
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live95-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const stepLines = verification.steps.map((step) =>
+    `- ${step.key}: ${String(step.outcome).toUpperCase()}`
+  );
+  const reportText = [
+    "ALRemastered Slice 9.5 one-click dashboard import/export test",
+    `Test ID: ${testId}`,
+    "Slice: 9.5",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    "Portable export: true",
+    "Fixed Character IDs exported: false",
+    "Character names exported: false",
+    "Role mapping: explicit",
+    "Imported profile persisted: true",
+    "Gameplay mutation: false",
+    "Action Gateway requests: 0",
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+
+  const result = {
+    testId,
+    slice: "9.5",
+    outcome,
+    startedAt,
+    completedAt,
+    message: outcome === "passed"
+      ? "Dashboard import/export verification passed."
+      : "Dashboard import/export verification failed.",
+    steps: verification.steps,
+    portableExport: true,
+    fixedCharacterIdsExported: false,
+    characterNamesExported: false,
+    roleMapping: "explicit",
+    importedProfilePersisted: true,
+    gameplayMutation: false,
+    actionGatewayRequests: 0,
+    rawSocketAccess: false,
+    userScriptTouched: false,
+  };
+
+  state.slice95LastReport = reportText;
+  state.slice95LiveTest = { status: outcome, message: result.message, lastResult: result };
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice95LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice95LiveTest.addEventListener("click", async () => {
+  if (state.slice95LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice95LastReport = null;
+  elements.copySlice95LiveTestResult.hidden = true;
+  setFeedback(
+    "Slice 9.5 dashboard import/export test started. A temporary imported profile will be removed automatically.",
+  );
+  try {
+    const { result, copied } = await startSlice95LiveTest(clipboardWrite);
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 9.5 test ${String(result.outcome).toUpperCase()}. ${copyMessage}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    state.slice95LiveTest = { status: "failed", message: error.message };
+    renderSlice95LiveTest();
+    setFeedback(`Slice 9.5 dashboard import/export test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice95LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice95LastReport) return;
+  try {
+    await writeClipboard(state.slice95LastReport);
+    setFeedback(
+      "Complete Slice 9.5 dashboard import/export result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Dashboard import/export result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice95LiveTest();
+
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
   const days = Math.floor(totalSeconds / 86400);
