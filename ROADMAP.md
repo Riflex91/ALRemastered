@@ -3991,3 +3991,98 @@ Scope/safety evidence:
 
 The next ROADMAP slice may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
 
+---
+
+## Verification Evidence — Slice 12.4 Link / GitHub Import
+
+**Status: VERIFIED**
+
+> 2026-10-04: VERIFIED on Windows with `0.1.0-alpha.77`. Real installed one-click test `live124-da4dde79-d623-4314-8f5f-1945fb96bfaa` passed public HTTPS package-link import, supported GitHub source normalization, complete preview-before-confirmation, dangerous-permission confirmation, confirm-time source re-fetch with stale-preview rejection, remote-source safety checks, inactive persistence, cleanup, and runtime continuity without package execution or gameplay mutation.
+
+Live verification evidence:
+
+- client: `0.1.0-alpha.77`;
+- platform: `win32`;
+- test ID: `live124-da4dde79-d623-4314-8f5f-1945fb96bfaa`;
+- outcome: `PASSED`;
+- test window: `2026-10-04T18:52:16.420Z → 2026-10-04T18:52:16.433Z`;
+- `remote-source-descriptor: PASSED`;
+- `remote-source-preview: PASSED`;
+- `github-source-normalization: PASSED`;
+- `preview-content-visible: PASSED`;
+- `dangerous-confirmation-required: PASSED`;
+- `confirmed-import-persisted: PASSED`;
+- `remote-stale-protection: PASSED`;
+- `remote-source-safety: PASSED`;
+- `imported-inactive-no-execution: PASSED`;
+- `verification-cleanup: PASSED`;
+- `core-character-script-continuity: PASSED`;
+- `read-only-gameplay-runtime: PASSED`;
+- link import supported: `true`;
+- GitHub import supported: `true`;
+- HTTPS-only remote import: `true`;
+- confirm-time source re-fetch: `true`;
+- link source kind: `link`;
+- GitHub source kind: `github`;
+- GitHub repository: `Riflex91/ALRemastered`;
+- GitHub ref: `main`;
+- GitHub package path: `verification/slice-12-4-fixture.alrpkg`;
+- GitHub source normalized to `https://raw.githubusercontent.com/Riflex91/ALRemastered/main/verification/slice-12-4-fixture.alrpkg`;
+- preview package: `org.alremastered.slice124-fixture @ 1.0.0`;
+- description visible before import: `true`;
+- permissions: `movement, inventory.destroy`;
+- dangerous permissions: `inventory.destroy`;
+- Config Schema visible: `true`;
+- code files visible: `2`;
+- dangerous confirmation required: `true`;
+- unapproved import rejected: `true`;
+- unapproved error: `PACKAGE_IMPORT_PERMISSION_CONFIRMATION_REQUIRED`;
+- confirmed import persisted: `true`;
+- approved dangerous permission persisted: `true`;
+- source re-fetched on confirm: `true`;
+- changed source rejected after preview: `true`;
+- changed-source error: `PACKAGE_IMPORT_PREVIEW_STALE`;
+- HTTP source rejected: `true`;
+- private source rejected: `true`;
+- imported inactive: `true`;
+- package execution attempted: `false`;
+- verification cleanup: `true`;
+- `Core restart: false`;
+- `Character restart: false`;
+- `Script restart: false`;
+- `Gameplay mutation: false`;
+- Action Gateway requests: `0`;
+- `Raw socket access: false`;
+- `User Script touched: false`;
+- diagnostic export: 11 log lines, `Secrets sanitized: yes`.
+
+Repository/release evidence:
+
+- implementation PR #154 final feature head: `a9353f3e9aa194d756696d7853caa3c8d482da97`;
+- final implementation PR CI run `37224713511` completed on that exact head with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #154 merged with method `merge` into exact implementation main `4d85da650ff472698ac0b2217743b3a5f423d7b5`;
+- exact post-implementation-main CI run `37225456411` completed on `4d85da650ff472698ac0b2217743b3a5f423d7b5` with all four required jobs successful;
+- release publish run `37225674877` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.77`, tag `v0.1.0-alpha.77`, GitHub Release target, publish-run head, and tested implementation `main` are commit-identical at `4d85da650ff472698ac0b2217743b3a5f423d7b5`;
+- published assets:
+  - Windows x64 installer SHA-256 `5d9ae86d10fb911b4d04815da89d9a319b958f381a1b943da5900320928f70ad`
+  - Linux x64 installer SHA-256 `e92edb05f5c8aa65fbf9b470994143fac19bedfb836d3ed56a9789aada08d21b`
+  - updater manifest SHA-256 `9b6a4132aeeb36956a88493ff032f27767b631cfbc695720938c8825c16262e5`.
+
+Scope/safety evidence:
+
+- Slice 12.4 extends the 12.3 preview → confirm → import model to approved public HTTPS package links and supported GitHub package-file sources;
+- supported GitHub blob sources are normalized to raw package content before preview;
+- remote sources are fetched again at confirmation, so content changed after preview is rejected by the existing preview-token integrity boundary with `PACKAGE_IMPORT_PREVIEW_STALE`;
+- HTTP and private-address sources are rejected by the remote source safety boundary;
+- dangerous permission `inventory.destroy` remains blocked until explicitly approved;
+- imported remote packages remain inactive and no package code is executed;
+- verification fixture files were removed by cleanup;
+- Script Library/package management, activation/execution, updates, and rollback remain out of scope for later slices;
+- Core, Character, and Script remained continuous;
+- no gameplay mutation, Action Gateway request, raw socket access, or user Script replacement occurred.
+
+**Canonical roadmap status: Slice 12.4 = VERIFIED.**
+
+Slice 12.5 – Script Library may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
+
