@@ -449,9 +449,21 @@ export class ScriptPackageImporter {
       ? JSON.parse(readFileSync(receiptPath, "utf8")) as Partial<StoredImportReceipt>
       : undefined;
 
-    const changedDocument = structuredClone(packageDocument) as ScriptPackageDocument;
-    changedDocument.files["scripts/main.js"] =
-      "log('Changed after remote preview and must not import.');\n";
+    const changedDocument = createScriptPackage({
+      manifest: {
+        ...packageDocument.manifest,
+        scripts: packageDocument.manifest.scripts.map((script) => ({ ...script })),
+        permissions: [...packageDocument.manifest.permissions],
+        author: { ...packageDocument.manifest.author },
+        compatibility: structuredClone(packageDocument.manifest.compatibility),
+        configSchema: { ...packageDocument.manifest.configSchema },
+        readme: { ...packageDocument.manifest.readme },
+      },
+      files: {
+        ...packageDocument.files,
+        "scripts/main.js": "log('Changed after remote preview and must not import.');\n",
+      },
+    });
     let staleRejected = false;
     let staleErrorCode: string | null = null;
     servedDocument = changedDocument;
