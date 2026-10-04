@@ -2459,3 +2459,92 @@ Scope and safety:
 **Canonical queue status: Slice 11.4 = VERIFIED. Phase 11 = VERIFIED.**
 
 Phase 12 / Slice 12.1 – Paketformat may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
+
+
+---
+
+### Alpha.74 real one-click result: PASSED — Slice 12.1 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.74`
+- release target / tested implementation main: `ace18295bf85b5459171c7261c1ea119a8b7c2e1`
+- client: `0.1.0-alpha.74` / Windows
+- platform: `win32`
+- test ID: `live121-c164210e-ccfd-42a4-9965-d9f8de887f35`
+- outcome: `passed`
+- test window: `2026-10-04T16:58:04.685Z → 2026-10-04T16:58:04.694Z`
+- diagnostic export: 12 log lines, `Secrets sanitized: yes`.
+
+The one-click harness completed the full Slice 12.1 validation:
+
+- `package-format-descriptor: PASSED`;
+- `manifest-required-fields: PASSED`;
+- `package-structure-valid: PASSED`;
+- `sha256-integrity: PASSED`;
+- `tamper-rejected: PASSED`;
+- `config-readme-scripts: PASSED`;
+- `metadata-compatibility-permissions: PASSED`;
+- `declaration-only-no-import-execution: PASSED`;
+- `core-continuity: PASSED`;
+- `character-continuity: PASSED`;
+- `script-continuity: PASSED`;
+- `read-only-runtime: PASSED`;
+- package format: `alremastered-script-package`;
+- file extension: `.alrpkg`;
+- schema version: `1`;
+- hash algorithm: `sha256`;
+- package sections: `manifest, files, hashes`;
+- required manifest fields: `id, name, version, author, compatibility, permissions, scripts, configSchema, readme`;
+- fixture package ID: `org.alremastered.slice121-fixture`;
+- fixture version: `1.0.0`;
+- fixture author: `ALRemastered Verification`;
+- minimum ALRemastered: `0.1.0-alpha.74`;
+- declared permissions: `movement, combat`;
+- script count: `2`;
+- entry script: `scripts/main.js`;
+- Config Schema: `config.schema.json`;
+- README: `README.md`;
+- file count: `4`;
+- package text bytes: `266`;
+- manifest SHA-256: `58409b23fb92d2c13e70cb46f2337ab97087aef03ae48c2e386120472c8b88d2`;
+- `Tamper rejected: true`;
+- tamper error: `PACKAGE_HASH_MISMATCH`;
+- `Permission enforcement: false`;
+- `Package import attempted: false`;
+- `Package execution attempted: false`;
+- `Core restart: false`;
+- `Character restart: false`;
+- `Script restart: false`;
+- `Dashboard GET only: true`;
+- `Gameplay mutation: false`;
+- Action Gateway requests: `0`;
+- `Raw socket access: false`;
+- `User Script touched: false`.
+
+Repository/release evidence:
+
+- implementation PR #148 final feature head: `628fa59ac35104a4fc6470595c28ad1de6e613ad`;
+- final implementation PR CI run `37218200401`: all four required jobs successful;
+- implementation main: `ace18295bf85b5459171c7261c1ea119a8b7c2e1`;
+- exact post-implementation-main CI run `37218346069`: all four required jobs successful;
+- release publish run `37218502852`: Linux, Windows, and GitHub Release successful;
+- release branch, tag, release target, publish head, and tested implementation main are commit-identical at `ace18295bf85b5459171c7261c1ea119a8b7c2e1`;
+- Windows x64 installer SHA-256: `0a0e0b39238b8a1fea5eee3947f77e8e59b2fc866a79d3384ea90e255031ad44`;
+- Linux x64 installer SHA-256: `a4085e128ba62a4801dbb487c5b06180e5053fcd294f12a4ca9b88a765649c2f`;
+- updater manifest SHA-256: `493c75814fa8e129c3d1a9f59b8c2ccfb91691de31a31ea3b6608991788acafd`.
+
+Scope and safety:
+
+- the real Windows client validated the complete Slice 12.1 package container contract;
+- required Manifest, Scripts, Config Schema, README, Version, Author, Compatibility, permission declarations, and hashes are present;
+- SHA-256 integrity validation passed and deliberate content tampering was rejected;
+- permission declarations are not enforced yet;
+- no package import or package execution occurred;
+- the format test is read-only and generated only local in-memory fixture data;
+- Core, Character, and Script remained continuous;
+- no gameplay mutation, raw socket access, Action Gateway requests, or user Script replacement occurred.
+
+**Canonical queue status: Slice 12.1 = VERIFIED.**
+
+Slice 12.2 – Permission System may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
