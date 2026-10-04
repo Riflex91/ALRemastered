@@ -16,6 +16,14 @@ const elements = {
   scriptStatus: document.querySelector("#browser-script-status"),
   handoffMode: document.querySelector("#browser-handoff-mode"),
   socketStrategy: document.querySelector("#browser-socket-strategy"),
+  hdMode: document.querySelector("#browser-hd-mode"),
+  hdAvailable: document.querySelector("#browser-hd-available"),
+  hdApplied: document.querySelector("#browser-hd-applied"),
+  hdMissing: document.querySelector("#browser-hd-missing"),
+  hdBlocked: document.querySelector("#browser-hd-blocked"),
+  hdTextureLimit: document.querySelector("#browser-hd-texture-limit"),
+  hdPreviews: document.querySelector("#browser-hd-previews"),
+  hdMessage: document.querySelector("#browser-hd-message"),
 };
 
 const verificationState = {
@@ -28,6 +36,8 @@ const verificationState = {
   clientId: `browser-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`,
   handoffAttached: false,
   handoffMode: null,
+  alhdReady: false,
+  alhdStatus: null,
 };
 globalThis.__alrBrowserViewState = verificationState;
 
@@ -48,6 +58,143 @@ async function refreshHandoffState() {
       ? "Preserve headless socket"
       : value(handoff.socketStrategy, "Unavailable");
   return handoff;
+}
+
+function detectWebglTextureCapability() {
+  let context;
+  let contextType = null;
+  let contextReleased = false;
+  try {
+    const canvas = document.createElement("canvas");
+    context = canvas.getContext("webgl");
+    contextType = context ? "webgl" : null;
+    if (!context) {
+      context = canvas.getContext("experimental-webgl");
+      contextType = context ? "experimental-webgl" : null;
+    }
+    if (
+      !context ||
+      typeof context.getParameter !== "function" ||
+      typeof context.MAX_TEXTURE_SIZE === "undefined"
+    ) {
+      return { maxTextureSize: null, contextType, contextReleased };
+    }
+    const value = Number(context.getParameter(context.MAX_TEXTURE_SIZE));
+    try {
+      const lose = typeof context.getExtension === "function"
+        ? context.getExtension("WEBGL_lose_context")
+        : null;
+      if (lose && typeof lose.loseContext === "function") {
+        lose.loseContext();
+        contextReleased = true;
+      }
+    } catch {
+      // Best-effort cleanup only.
+    }
+    return {
+      maxTextureSize: Number.isFinite(value) && value > 0 ? Math.trunc(value) : null,
+      contextType,
+      contextReleased,
+    };
+  } catch {
+    return { maxTextureSize: null, contextType, contextReleased };
+  }
+}
+
+async function fetchBrowserHdPlan(maxTextureSize) {
+  const query = new URLSearchParams();
+  if (Number.isInteger(maxTextureSize) && maxTextureSize > 0) {
+    query.set("maxTextureSize", String(maxTextureSize));
+  }
+  const suffix = query.size ? `?${query.toString()}` : "";
+  const response = await fetch(`/api/hd/assets/browser-plan${suffix}`, {
+    cache: "no-store",
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error ?? `Browser HD plan failed with HTTP ${response.status}.`);
+  }
+  return payload;
+}
+
+async function fetchBrowserHdPayload(hdPath) {
+  const response = await fetch(
+    `/api/hd/assets/content?hdPath=${encodeURIComponent(hdPath)}`,
+    { cache: "no-store" },
+  );
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error ?? `Browser HD asset failed with HTTP ${response.status}.`);
+  }
+  return payload;
+}
+
+function loadImage(dataUrl, entry) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.alt = `HD preview: ${entry.sourcePath}`;
+    image.title = entry.sourcePath;
+    image.loading = "eager";
+    if (entry.hdPixels && Number(entry.scale) > 0) {
+      image.width = Math.max(1, Math.round(entry.hdPixels.width / entry.scale));
+      image.height = Math.max(1, Math.round(entry.hdPixels.height / entry.scale));
+    }
+    image.addEventListener("load", () => resolve(image), { once: true });
+    image.addEventListener("error", () => reject(new Error(`HD image decode failed: ${entry.hdPath}`)), {
+      once: true,
+    });
+    image.src = dataUrl;
+  });
+}
+
+async function loadBrowserHdAssets() {
+  const capability = detectWebglTextureCapability();
+  const plan = await fetchBrowserHdPlan(capability.maxTextureSize);
+  const applied = [];
+  const missing = new Set(plan.missing ?? []);
+  elements.hdPreviews.replaceChildren();
+
+  for (const entry of plan.entries ?? []) {
+    if (entry.mode !== "hd") continue;
+    try {
+      const payload = await fetchBrowserHdPayload(entry.hdPath);
+      const image = await loadImage(
+        `data:${payload.mediaType};base64,${payload.base64}`,
+        entry,
+      );
+      elements.hdPreviews.append(image);
+      applied.push(entry.sourcePath);
+    } catch {
+      missing.add(entry.sourcePath);
+    }
+  }
+
+  const status = Object.freeze({
+    mode: "HD",
+    available: Number(plan.available ?? 0),
+    applied: applied.length,
+    paths: Object.freeze(applied.slice()),
+    missing: Object.freeze([...missing].sort()),
+    blocked: Object.freeze([...(plan.blocked ?? [])].sort()),
+    maxTextureSize: capability.maxTextureSize,
+    webglContext: capability.contextType,
+    temporaryContextReleased: capability.contextReleased,
+    headlessHdAssetsLoaded: false,
+    presentationOnly: true,
+    originalFallback: true,
+  });
+  verificationState.alhdStatus = status;
+  verificationState.alhdReady = true;
+  elements.hdMode.textContent = "HD preferred";
+  elements.hdAvailable.textContent = String(status.available);
+  elements.hdApplied.textContent = String(status.applied);
+  elements.hdMissing.textContent = String(status.missing.length);
+  elements.hdBlocked.textContent = String(status.blocked.length);
+  elements.hdTextureLimit.textContent = value(status.maxTextureSize, "Unavailable");
+  elements.hdMessage.textContent =
+    `HD is the Browser default. Applied ${status.applied}/${status.available}; ` +
+    `${status.missing.length} missing and ${status.blocked.length} blocked use original assets.`;
+  return status;
 }
 
 function value(value, fallback = "—") {
@@ -149,6 +296,7 @@ window.addEventListener("beforeunload", () => source?.close());
 try {
   await loadInitialSnapshot();
   await refreshHandoffState();
+  await loadBrowserHdAssets();
   connectStream();
 } catch (error) {
   elements.connection.textContent = "Unavailable";

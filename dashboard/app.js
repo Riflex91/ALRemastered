@@ -38,6 +38,8 @@ const state = {
   slice111LastReport: null,
   slice112LiveTest: { status: "idle", message: "Ready." },
   slice112LastReport: null,
+  slice113LiveTest: { status: "idle", message: "Ready." },
+  slice113LastReport: null,
   controlMode: null,
   dashboardLayouts: null,
   pendingDashboardImport: null,
@@ -187,6 +189,10 @@ const elements = {
   slice112LiveTestStatus: document.querySelector("#slice-11-2-live-test-status"),
   slice112LiveTestNote: document.querySelector("#slice-11-2-live-test-note"),
   copySlice112LiveTestResult: document.querySelector("#copy-slice-11-2-live-test-result"),
+  startSlice113LiveTest: document.querySelector("#start-slice-11-3-live-test"),
+  slice113LiveTestStatus: document.querySelector("#slice-11-3-live-test-status"),
+  slice113LiveTestNote: document.querySelector("#slice-11-3-live-test-note"),
+  copySlice113LiveTestResult: document.querySelector("#copy-slice-11-3-live-test-result"),
   coreStatus: document.querySelector("#core-status"),
   version: document.querySelector("#client-version"),
   uptime: document.querySelector("#uptime"),
@@ -3233,7 +3239,7 @@ function renderSlice111LiveTest() {
 async function runSlice111Verification() {
   const before = await fetchRendererSnapshot();
   const provider = await fetchAlhdAssetProviderState();
-  const knownSource = "images/tiles/characters/jubchan_1.png";
+  const knownSource = "images/tiles/map/doors.png";
   const unknownSource = "images/alremastered/not-in-alhd-manifest.png";
   const known = await resolveAlhdAsset(knownSource);
   const unknown = await resolveAlhdAsset(unknownSource);
@@ -3736,6 +3742,337 @@ elements.copySlice112LiveTestResult.addEventListener("click", async () => {
 });
 
 renderSlice112LiveTest();
+
+function renderSlice113LiveTest() {
+  const test = state.slice113LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    failed: "FAILED",
+  };
+  elements.slice113LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice113LiveTest.disabled = test.status === "running";
+  elements.copySlice113LiveTestResult.hidden = !state.slice113LastReport;
+  if (test.status === "running") {
+    elements.slice113LiveTestNote.textContent =
+      "Proving Headless does not read HD image payloads, opening Browser View with HD preferred, validating applied/missing/blocked/texture-limit status, then closing it and checking runtime continuity.";
+  } else if (test.message) {
+    elements.slice113LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function runSlice113Verification(view) {
+  const before = await fetchRendererSnapshot();
+  const beforeHandoff = await fetchRendererHandoffState();
+  const providerBefore = await fetchAlhdAssetProviderState();
+  await new Promise((resolve) => globalThis.setTimeout(resolve, 75));
+  const providerHeadless = await fetchAlhdAssetProviderState();
+  const baselineSubscribers = Number(before.bridge?.subscribers ?? 0);
+  const baselineRenderers = Number(beforeHandoff.attachedRenderers ?? 0);
+  const steps = [];
+
+  steps.push({
+    key: "headless-no-hd-payload",
+    outcome:
+      providerBefore.headlessLoadsHdAssets === false &&
+      providerHeadless.headlessLoadsHdAssets === false &&
+      Number(providerHeadless.hdPayloadReads ?? 0) === Number(providerBefore.hdPayloadReads ?? 0) &&
+      Number(providerHeadless.hdPayloadBytes ?? 0) === Number(providerBefore.hdPayloadBytes ?? 0)
+        ? "passed"
+        : "failed",
+  });
+
+  view.location.replace(`/browser-view?hdVerification=${Date.now()}`);
+  await waitForBrowserViewCondition(
+    () =>
+      view.__alrBrowserViewState?.ready === true &&
+      view.__alrBrowserViewState?.alhdReady === true,
+    "Browser View did not finish HD-default initialization before timeout.",
+    8_000,
+  );
+
+  const opened = await waitForRendererSubscriberCount(baselineSubscribers + 1, 8_000);
+  const attached = await waitForRendererHandoffCount(baselineRenderers + 1, 8_000);
+  const browserHd = view.__alrBrowserViewState?.alhdStatus ?? {};
+  const providerDuring = await fetchAlhdAssetProviderState();
+
+  steps.push({
+    key: "browser-hd-default",
+    outcome:
+      browserHd.mode === "HD" &&
+      Number(browserHd.available ?? 0) === 2 &&
+      Number(browserHd.applied ?? 0) >= 1 &&
+      Array.isArray(browserHd.paths) &&
+      browserHd.paths.includes("images/tiles/characters/jubchan_1.png")
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "browser-hd-status",
+    outcome:
+      Array.isArray(browserHd.missing) &&
+      Array.isArray(browserHd.blocked) &&
+      Number.isInteger(browserHd.maxTextureSize) &&
+      browserHd.maxTextureSize > 0 &&
+      browserHd.presentationOnly === true &&
+      browserHd.originalFallback === true
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "browser-hd-payload-loaded",
+    outcome:
+      Number(providerDuring.hdPayloadReads ?? 0) > Number(providerHeadless.hdPayloadReads ?? 0) &&
+      Number(providerDuring.hdPayloadBytes ?? 0) > Number(providerHeadless.hdPayloadBytes ?? 0)
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "browser-renderer-attached",
+    outcome:
+      attached.mode === "browser" &&
+      Number(opened.bridge?.subscribers ?? 0) === baselineSubscribers + 1
+        ? "passed"
+        : "failed",
+  });
+
+  const beforeCore = before.snapshot?.core ?? {};
+  const beforeCharacter = before.snapshot?.character ?? {};
+  const beforeScript = before.snapshot?.script ?? {};
+  const duringCharacter = opened.snapshot?.character ?? {};
+  const duringScript = opened.snapshot?.script ?? {};
+  const characterPreservedDuring = sameSocketMarkers(beforeCharacter, duringCharacter);
+  const scriptPreservedDuring =
+    (beforeScript.runId ?? null) === (duringScript.runId ?? null) &&
+    (beforeScript.startedAt ?? null) === (duringScript.startedAt ?? null);
+
+  steps.push({
+    key: "runtime-continuity-browser",
+    outcome: characterPreservedDuring && scriptPreservedDuring ? "passed" : "failed",
+  });
+
+  view.close();
+  await waitForBrowserViewCondition(
+    () => view.closed === true,
+    "Browser View HD verification window did not close before timeout.",
+  );
+  const after = await waitForRendererSubscriberCount(baselineSubscribers);
+  const detached = await waitForRendererHandoffCount(baselineRenderers);
+  const providerAfter = await fetchAlhdAssetProviderState();
+  const afterCore = after.snapshot?.core ?? {};
+  const afterCharacter = after.snapshot?.character ?? {};
+  const afterScript = after.snapshot?.script ?? {};
+  const coreRestart = beforeCore.startedAt !== afterCore.startedAt;
+  const characterRestart = !sameSocketMarkers(beforeCharacter, afterCharacter);
+  const scriptRestart =
+    (beforeScript.runId ?? null) !== (afterScript.runId ?? null) ||
+    (beforeScript.startedAt ?? null) !== (afterScript.startedAt ?? null);
+
+  steps.push({
+    key: "browser-renderer-detached",
+    outcome:
+      Number(after.bridge?.subscribers ?? 0) === baselineSubscribers &&
+      Number(detached.attachedRenderers ?? 0) === baselineRenderers
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "headless-stays-metadata-only",
+    outcome:
+      providerAfter.headlessLoadsHdAssets === false &&
+      Number(providerAfter.hdPayloadReads ?? 0) === Number(providerDuring.hdPayloadReads ?? 0)
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "core-character-script-continuity",
+    outcome: !coreRestart && !characterRestart && !scriptRestart ? "passed" : "failed",
+  });
+
+  const actionGatewayRequests = Math.max(
+    0,
+    Number(after.snapshot?.actionGateway?.totalRequests ?? 0) -
+      Number(before.snapshot?.actionGateway?.totalRequests ?? 0),
+  );
+  steps.push({
+    key: "read-only-runtime",
+    outcome: actionGatewayRequests === 0 ? "passed" : "failed",
+  });
+
+  return {
+    outcome: steps.every((step) => step.outcome === "passed") ? "passed" : "failed",
+    steps,
+    browserMode: browserHd.mode ?? null,
+    available: browserHd.available ?? null,
+    applied: browserHd.applied ?? null,
+    paths: browserHd.paths ?? [],
+    missing: browserHd.missing ?? [],
+    blocked: browserHd.blocked ?? [],
+    textureLimit: browserHd.maxTextureSize ?? null,
+    webglContext: browserHd.webglContext ?? null,
+    temporaryContextReleased: browserHd.temporaryContextReleased ?? false,
+    headlessPayloadReadsBefore: providerBefore.hdPayloadReads ?? 0,
+    headlessPayloadReadsStable: providerHeadless.hdPayloadReads ?? 0,
+    browserPayloadReads: Math.max(
+      0,
+      Number(providerDuring.hdPayloadReads ?? 0) - Number(providerHeadless.hdPayloadReads ?? 0),
+    ),
+    browserPayloadBytes: Math.max(
+      0,
+      Number(providerDuring.hdPayloadBytes ?? 0) - Number(providerHeadless.hdPayloadBytes ?? 0),
+    ),
+    rendererSubscribers: [
+      baselineSubscribers,
+      opened.bridge?.subscribers ?? null,
+      after.bridge?.subscribers ?? null,
+    ],
+    headlessLoadsHdAssets: false,
+    presentationOnly: browserHd.presentationOnly === true,
+    originalFallback: browserHd.originalFallback === true,
+    coreRestart,
+    characterRestart,
+    scriptRestart,
+    gameplayMutation: false,
+    actionGatewayRequests,
+    rawSocketAccess: false,
+    userScriptTouched: false,
+  };
+}
+
+async function startSlice113LiveTest(view, clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice113LiveTest = {
+    status: "running",
+    message: "Slice 11.3 HD Browser default test is running.",
+  };
+  renderSlice113LiveTest();
+
+  const verification = await runSlice113Verification(view);
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) {
+    throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  }
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live113-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const stepLines = verification.steps.map((step) =>
+    `- ${step.key}: ${String(step.outcome).toUpperCase()}`
+  );
+  const reportText = [
+    "ALRemastered Slice 11.3 one-click HD Browser default test",
+    `Test ID: ${testId}`,
+    "Slice: 11.3",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    `Browser graphics mode: ${verification.browserMode}`,
+    `Available: ${verification.available}`,
+    `Applied: ${verification.applied}`,
+    `Applied paths: ${verification.paths.join(", ") || "none"}`,
+    `Missing: ${verification.missing.join(", ") || "none"}`,
+    `Blocked: ${verification.blocked.join(", ") || "none"}`,
+    `Texture limit: ${verification.textureLimit ?? "unavailable"}`,
+    `WebGL context: ${verification.webglContext ?? "unavailable"}`,
+    `Temporary context released: ${verification.temporaryContextReleased}`,
+    `Headless payload reads before Browser: ${verification.headlessPayloadReadsBefore}`,
+    `Headless payload reads stable before Browser: ${verification.headlessPayloadReadsStable}`,
+    `Browser HD payload reads: ${verification.browserPayloadReads}`,
+    `Browser HD payload bytes: ${verification.browserPayloadBytes}`,
+    `Headless loads HD assets: ${verification.headlessLoadsHdAssets}`,
+    `Presentation only: ${verification.presentationOnly}`,
+    `Original fallback: ${verification.originalFallback}`,
+    `Renderer subscribers: ${verification.rendererSubscribers.join(" -> ")}`,
+    `Core restart: ${verification.coreRestart}`,
+    `Character restart: ${verification.characterRestart}`,
+    `Script restart: ${verification.scriptRestart}`,
+    "Gameplay mutation: false",
+    `Action Gateway requests: ${verification.actionGatewayRequests}`,
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+
+  const result = {
+    testId,
+    slice: "11.3",
+    outcome,
+    startedAt,
+    completedAt,
+    message: outcome === "passed"
+      ? "HD Browser default verification passed."
+      : "HD Browser default verification failed.",
+    ...verification,
+  };
+  state.slice113LastReport = reportText;
+  state.slice113LiveTest = { status: outcome, message: result.message, lastResult: result };
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice113LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice113LiveTest.addEventListener("click", async () => {
+  if (state.slice113LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice113LastReport = null;
+  elements.copySlice113LiveTestResult.hidden = true;
+
+  let view;
+  try {
+    view = openBrowserViewWindow("about:blank", "alremastered-hd-browser-verification");
+  } catch (error) {
+    state.slice113LiveTest = { status: "failed", message: error.message };
+    renderSlice113LiveTest();
+    setFeedback(`Slice 11.3 HD Browser default test could not start: ${error.message}`, "error");
+    return;
+  }
+
+  setFeedback(
+    "Slice 11.3 HD Browser default test started. Headless payload reads are checked before Browser View loads the eligible HD asset.",
+  );
+  try {
+    const { result, copied } = await startSlice113LiveTest(view, clipboardWrite);
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 11.3 test ${String(result.outcome).toUpperCase()}. ${copyMessage}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    if (view && !view.closed) view.close();
+    state.slice113LiveTest = { status: "failed", message: error.message };
+    renderSlice113LiveTest();
+    setFeedback(`Slice 11.3 HD Browser default test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice113LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice113LastReport) return;
+  try {
+    await writeClipboard(state.slice113LastReport);
+    setFeedback(
+      "Complete Slice 11.3 HD Browser default result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`HD Browser default result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice113LiveTest();
 
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));

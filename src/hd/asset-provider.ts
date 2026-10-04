@@ -43,6 +43,9 @@ export interface AlhdAssetProviderState {
   readonly presentationOnly: true;
   readonly originalFallback: true;
   readonly gameplaySemanticChanges: false;
+  readonly hdPayloadReads: number;
+  readonly hdPayloadBytes: number;
+  readonly headlessLoadsHdAssets: false;
   readonly message: string;
 }
 
@@ -56,6 +59,44 @@ export interface AlhdTextureGuardDiagnostics {
   readonly presentationOnly: true;
   readonly originalFallback: true;
   readonly message: string;
+}
+
+export interface AlhdBrowserAssetPlanEntry {
+  readonly sourcePath: string;
+  readonly hdPath: string;
+  readonly scale: number;
+  readonly hdPixels?: {
+    readonly width: number;
+    readonly height: number;
+  };
+  readonly mode: "hd" | "original";
+  readonly reason: AlhdAssetResolution["reason"];
+}
+
+export interface AlhdBrowserAssetPlan {
+  readonly schemaVersion: 1;
+  readonly mode: "hd";
+  readonly maxTextureSize: number | null;
+  readonly available: number;
+  readonly eligible: number;
+  readonly missing: readonly string[];
+  readonly blocked: readonly string[];
+  readonly entries: readonly AlhdBrowserAssetPlanEntry[];
+  readonly presentationOnly: true;
+  readonly originalFallback: true;
+}
+
+export interface AlhdBrowserAssetPayload {
+  readonly schemaVersion: 1;
+  readonly sourcePath: string;
+  readonly hdPath: string;
+  readonly mediaType: "image/png";
+  readonly scale: number;
+  readonly hdPixels?: {
+    readonly width: number;
+    readonly height: number;
+  };
+  readonly base64: string;
 }
 
 export interface AlhdAssetResolution {
@@ -90,6 +131,8 @@ export class AlhdAssetProvider {
   #manifest?: AlhdAssetManifest;
   #manifestStatus: AlhdAssetProviderState["manifestStatus"] = "missing";
   #message = "ALHD manifest has not been loaded.";
+  #hdPayloadReads = 0;
+  #hdPayloadBytes = 0;
 
   constructor(options: AlhdAssetProviderOptions) {
     this.#manifestPath = options.manifestPath;
@@ -129,7 +172,7 @@ export class AlhdAssetProvider {
     const active = replacements.filter((entry) => entry.state === "active");
     let availableHdFiles = 0;
     for (const entry of active) {
-      if (this.#fileExists(this.#hdAssetFile(entry.hdPath))) {
+      if (this.#hdAssetAvailable(entry.hdPath)) {
         availableHdFiles += 1;
       }
     }
@@ -149,6 +192,9 @@ export class AlhdAssetProvider {
       presentationOnly: true as const,
       originalFallback: true as const,
       gameplaySemanticChanges: false as const,
+      hdPayloadReads: this.#hdPayloadReads,
+      hdPayloadBytes: this.#hdPayloadBytes,
+      headlessLoadsHdAssets: false as const,
       message: this.#message,
     });
   }
@@ -201,8 +247,7 @@ export class AlhdAssetProvider {
       return originalResolution(source, "texture-too-large");
     }
 
-    const hdFile = this.#hdAssetFile(replacement.hdPath);
-    if (!this.#fileExists(hdFile)) {
+    if (!this.#hdAssetAvailable(replacement.hdPath)) {
       return originalResolution(source, "hd-file-missing");
     }
 
@@ -215,6 +260,86 @@ export class AlhdAssetProvider {
       presentationOnly: true as const,
       originalFallback: true as const,
     });
+  }
+
+  browserPlan(maxTextureSize?: number | null): AlhdBrowserAssetPlan {
+    const normalizedLimit = normalizeTextureLimit(maxTextureSize);
+    const active = (this.#manifest?.replacements ?? []).filter((entry) => entry.state === "active");
+    const entries = active.map((entry) => {
+      const resolution = this.resolve(entry.sourcePath, { maxTextureSize: normalizedLimit });
+      return Object.freeze({
+        sourcePath: entry.sourcePath,
+        hdPath: entry.hdPath,
+        scale: entry.scale,
+        hdPixels: entry.hdPixels,
+        mode: resolution.mode,
+        reason: resolution.reason,
+      });
+    });
+    const blocked = entries
+      .filter((entry) => entry.reason === "texture-too-large")
+      .map((entry) => entry.sourcePath)
+      .sort();
+    const missing = entries
+      .filter((entry) => entry.reason === "hd-file-missing")
+      .map((entry) => entry.sourcePath)
+      .sort();
+
+    return Object.freeze({
+      schemaVersion: 1 as const,
+      mode: "hd" as const,
+      maxTextureSize: normalizedLimit,
+      available: active.length,
+      eligible: Math.max(0, active.length - blocked.length),
+      missing: Object.freeze(missing),
+      blocked: Object.freeze(blocked),
+      entries: Object.freeze(entries),
+      presentationOnly: true as const,
+      originalFallback: true as const,
+    });
+  }
+
+  readBrowserAsset(hdPath: string): AlhdBrowserAssetPayload {
+    const normalized = normalizeAssetPath(hdPath, "hdPath");
+    const replacement = (this.#manifest?.replacements ?? []).find(
+      (entry) => entry.state === "active" && entry.hdPath === normalized,
+    );
+    if (!replacement) {
+      throw new Error("HD asset is not active in the ALHD manifest");
+    }
+
+    const sidecar = this.#hdAssetBase64File(normalized);
+    if (!this.#fileExists(sidecar)) {
+      throw new Error("HD asset payload is not packaged");
+    }
+
+    const base64 = this.#readText(sidecar).replace(/\s+/g, "");
+    if (!base64 || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64)) {
+      throw new Error("HD asset payload is invalid");
+    }
+    const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+    const byteLength = Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
+    this.#hdPayloadReads += 1;
+    this.#hdPayloadBytes += byteLength;
+
+    return Object.freeze({
+      schemaVersion: 1 as const,
+      sourcePath: replacement.sourcePath,
+      hdPath: replacement.hdPath,
+      mediaType: "image/png" as const,
+      scale: replacement.scale,
+      hdPixels: replacement.hdPixels,
+      base64,
+    });
+  }
+
+  #hdAssetAvailable(hdPath: string): boolean {
+    return this.#fileExists(this.#hdAssetFile(hdPath)) ||
+      this.#fileExists(this.#hdAssetBase64File(hdPath));
+  }
+
+  #hdAssetBase64File(hdPath: string): string {
+    return `${this.#hdAssetFile(hdPath)}.base64`;
   }
 
   #hdAssetFile(hdPath: string): string {

@@ -44,6 +44,27 @@
     </section>
 
     <section class="diagnostics-panel">
+      <div class="diagnostics-heading">
+        <div>
+          <p class="eyebrow">Adventure Land HD</p>
+          <h2>Browser renderer graphics</h2>
+        </div>
+        <strong id="browser-hd-mode">HD preferred</strong>
+      </div>
+      <div class="status-grid">
+        <article class="card"><span class="label">Available</span><strong id="browser-hd-available">—</strong></article>
+        <article class="card"><span class="label">Applied</span><strong id="browser-hd-applied">—</strong></article>
+        <article class="card"><span class="label">Missing</span><strong id="browser-hd-missing">—</strong></article>
+        <article class="card"><span class="label">Blocked</span><strong id="browser-hd-blocked">—</strong></article>
+        <article class="card"><span class="label">Texture limit</span><strong id="browser-hd-texture-limit">—</strong></article>
+      </div>
+      <div id="browser-hd-previews" aria-label="Applied HD asset previews"></div>
+      <p class="selection-note" id="browser-hd-message">
+        Browser mode prefers eligible packaged HD assets. Missing or blocked assets automatically remain on the original Adventure Land presentation.
+      </p>
+    </section>
+
+    <section class="diagnostics-panel">
       <div class="status-grid">
         <article class="card"><span class="label">Bridge sequence</span><strong id="browser-bridge-sequence">—</strong></article>
         <article class="card"><span class="label">Snapshot time</span><strong id="browser-snapshot-time">—</strong></article>

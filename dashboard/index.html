@@ -6,7 +6,7 @@
   <title>ALRemastered</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body data-current-verification-slice="11.2">
+<body data-current-verification-slice="11.3">
   <main class="shell">
     <header class="topbar">
       <div>
@@ -308,6 +308,20 @@
         </div>
         <small class="selection-note" id="slice-11-2-live-test-note">
           Detects WebGL MAX_TEXTURE_SIZE with a temporary context, verifies oversized ALHD textures fall back to originals, exposes diagnostics, and leaves gameplay/runtime state unchanged.
+        </small>
+      </div>
+    </div>
+
+    <div class="selection-content" data-verification-test="11.3" hidden>
+      <div>
+        <h3>Slice 11.3 one-click HD Browser default test</h3>
+        <div class="server-picker">
+          <button id="start-slice-11-3-live-test" type="button">Start test</button>
+          <strong id="slice-11-3-live-test-status" aria-live="polite">Ready</strong>
+          <button id="copy-slice-11-3-live-test-result" type="button" hidden>Copy last test result</button>
+        </div>
+        <small class="selection-note" id="slice-11-3-live-test-note">
+          Opens Browser View, verifies HD is preferred and an eligible packaged ALHD asset is applied, confirms missing or blocked assets stay original, and proves Headless did not load HD image payloads before Browser attach.
         </small>
       </div>
     </div>

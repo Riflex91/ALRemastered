@@ -35,13 +35,13 @@ test("Slice 11.1 loads the packaged ALHD manifest and exposes read-only original
     assert.equal(state.manifestSchemaVersion, 1);
     assert.equal(state.replacementCount, 2);
     assert.equal(state.activeReplacementCount, 2);
-    assert.equal(state.availableHdFiles, 0);
-    assert.equal(state.missingHdFiles, 2);
+    assert.equal(state.availableHdFiles, 1);
+    assert.equal(state.missingHdFiles, 1);
     assert.equal(state.presentationOnly, true);
     assert.equal(state.originalFallback, true);
     assert.equal(state.gameplaySemanticChanges, false);
 
-    const sourcePath = "images/tiles/characters/jubchan_1.png";
+    const sourcePath = "images/tiles/map/doors.png";
     const known = await (
       await fetch(
         `${url}/api/hd/assets/resolve?sourcePath=${encodeURIComponent(sourcePath)}`,
@@ -78,7 +78,7 @@ test("Slice 11.1 retains ALHD source semantics and is the only current verificat
     readFileSync(new URL("../assets/alhd/hd-assets.json", import.meta.url), "utf8"),
   );
 
-  assert.match(html, /data-current-verification-slice="11\.2"/);
+  assert.match(html, /data-current-verification-slice="11\.3"/);
   assert.match(html, /data-verification-test="10\.4" hidden/);
   assert.match(html, /data-verification-test="11\.1" hidden/);
   assert.match(html, /Slice 11\.1 one-click ALHD asset provider test/);
