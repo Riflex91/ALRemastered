@@ -73,6 +73,10 @@ const state = {
 
 const elements = {
   connectionStatus: document.querySelector("#connection-status"),
+  currentVerificationPanel: document.querySelector("#current-verification-panel"),
+  currentVerificationSlot: document.querySelector("#current-verification-slot"),
+  currentVerificationStatus: document.querySelector("#current-verification-status"),
+  currentVerificationEmpty: document.querySelector("#current-verification-empty"),
   coreStatus: document.querySelector("#core-status"),
   version: document.querySelector("#client-version"),
   uptime: document.querySelector("#uptime"),
@@ -363,6 +367,38 @@ function setFeedback(message, kind = "") {
   elements.feedback.textContent = message;
   elements.feedback.className = `feedback ${kind}`.trim();
 }
+
+
+function mountCurrentVerification() {
+  const currentSlice = document.body.dataset.currentVerificationSlice?.trim() ?? "";
+  const tests = [...document.querySelectorAll("[data-verification-test]")];
+
+  for (const test of tests) {
+    test.hidden = true;
+  }
+
+  if (!currentSlice) {
+    elements.currentVerificationStatus.textContent = "None required";
+    elements.currentVerificationEmpty.hidden = false;
+    return;
+  }
+
+  const current = tests.find((test) => test.dataset.verificationTest === currentSlice);
+  if (!current) {
+    elements.currentVerificationStatus.textContent = `Slice ${currentSlice} unavailable`;
+    elements.currentVerificationEmpty.textContent =
+      `The current Slice ${currentSlice} verification control is not present in this build.`;
+    elements.currentVerificationEmpty.hidden = false;
+    return;
+  }
+
+  elements.currentVerificationSlot.replaceChildren(current);
+  current.hidden = false;
+  elements.currentVerificationStatus.textContent = `Slice ${currentSlice}`;
+  elements.currentVerificationEmpty.hidden = true;
+}
+
+mountCurrentVerification();
 
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));

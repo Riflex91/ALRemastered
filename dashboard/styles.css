@@ -780,3 +780,16 @@ h2 {
   width: auto;
   justify-self: start;
 }
+
+
+.current-verification-panel {
+  margin: 1.25rem 0;
+  padding: 1rem;
+  border: 1px solid #2b313c;
+  border-radius: 12px;
+  background: #0f1319;
+}
+
+.current-verification-panel > #current-verification-slot > .selection-content {
+  margin-top: 0.75rem;
+}

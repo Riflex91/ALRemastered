@@ -6,7 +6,7 @@
   <title>ALRemastered</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body>
+<body data-current-verification-slice="">
   <main class="shell">
     <header class="topbar">
       <div>
@@ -69,6 +69,21 @@
         <span class="label">Last deploy</span>
         <strong id="game-last-deploy">—</strong>
       </article>
+    </section>
+
+
+    <section class="current-verification-panel" id="current-verification-panel">
+      <div class="diagnostics-heading">
+        <div>
+          <p class="eyebrow">Development verification</p>
+          <h2>Current verification</h2>
+        </div>
+        <strong id="current-verification-status">None required</strong>
+      </div>
+      <div id="current-verification-slot"></div>
+      <p id="current-verification-empty" class="selection-note">
+        No manual verification test is currently required. Historical verification harnesses remain retained through their APIs and automated test suites.
+      </p>
     </section>
 
     <section class="account-panel">
@@ -192,7 +207,7 @@
         <button id="setup-wizard-next" type="button">Next</button>
       </div>
 
-      <div class="selection-content">
+      <div class="selection-content" data-verification-test="8.2" hidden>
         <div>
           <h3>Slice 8.2 one-click Setup Wizard test</h3>
           <div class="server-picker">
@@ -436,7 +451,7 @@
         The gateway probe is local-only and does not send movement, combat, skill, item, party, or other gameplay actions to Adventure Land.
       </p>
 
-      <div class="selection-content">
+      <div class="selection-content" data-verification-test="3.5" hidden>
         <div>
           <h3>Slice 3.5 one-click live test</h3>
           <div class="server-picker">
@@ -573,7 +588,7 @@
         </article>
       </div>
 
-      <div class="selection-content">
+      <div class="selection-content" data-verification-test="4.1" hidden>
         <div>
           <h3>Slice 4.1 one-click live test</h3>
           <div class="server-picker">
@@ -587,7 +602,7 @@
         </div>
       </div>
 
-      <div class="selection-content">
+      <div class="selection-content" data-verification-test="4.2" hidden>
         <div>
           <h3>Slice 4.2 one-click live test</h3>
           <div class="server-picker">
@@ -601,7 +616,7 @@
         </div>
       </div>
 
-      <div class="selection-content">
+      <div class="selection-content" data-verification-test="4.3" hidden>
         <div>
           <h3>Slice 4.3 one-click live test</h3>
           <div class="server-picker">
@@ -615,7 +630,7 @@
         </div>
       </div>
 
-      <div class="selection-content">
+      <div class="selection-content" data-verification-test="4.4" hidden>
         <div>
           <h3>Slice 4.4 one-click storage test</h3>
           <div class="server-picker">
@@ -654,7 +669,7 @@
         </div>
       </div>
 
-      <div class="selection-content">
+      <div class="selection-content" data-verification-test="8.3" hidden>
         <div>
           <h3>Slice 8.3 one-click Template Configuration test</h3>
           <div class="server-picker">
@@ -706,7 +721,7 @@
         </div>
       </div>
 
-      <div class="selection-content">
+      <div class="selection-content" data-verification-test="4.5" hidden>
         <div>
           <h3>Slice 4.5 one-click live farm test</h3>
           <div class="server-picker">
@@ -720,7 +735,7 @@
         </div>
       </div>
 
-      <div class="selection-content">
+      <div class="selection-content" data-verification-test="5.1" hidden>
         <div>
           <h3>Slice 5.1 one-click heartbeat test</h3>
           <div class="server-picker">
@@ -734,7 +749,7 @@
         </div>
       </div>
 
-      <div class="selection-content">
+      <div class="selection-content" data-verification-test="5.2" hidden>
         <div>
           <h3>Slice 5.2 one-click disconnect/reconnect test</h3>
           <div class="server-picker">
@@ -748,7 +763,7 @@
         </div>
       </div>
 
-      <div class="selection-content">
+      <div class="selection-content" data-verification-test="5.3" hidden>
         <div>
           <h3>Slice 5.3 one-click death/respawn recovery test</h3>
           <div class="server-picker">
@@ -762,7 +777,7 @@
         </div>
       </div>
 
-      <div class="selection-content">
+      <div class="selection-content" data-verification-test="5.4" hidden>
         <div>
           <h3>Slice 5.4 one-click watchdog/restart-guard test</h3>
           <div class="server-picker">
@@ -776,7 +791,7 @@
         </div>
       </div>
 
-      <div class="selection-content">
+      <div class="selection-content" data-verification-test="6.1" hidden>
         <div>
           <h3>Slice 6.1 one-click map/geometry-model test</h3>
           <div class="server-picker">
@@ -790,7 +805,7 @@
         </div>
       </div>
 
-      <div class="selection-content">
+      <div class="selection-content" data-verification-test="6.2" hidden>
         <div>
           <h3>Slice 6.2 one-click simple path-planner test</h3>
           <div class="server-picker">
@@ -804,7 +819,7 @@
         </div>
       </div>
 
-      <div class="selection-content">
+      <div class="selection-content" data-verification-test="6.3" hidden>
         <div>
           <h3>Slice 6.3 one-click smart_move() compatibility test</h3>
           <div class="server-picker">
@@ -818,7 +833,7 @@
         </div>
       </div>
 
-      <div class="selection-content">
+      <div class="selection-content" data-verification-test="6.4" hidden>
         <div>
           <h3>Slice 6.4 movement trail and planned route</h3>
           <div class="server-picker">
@@ -878,7 +893,7 @@
         </div>
       </div>
 
-      <div class="selection-content">
+      <div class="selection-content" data-verification-test="8.1" hidden>
         <div>
           <h3>Slice 8.1 one-click Character Cards test</h3>
           <div class="server-picker">
@@ -923,7 +938,7 @@
         </div>
       </div>
 
-      <div class="selection-content">
+      <div class="selection-content" data-verification-test="7.1" hidden>
         <div>
           <h3>Slice 7.1 one-click multi-character session test</h3>
           <div class="server-picker">
@@ -964,7 +979,7 @@
         </div>
       </div>
 
-      <div class="selection-content">
+      <div class="selection-content" data-verification-test="7.2" hidden>
         <div>
           <h3>Slice 7.2 one-click local Character messaging test</h3>
           <div class="server-picker">
@@ -1009,7 +1024,7 @@
         </div>
       </div>
 
-      <div class="selection-content">
+      <div class="selection-content" data-verification-test="7.3" hidden>
         <div>
           <h3>Slice 7.3 one-click Party Coordinator test</h3>
           <div class="server-picker">
@@ -1069,7 +1084,7 @@
         </div>
       </div>
 
-      <div class="selection-content">
+      <div class="selection-content" data-verification-test="7.4" hidden>
         <div>
           <h3>Slice 7.4 one-click Party Templates test</h3>
           <div class="server-picker">
