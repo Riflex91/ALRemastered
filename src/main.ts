@@ -57,6 +57,7 @@ import { Slice83LiveTestService } from "./live-test/slice-8-3.ts";
 import { Slice84LiveTestService } from "./live-test/slice-8-4.ts";
 import { ScriptPackageImporter } from "./packages/importer.ts";
 import { ScriptPackageLibrary } from "./packages/library.ts";
+import { ScriptPackageUpdateService } from "./packages/updater.ts";
 import { getUserPaths } from "./platform/paths.ts";
 import { AdventureLandScriptApiBridge } from "./script/adventure-api.ts";
 import { ScriptRuntimeService } from "./script/runtime.ts";
@@ -201,6 +202,7 @@ let simpleFarmerService: SimpleFarmerTemplateService | undefined;
 let slice35LiveTestService: Slice35LiveTestService | undefined;
 let scriptRuntime: ScriptRuntimeService | undefined;
 let scriptPackageLibrary: ScriptPackageLibrary | undefined;
+let scriptPackageUpdateService: ScriptPackageUpdateService | undefined;
 let slice41LiveTestService: Slice41LiveTestService | undefined;
 let slice42LiveTestService: Slice42LiveTestService | undefined;
 let slice43LiveTestService: Slice43LiveTestService | undefined;
@@ -695,6 +697,12 @@ scriptPackageLibrary = new ScriptPackageLibrary({
   logger,
   runtimeState: () => scriptRuntime!.state(),
 });
+scriptPackageUpdateService = new ScriptPackageUpdateService({
+  rootDir: importedPackagesDir,
+  importer: scriptPackageImporter,
+  library: scriptPackageLibrary,
+  logger,
+});
 characterCardsService = new CharacterCardsService({
   logger,
   selection: selectionService!,
@@ -1005,6 +1013,7 @@ dashboard = new DashboardServer({
   dashboardLayoutStore,
   scriptPackageImporter,
   scriptPackageLibrary,
+  scriptPackageUpdateService,
   rendererBridge,
   rendererHandoffService,
   alhdAssetProvider,
