@@ -9,6 +9,10 @@ import {
 } from "node:fs";
 import { isIP } from "node:net";
 import { join } from "node:path";
+import {
+  parsePortableDashboardProfile,
+  portableDashboardRoleIds,
+} from "../../dashboard/layout-transfer.js";
 import type { Logger } from "../logging/logger.ts";
 import {
   canonicalPackageJson,
@@ -59,6 +63,12 @@ export interface ScriptPackageImportCodeFile {
   readonly source: string;
 }
 
+export interface ScriptPackageImportDashboard {
+  readonly path: string;
+  readonly profile: unknown;
+  readonly roleIds: readonly string[];
+}
+
 export interface ScriptPackageImportPreview {
   readonly status: "ready";
   readonly previewToken: string;
@@ -69,11 +79,13 @@ export interface ScriptPackageImportPreview {
   readonly description: string;
   readonly readme: string;
   readonly compatibility: unknown;
+  readonly packageKind: "script" | "dashboard";
   readonly permissions: readonly ScriptPackagePermission[];
   readonly safePermissions: readonly ScriptPackagePermission[];
   readonly dangerousPermissions: readonly ScriptPackagePermission[];
   readonly configSchema: Readonly<Record<string, unknown>>;
   readonly code: readonly ScriptPackageImportCodeFile[];
+  readonly dashboard?: ScriptPackageImportDashboard;
   readonly fileCount: number;
   readonly totalBytes: number;
   readonly manifestHash: string;
@@ -87,6 +99,7 @@ export interface ScriptPackageImportReceipt {
   readonly packageId: string;
   readonly name: string;
   readonly version: string;
+  readonly packageKind: "script" | "dashboard";
   readonly previewToken: string;
   readonly manifestHash: string;
   readonly approvedDangerous: readonly ScriptPackagePermission[];
@@ -104,6 +117,7 @@ interface StoredImportReceipt {
   readonly packageId: string;
   readonly name: string;
   readonly version: string;
+  readonly packageKind: "script" | "dashboard";
   readonly previewToken: string;
   readonly manifestHash: string;
   readonly approvedDangerous: readonly ScriptPackagePermission[];
@@ -173,19 +187,46 @@ export class ScriptPackageImporter {
     const inspection = validateScriptPackage(input);
     const document = input as ScriptPackageDocument;
     const readme = document.files[document.manifest.readme.path]!;
-    const configSchema = parseConfigSchema(
-      document.files[document.manifest.configSchema.path]!,
-    );
+    const packageKind = inspection.packageKind;
+    const configSchema = packageKind === "script"
+      ? parseConfigSchema(document.files[document.manifest.configSchema!.path]!)
+      : Object.freeze({
+        type: "object",
+        properties: Object.freeze({}),
+        additionalProperties: false,
+      });
     const permissions = document.manifest.permissions as readonly ScriptPackagePermission[];
     const dangerousPermissions = permissions.filter(isDangerousScriptPackagePermission);
     const safePermissions = permissions.filter(
       (permission) => !isDangerousScriptPackagePermission(permission),
     );
-    const code = document.manifest.scripts.map((script) => Object.freeze({
-      path: script.path,
-      entry: script.entry,
-      source: document.files[script.path]!,
-    }));
+    const code = packageKind === "script"
+      ? document.manifest.scripts!.map((script) => Object.freeze({
+        path: script.path,
+        entry: script.entry,
+        source: document.files[script.path]!,
+      }))
+      : [];
+    let dashboard: ScriptPackageImportDashboard | undefined;
+    if (packageKind === "dashboard") {
+      const path = document.manifest.dashboard!.path;
+      let portable: unknown;
+      try {
+        portable = parsePortableDashboardProfile(JSON.parse(document.files[path]!));
+      } catch (error) {
+        throw new ScriptPackageImportError(
+          "PACKAGE_IMPORT_DASHBOARD_INVALID",
+          error instanceof Error
+            ? `Dashboard package profile is invalid: ${error.message}`
+            : "Dashboard package profile is invalid.",
+        );
+      }
+      dashboard = Object.freeze({
+        path,
+        profile: Object.freeze(structuredClone(portable)),
+        roleIds: Object.freeze([...portableDashboardRoleIds(portable)]),
+      });
+    }
     const previewToken = sha256Text(canonicalPackageJson(document));
 
     return Object.freeze({
@@ -198,11 +239,13 @@ export class ScriptPackageImporter {
       description: descriptionFromReadme(readme),
       readme,
       compatibility: structuredClone(inspection.compatibility),
+      packageKind,
       permissions: Object.freeze([...permissions]),
       safePermissions: Object.freeze([...safePermissions]),
       dangerousPermissions: Object.freeze([...dangerousPermissions]),
       configSchema,
       code: Object.freeze(code),
+      ...(dashboard ? { dashboard } : {}),
       fileCount: inspection.fileCount,
       totalBytes: inspection.totalBytes,
       manifestHash: inspection.manifestHash,
@@ -271,6 +314,7 @@ export class ScriptPackageImporter {
       packageId: preview.packageId,
       name: preview.name,
       version: preview.version,
+      packageKind: preview.packageKind,
       previewToken: preview.previewToken,
       manifestHash: preview.manifestHash,
       approvedDangerous,
@@ -284,9 +328,10 @@ export class ScriptPackageImporter {
     atomicWrite(packagePath, packageContent);
     atomicWrite(receiptPath, `${JSON.stringify(storedReceipt, null, 2)}\n`);
 
-    this.#logger?.info("Script package imported inactive.", {
+    this.#logger?.info("Package imported inactive.", {
       packageId: preview.packageId,
       version: preview.version,
+      packageKind: preview.packageKind,
       dangerousPermissionsApproved: approvedDangerous.length,
       inactive: true,
       executionAttempted: false,
@@ -298,6 +343,7 @@ export class ScriptPackageImporter {
       packageId: preview.packageId,
       name: preview.name,
       version: preview.version,
+      packageKind: preview.packageKind,
       previewToken: preview.previewToken,
       manifestHash: preview.manifestHash,
       approvedDangerous,
