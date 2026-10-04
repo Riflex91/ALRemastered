@@ -1182,3 +1182,77 @@ Repository/release evidence:
 **Canonical queue status: Slice 7.1 = VERIFIED.**
 
 Do not repeat Slice 7.1 merely because implementation planning text remains elsewhere. Slice 7.2 – Local Character Messaging may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
+
+
+---
+
+### Alpha.54 real one-click result: PASSED — Slice 7.2 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.54`
+- release target / tested implementation main: `6c8fc1d548341413695ff5facd597c588c863afd`
+- client: `0.1.0-alpha.54` / Windows
+- platform: `win32`
+- test ID: `live72-992e8382-2e17-4987-885b-b9ea8cb7f77a`
+- primary Character: `My_Merchant`
+- managed test Character: `My_Ranger1`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-04T00:00:33.309Z → 2026-10-04T00:00:33.696Z`
+- diagnostic export: 61 log lines, `Secrets sanitized: yes`
+
+The one-click harness completed the full Slice 7.2 local Character messaging validation:
+
+- preflight began with exactly one active primary Character session, three available session slots, an unloaded user Script runtime, `localOnly:true`, and `rawSocketAccess:false`;
+- the manager connected `My_Ranger1` as one temporary managed Character on EU II, producing exactly two active local Character sessions;
+- an isolated probe worker on primary `My_Merchant` called Adventure Land-compatible `send_cm()` with the active local target plus one intentionally missing target;
+- the first local message was delivered `My_Merchant → My_Ranger1` with sequence `1`;
+- the compatible result reported `receivers:["My_Ranger1"]` and `locals:["My_Ranger1"]`;
+- the intentionally missing local recipient was omitted from `receivers` / `locals`, and telemetry recorded exactly one unavailable recipient;
+- the managed Character then sent the local reply `My_Ranger1 → My_Merchant` with sequence `2`;
+- the reply reached the primary isolated worker as an Adventure Land-compatible `character.on("cm")` event;
+- the worker diagnostic explicitly recorded event name `cm` and the probe logged the matching receive marker;
+- global/server CM routing was not used;
+- final messaging deltas were exactly `2` requests, `2` local deliveries, and `1` unavailable recipient;
+- cleanup stopped the isolated probe worker and only the managed test session;
+- final session state returned to exactly one active primary Character and zero managed Characters;
+- primary `My_Merchant` remained connected;
+- user Script runtime stayed `unloaded → unloaded`;
+- `userScriptInterrupted:false`;
+- `localOnly:true`;
+- `gameplayMutation:false`;
+- `rawSocketAccess:false`;
+- `serverRoutingUsed:false`.
+
+Diagnostic evidence confirms the critical ordering:
+
+1. Slice 7.2 live test started with local-only safety flags;
+2. managed session start requested and `My_Ranger1` connected;
+3. isolated `slice72-local-cm-probe` worker loaded and started;
+4. primary-to-managed local message sequence `1` delivered;
+5. `send_cm()` completed locally with one requested target omitted as unavailable;
+6. managed-to-primary local reply sequence `2` delivered;
+7. runtime dispatched Adventure Land game event `cm`;
+8. probe recorded the matching `character.on("cm")` receive marker;
+9. probe worker stopped;
+10. managed Character disconnected under controlled reason `slice72_live_test`;
+11. managed session stopped;
+12. final Slice 7.2 PASS recorded with exact request/delivery deltas and all safety flags.
+
+Repository/release evidence:
+
+- implementation PR #105 final feature head: `64605f34d3ddddf1c4a915534c3f387d638bc910`;
+- final PR CI run `37162978790` completed with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #105 merged with method `merge` into exact implementation main `6c8fc1d548341413695ff5facd597c588c863afd`;
+- exact post-implementation-main CI run `37163145066` completed with all four required jobs successful;
+- release publish run `37163273306` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.54`, tag `v0.1.0-alpha.54`, GitHub release target, and tested implementation `main` were verified commit-identical at `6c8fc1d548341413695ff5facd597c588c863afd`;
+- published assets:
+  - Windows x64 installer SHA-256 `b820dee62c979a6db12aaaf0bdda447c5ae87b263f138e25fc8bb96a84a03c97`
+  - Linux x64 installer SHA-256 `d089027ff36818198332c4db45a350c78560fbbc2e3ab91b1298e560492e31cd`
+  - updater manifest SHA-256 `30966331837085610a6c304138886b673bc343db3461559b36457d5098189761`.
+
+**Canonical queue status: Slice 7.2 = VERIFIED.**
+
+Do not repeat Slice 7.2 merely because implementation planning text or historical failed CI attempts remain elsewhere. Slice 7.3 – Party Coordinator may start only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
