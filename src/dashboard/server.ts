@@ -298,6 +298,15 @@ export class DashboardServer {
       }
       return this.#json(response, this.#dashboardLayoutStore.state());
     }
+    if (method === "POST" && path === "/api/dashboard-layouts/reload") {
+      if (!this.#dashboardLayoutStore) {
+        return this.#json(response, { error: "Dashboard layout store is unavailable." }, 503);
+      }
+      return this.#runDashboardLayoutAction(
+        response,
+        () => this.#dashboardLayoutStore!.reload(),
+      );
+    }
     if (method === "POST" && path === "/api/dashboard-layouts/profile") {
       if (!this.#dashboardLayoutStore) {
         return this.#json(response, { error: "Dashboard layout store is unavailable." }, 503);
