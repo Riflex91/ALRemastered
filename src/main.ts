@@ -21,6 +21,7 @@ import { CharacterCardsService } from "./dashboard/character-cards.ts";
 import { SetupWizardService } from "./dashboard/setup-wizard.ts";
 import { TemplateConfigurationService } from "./dashboard/template-config.ts";
 import { ExplainabilityService } from "./dashboard/explainability.ts";
+import { DashboardLayoutStore } from "./dashboard/layout-store.ts";
 import { DashboardServer } from "./dashboard/server.ts";
 import { DiagnosticsService } from "./diagnostics/service.ts";
 import { AdventureLandGameDataCache } from "./game/data-cache.ts";
@@ -896,6 +897,19 @@ diagnostics.registerComponent("script-runtime", () => {
   };
 });
 
+const dashboardLayoutStore = new DashboardLayoutStore(
+  join(userPaths.configDir, "dashboard-layouts.json"),
+);
+diagnostics.registerComponent("dashboard-layouts", () => {
+  const state = dashboardLayoutStore.state();
+  return {
+    name: "dashboard-layouts",
+    status: "healthy",
+    message:
+      `Dashboard layout persistence ready. ${state.profiles.length} profile(s); active ${state.activeProfileId}.`,
+  };
+});
+
 dashboard = new DashboardServer({
   logger,
   runtime,
@@ -910,6 +924,7 @@ dashboard = new DashboardServer({
   setupWizardService,
   templateConfigurationService,
   explainabilityService,
+  dashboardLayoutStore,
   actionGateway,
   movementService,
   attackService,
