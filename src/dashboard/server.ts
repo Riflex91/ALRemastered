@@ -32,6 +32,7 @@ import type { DiagnosticsService } from "../diagnostics/service.ts";
 import type { AdventureLandGameDataService } from "../game/data-service.ts";
 import type { AdventureLandVersionService } from "../game/version-service.ts";
 import type { Logger, LogRecord } from "../logging/logger.ts";
+import type { RendererBridge } from "../renderer/bridge.ts";
 import type { Slice35LiveTestService } from "../live-test/slice-3-5.ts";
 import type { Slice41LiveTestService } from "../live-test/slice-4-1.ts";
 import type { Slice42LiveTestService } from "../live-test/slice-4-2.ts";
@@ -80,6 +81,7 @@ export interface DashboardServerOptions {
   readonly templateConfigurationService?: TemplateConfigurationService;
   readonly explainabilityService?: ExplainabilityService;
   readonly dashboardLayoutStore?: DashboardLayoutStore;
+  readonly rendererBridge?: RendererBridge;
   readonly actionGateway?: ActionGateway;
   readonly movementService?: AdventureLandMovementService;
   readonly attackService?: AdventureLandAttackService;
@@ -137,6 +139,7 @@ export class DashboardServer {
   readonly #templateConfigurationService?: TemplateConfigurationService;
   readonly #explainabilityService?: ExplainabilityService;
   readonly #dashboardLayoutStore?: DashboardLayoutStore;
+  readonly #rendererBridge?: RendererBridge;
   readonly #actionGateway?: ActionGateway;
   readonly #movementService?: AdventureLandMovementService;
   readonly #attackService?: AdventureLandAttackService;
@@ -178,6 +181,7 @@ export class DashboardServer {
   #server?: Server;
   #url?: string;
   readonly #clients = new Set<ServerResponse>();
+  readonly #rendererUnsubscribes = new Set<() => void>();
   #unsubscribe?: () => void;
 
   constructor(options: DashboardServerOptions) {
@@ -197,6 +201,7 @@ export class DashboardServer {
     this.#templateConfigurationService = options.templateConfigurationService;
     this.#explainabilityService = options.explainabilityService;
     this.#dashboardLayoutStore = options.dashboardLayoutStore;
+    this.#rendererBridge = options.rendererBridge;
     this.#actionGateway = options.actionGateway;
     this.#movementService = options.movementService;
     this.#attackService = options.attackService;
@@ -280,6 +285,8 @@ export class DashboardServer {
     this.#unsubscribe = undefined;
     for (const client of this.#clients) client.end();
     this.#clients.clear();
+    for (const unsubscribe of this.#rendererUnsubscribes) unsubscribe();
+    this.#rendererUnsubscribes.clear();
 
     const server = this.#server;
     this.#server = undefined;
@@ -1919,6 +1926,42 @@ export class DashboardServer {
         "Cache-Control": "no-store",
       });
       response.end(diagnosticPackage.content);
+      return;
+    }
+
+    if (method === "GET" && path === "/api/renderer/snapshot") {
+      if (!this.#rendererBridge) {
+        return this.#json(response, { error: "Renderer bridge is unavailable." }, 503);
+      }
+      return this.#json(response, {
+        bridge: this.#rendererBridge.state(),
+        snapshot: this.#rendererBridge.snapshot(),
+      });
+    }
+    if (method === "GET" && path === "/api/renderer/stream") {
+      if (!this.#rendererBridge) {
+        return this.#json(response, { error: "Renderer bridge is unavailable." }, 503);
+      }
+      response.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+      });
+      response.write(": renderer connected\n\n");
+      let unsubscribe: (() => void) | undefined;
+      unsubscribe = this.#rendererBridge.subscribe((event) => {
+        if (response.writableEnded) return;
+        response.write(
+          `id: ${event.sequence}\nevent: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`,
+        );
+      });
+      this.#rendererUnsubscribes.add(unsubscribe);
+      response.on("close", () => {
+        if (!unsubscribe) return;
+        unsubscribe();
+        this.#rendererUnsubscribes.delete(unsubscribe);
+        unsubscribe = undefined;
+      });
       return;
     }
 
