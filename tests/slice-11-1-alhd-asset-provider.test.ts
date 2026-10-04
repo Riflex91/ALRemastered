@@ -61,7 +61,7 @@ test("Slice 11.1 loads the packaged ALHD manifest and exposes read-only original
     assert.equal(unknown.reason, "not-in-manifest");
 
     const mutationAttempt = await fetch(`${url}/api/hd/assets`, { method: "POST" });
-    assert.equal(mutationAttempt.status, 404);
+    assert.equal(mutationAttempt.status, 405);
   } finally {
     await dashboard.stop();
     runtime.stop();
