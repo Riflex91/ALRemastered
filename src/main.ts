@@ -55,6 +55,7 @@ import { Slice81LiveTestService } from "./live-test/slice-8-1.ts";
 import { Slice82LiveTestService } from "./live-test/slice-8-2.ts";
 import { Slice83LiveTestService } from "./live-test/slice-8-3.ts";
 import { Slice84LiveTestService } from "./live-test/slice-8-4.ts";
+import { ScriptPackageImporter } from "./packages/importer.ts";
 import { getUserPaths } from "./platform/paths.ts";
 import { AdventureLandScriptApiBridge } from "./script/adventure-api.ts";
 import { ScriptRuntimeService } from "./script/runtime.ts";
@@ -108,6 +109,10 @@ const logger = new Logger({
   component: "core",
   logFile: join(userPaths.logsDir, "client.log"),
 });
+const scriptPackageImporter = new ScriptPackageImporter(
+  join(userPaths.dataDir, "packages", "imported"),
+  logger,
+);
 
 const updateSessionHandoffRaw = process.env[UPDATE_SESSION_HANDOFF_ENV];
 delete process.env[UPDATE_SESSION_HANDOFF_ENV];
@@ -990,6 +995,7 @@ dashboard = new DashboardServer({
   templateConfigurationService,
   explainabilityService,
   dashboardLayoutStore,
+  scriptPackageImporter,
   rendererBridge,
   rendererHandoffService,
   alhdAssetProvider,
