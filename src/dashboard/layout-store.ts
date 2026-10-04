@@ -204,7 +204,7 @@ export class DashboardLayoutStore {
   }
 
   #load(): DashboardLayoutStoreState {
-    if (!existsSync(this.#path)) return defaultState(this.#clock());
+    if (!existsSync(this.#path)) return defaultState(this.#clock);
     try {
       const parsed = JSON.parse(readFileSync(this.#path, "utf8")) as unknown;
       return normalizeState(parsed);
