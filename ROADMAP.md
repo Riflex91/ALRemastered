@@ -3574,3 +3574,83 @@ Scope/safety evidence:
 
 Slice 11.3 – HD Standard im Browser-Renderer may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
 
+
+
+---
+
+## Verification Evidence — Slice 11.3 HD Browser Default
+
+**Status: VERIFIED**
+
+> 2026-10-04: VERIFIED on Windows with `0.1.0-alpha.72`. Real installed one-click test `live113-97ffa307-040f-42c1-bcf4-42b36d34fccb` passed HD-by-default Browser rendering, real HD payload application, original fallback for a missing HD asset, GPU texture guarding, strict Headless metadata-only behavior, Renderer Bridge attach/detach continuity, and Core/Character/Script/Action-Gateway continuity.
+
+Live verification evidence:
+
+- client: `0.1.0-alpha.72`;
+- platform: `win32`;
+- test ID: `live113-97ffa307-040f-42c1-bcf4-42b36d34fccb`;
+- outcome: `PASSED`;
+- test window: `2026-10-04T16:00:27.921Z → 2026-10-04T16:00:28.134Z`;
+- `headless-no-hd-payload: PASSED`;
+- `browser-hd-default: PASSED`;
+- `browser-hd-status: PASSED`;
+- `browser-hd-payload-loaded: PASSED`;
+- `browser-renderer-attached: PASSED`;
+- `runtime-continuity-browser: PASSED`;
+- `browser-renderer-detached: PASSED`;
+- `headless-stays-metadata-only: PASSED`;
+- `core-character-script-continuity: PASSED`;
+- `read-only-runtime: PASSED`;
+- Browser graphics mode: `HD`;
+- available HD assets: `2`;
+- applied HD assets: `1`;
+- applied path: `images/tiles/characters/jubchan_1.png`;
+- missing HD path: `images/tiles/map/doors.png`;
+- GPU-blocked assets: none;
+- detected `MAX_TEXTURE_SIZE: 16384`;
+- WebGL context: `webgl`;
+- `Temporary context released: true`;
+- Headless payload reads before Browser: `0`;
+- Headless payload reads stable before Browser: `0`;
+- Browser HD payload reads: `1`;
+- Browser HD payload bytes: `761458`;
+- `Headless loads HD assets: false`;
+- `Presentation only: true`;
+- `Original fallback: true`;
+- Renderer subscribers: `0 → 1 → 0`;
+- `Core restart: false`;
+- `Character restart: false`;
+- `Script restart: false`;
+- `Gameplay mutation: false`;
+- Action Gateway requests: `0`;
+- `Raw socket access: false`;
+- `User Script touched: false`;
+- diagnostic export: 11 log lines, `Secrets sanitized: yes`.
+
+Repository/release evidence:
+
+- implementation PR #144 final feature head: `e4fc6ae797f0c94c530848a56a54768a57b28581`;
+- final implementation PR CI run `37214393644` completed on that exact head with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #144 merged with method `merge` into exact implementation main `b421164b3b5435e0e9be0e95f2d1e977c742e662`;
+- exact post-implementation-main CI run `37214595244` completed with all four required jobs successful;
+- release publish run `37214841618` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.72`, tag `v0.1.0-alpha.72`, GitHub Release target, publish-run head, and tested implementation `main` were verified commit-identical at `b421164b3b5435e0e9be0e95f2d1e977c742e662`;
+- published assets:
+  - Windows x64 installer SHA-256 `e0edce0dcca48d4fc8556df2cee776bba36bab6dabdb6ea0885067109f8f54b4`
+  - Linux x64 installer SHA-256 `4d06d6363f9d798e2a8013279f920ddc6ae3adf9a04de9c1891b93d85c8bcbb4`
+  - updater manifest SHA-256 `8474ca73072d0b976a82c8661e91f484086b253476169a7d2470aa8bdd39a67f`.
+
+Scope/safety evidence:
+
+- Browser mode defaults to HD and applies only verified, available, GPU-suitable ALHD payloads;
+- the packaged Jubchan pilot was actually requested and applied while preserving logical dimensions;
+- the intentionally missing doors HD payload remained on the original Adventure Land asset path;
+- Headless remained metadata-only before, during, and after Browser use and loaded no HD image payloads;
+- Browser attach/detach returned Renderer Bridge subscribers to baseline without Core, Character, or Script restart;
+- GPU/texture guarding from Slice 11.2 remained active;
+- no gameplay semantic change, gameplay mutation, Action Gateway request, raw socket access, or user Script replacement occurred;
+- Slice 11.4 graphics profiles were not introduced.
+
+**Canonical roadmap status: Slice 11.3 = VERIFIED.**
+
+Slice 11.4 – Graphics Profiles may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
