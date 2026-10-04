@@ -691,3 +691,64 @@ h2 {
     grid-template-columns: 1fr;
   }
 }
+
+
+.setup-wizard-panel {
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border: 1px solid #2b313c;
+  border-radius: 12px;
+  background: #0f1319;
+}
+
+.setup-wizard-steps {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 1rem 0;
+}
+
+.setup-wizard-steps button[data-active="true"] {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+}
+
+.setup-wizard-stage {
+  min-height: 170px;
+  padding: 1rem;
+  border: 1px solid #2b313c;
+  border-radius: 10px;
+  background: #11151b;
+}
+
+.setup-wizard-stage label {
+  display: grid;
+  gap: 0.4rem;
+  max-width: 560px;
+}
+
+.setup-wizard-stage select,
+.setup-wizard-stage input,
+.setup-wizard-stage textarea {
+  width: 100%;
+}
+
+.setup-wizard-navigation {
+  margin-top: 0.8rem;
+}
+
+.setup-wizard-summary {
+  margin-bottom: 0.8rem;
+}
+
+@media (max-width: 900px) {
+  .setup-wizard-steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .setup-wizard-steps {
+    grid-template-columns: 1fr 1fr;
+  }
+}

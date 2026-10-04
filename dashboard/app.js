@@ -56,6 +56,9 @@ const state = {
   characterCards: null,
   slice81LiveTest: null,
   slice81LastReport: null,
+  setupWizard: null,
+  slice82LiveTest: null,
+  slice82LastReport: null,
   movementDebug: null,
   update: null,
   gameVersion: null,
@@ -263,6 +266,37 @@ const elements = {
   slice81LiveTestStatus: document.querySelector("#slice-8-1-live-test-status"),
   slice81LiveTestNote: document.querySelector("#slice-8-1-live-test-note"),
   copySlice81LiveTestResult: document.querySelector("#copy-slice-8-1-live-test-result"),
+  setupWizard: document.querySelector("#setup-wizard"),
+  setupWizardStatus: document.querySelector("#setup-wizard-status"),
+  setupWizardStepButtons: document.querySelectorAll("[data-setup-wizard-step]"),
+  setupWizardPanels: document.querySelectorAll("[data-setup-wizard-panel]"),
+  setupWizardEmail: document.querySelector("#setup-wizard-email"),
+  setupWizardPassword: document.querySelector("#setup-wizard-password"),
+  setupWizardConnectAccount: document.querySelector("#setup-wizard-connect-account"),
+  setupWizardAccountNote: document.querySelector("#setup-wizard-account-note"),
+  setupWizardCharacter: document.querySelector("#setup-wizard-character"),
+  setupWizardServer: document.querySelector("#setup-wizard-server"),
+  setupWizardTaskTemplate: document.querySelector("#setup-wizard-task-template"),
+  setupWizardTaskNote: document.querySelector("#setup-wizard-task-note"),
+  setupWizardConfigConnectOnly: document.querySelector("#setup-wizard-config-connect-only"),
+  setupWizardConfigSimpleFarmer: document.querySelector("#setup-wizard-config-simple-farmer"),
+  setupWizardConfigCustomScript: document.querySelector("#setup-wizard-config-custom-script"),
+  setupWizardFarmerMonster: document.querySelector("#setup-wizard-farmer-monster"),
+  setupWizardFarmerHp: document.querySelector("#setup-wizard-farmer-hp"),
+  setupWizardFarmerMp: document.querySelector("#setup-wizard-farmer-mp"),
+  setupWizardFarmerLoot: document.querySelector("#setup-wizard-farmer-loot"),
+  setupWizardFarmerRespawn: document.querySelector("#setup-wizard-farmer-respawn"),
+  setupWizardScriptName: document.querySelector("#setup-wizard-script-name"),
+  setupWizardScriptSource: document.querySelector("#setup-wizard-script-source"),
+  setupWizardSummary: document.querySelector("#setup-wizard-summary"),
+  setupWizardStart: document.querySelector("#setup-wizard-start"),
+  setupWizardStartNote: document.querySelector("#setup-wizard-start-note"),
+  setupWizardBack: document.querySelector("#setup-wizard-back"),
+  setupWizardNext: document.querySelector("#setup-wizard-next"),
+  startSlice82LiveTest: document.querySelector("#start-slice-8-2-live-test"),
+  slice82LiveTestStatus: document.querySelector("#slice-8-2-live-test-status"),
+  slice82LiveTestNote: document.querySelector("#slice-8-2-live-test-note"),
+  copySlice82LiveTestResult: document.querySelector("#copy-slice-8-2-live-test-result"),
   movementDebugStatus: document.querySelector("#movement-debug-status"),
   movementDebugTrailCount: document.querySelector("#movement-debug-trail-count"),
   movementDebugMovementCount: document.querySelector("#movement-debug-movement-count"),
@@ -1921,6 +1955,337 @@ function renderSlice81LiveTest() {
       "Requires one connected primary Character, one offline secondary Character, one free session slot, and no running or paused user Script. No gameplay mutation or raw-socket access is used.";
   }
 }
+
+
+const setupWizardDraft = {
+  step: 1,
+  characterId: "",
+  serverKey: "",
+  taskTemplateId: "connect-only",
+};
+
+function syncSelectOptions(select, items, valueKey, labelFor, preferred) {
+  const current = preferred || select.value;
+  select.replaceChildren();
+  for (const item of items) {
+    const option = document.createElement("option");
+    option.value = item[valueKey];
+    option.textContent = labelFor(item);
+    select.append(option);
+  }
+  if (items.some((item) => item[valueKey] === current)) select.value = current;
+  else if (items.length) select.value = items[0][valueKey];
+  return select.value;
+}
+
+function setupWizardConfiguration() {
+  if (setupWizardDraft.taskTemplateId === "simple-farmer") {
+    return {
+      monster: elements.setupWizardFarmerMonster.value.trim(),
+      hpThresholdPercent: Number(elements.setupWizardFarmerHp.value),
+      mpThresholdPercent: Number(elements.setupWizardFarmerMp.value),
+      loot: elements.setupWizardFarmerLoot.checked,
+      respawn: elements.setupWizardFarmerRespawn.checked,
+    };
+  }
+  if (setupWizardDraft.taskTemplateId === "custom-script") {
+    return {
+      scriptName: elements.setupWizardScriptName.value.trim(),
+      scriptSource: elements.setupWizardScriptSource.value,
+    };
+  }
+  return {};
+}
+
+function setupWizardStageReady(step) {
+  if (step === 1) return state.setupWizard?.accountConnected === true;
+  if (step === 2) return Boolean(setupWizardDraft.characterId);
+  if (step === 3) return Boolean(setupWizardDraft.serverKey);
+  if (step === 4) return Boolean(setupWizardDraft.taskTemplateId);
+  if (step === 5) {
+    if (setupWizardDraft.taskTemplateId === "simple-farmer") {
+      const hp = Number(elements.setupWizardFarmerHp.value);
+      const mp = Number(elements.setupWizardFarmerMp.value);
+      return Number.isInteger(hp) && hp >= 1 && hp <= 99 &&
+        Number.isInteger(mp) && mp >= 1 && mp <= 99;
+    }
+    if (setupWizardDraft.taskTemplateId === "custom-script") {
+      return Boolean(elements.setupWizardScriptName.value.trim() && elements.setupWizardScriptSource.value.trim());
+    }
+    return true;
+  }
+  return true;
+}
+
+function renderSetupWizard() {
+  const wizard = state.setupWizard;
+  const characters = Array.isArray(wizard?.characters) ? wizard.characters : [];
+  const servers = Array.isArray(wizard?.servers) ? wizard.servers : [];
+  const tasks = Array.isArray(wizard?.taskTemplates) ? wizard.taskTemplates : [];
+
+  elements.setupWizardStatus.textContent = wizard?.status === "ready" ? "Ready" : "Needs account";
+  elements.setupWizardAccountNote.textContent = wizard?.accountConnected
+    ? "Account connected. Continue to Character."
+    : "Connect your Adventure Land account. Credentials stay in memory only.";
+  elements.setupWizardConnectAccount.disabled = wizard?.accountConnected === true;
+
+  setupWizardDraft.characterId = syncSelectOptions(
+    elements.setupWizardCharacter,
+    characters,
+    "id",
+    (item) => `${item.name} · ${item.type} · Level ${item.level}`,
+    setupWizardDraft.characterId,
+  );
+  setupWizardDraft.serverKey = syncSelectOptions(
+    elements.setupWizardServer,
+    servers,
+    "key",
+    (item) => `${item.region} ${item.name} · ${item.players} players`,
+    setupWizardDraft.serverKey || wizard?.selectedServerKey,
+  );
+  setupWizardDraft.taskTemplateId = syncSelectOptions(
+    elements.setupWizardTaskTemplate,
+    tasks,
+    "id",
+    (item) => item.label,
+    setupWizardDraft.taskTemplateId,
+  ) || "connect-only";
+
+  const selectedTask = tasks.find((item) => item.id === setupWizardDraft.taskTemplateId);
+  elements.setupWizardTaskNote.textContent = selectedTask?.description ??
+    "Choose an existing task or template.";
+
+  elements.setupWizardConfigConnectOnly.hidden = setupWizardDraft.taskTemplateId !== "connect-only";
+  elements.setupWizardConfigSimpleFarmer.hidden = setupWizardDraft.taskTemplateId !== "simple-farmer";
+  elements.setupWizardConfigCustomScript.hidden = setupWizardDraft.taskTemplateId !== "custom-script";
+
+  for (const panel of elements.setupWizardPanels) {
+    panel.hidden = Number(panel.dataset.setupWizardPanel) !== setupWizardDraft.step;
+  }
+  for (const button of elements.setupWizardStepButtons) {
+    const step = Number(button.dataset.setupWizardStep);
+    button.dataset.active = step === setupWizardDraft.step ? "true" : "false";
+    button.disabled = step > setupWizardDraft.step + 1;
+  }
+
+  const character = characters.find((item) => item.id === setupWizardDraft.characterId);
+  const server = servers.find((item) => item.key === setupWizardDraft.serverKey);
+  elements.setupWizardSummary.textContent =
+    `${character?.name ?? "No Character"} · ${server ? `${server.region} ${server.name}` : "No server"} · ${selectedTask?.label ?? "No task"}`;
+
+  elements.setupWizardBack.disabled = setupWizardDraft.step <= 1;
+  elements.setupWizardNext.hidden = setupWizardDraft.step >= 6;
+  elements.setupWizardNext.disabled = !setupWizardStageReady(setupWizardDraft.step);
+  elements.setupWizardStart.disabled =
+    setupWizardDraft.step !== 6 ||
+    !wizard?.accountConnected ||
+    !setupWizardDraft.characterId ||
+    !setupWizardDraft.serverKey ||
+    !setupWizardStageReady(5);
+}
+
+function renderSlice82LiveTest() {
+  const test = state.slice82LiveTest;
+  const labels = {
+    idle: "Ready", running: "Running…", passed: "PASSED",
+    blocked: "BLOCKED", failed: "FAILED", unavailable: "Unavailable",
+  };
+  const status = test?.status ?? "idle";
+  elements.slice82LiveTestStatus.textContent = labels[status] ?? status;
+  elements.startSlice82LiveTest.disabled = status === "running";
+  elements.copySlice82LiveTestResult.hidden = !state.slice82LastReport;
+  if (status === "running") {
+    elements.slice82LiveTestNote.textContent =
+      "Verifying Account, Character, Server, Task / Template, Configuration and Start with one bounded Connect only session.";
+  } else if (test?.message) {
+    elements.slice82LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function refreshSetupWizard() {
+  try {
+    const response = await fetch("/api/setup-wizard", { cache: "no-store" });
+    state.setupWizard = await response.json();
+  } catch {
+    state.setupWizard = { status: "blocked", accountConnected: false, characters: [], servers: [], taskTemplates: [], message: "Setup Wizard status could not be loaded." };
+  }
+  renderSetupWizard();
+}
+
+async function refreshSlice82LiveTest() {
+  try {
+    const response = await fetch("/api/live-test/slice-8-2", { cache: "no-store" });
+    state.slice82LiveTest = response.ok
+      ? await response.json()
+      : { status: "unavailable", message: "Slice 8.2 Setup Wizard test is unavailable." };
+  } catch {
+    state.slice82LiveTest = { status: "unavailable", message: "Slice 8.2 Setup Wizard test status could not be loaded." };
+  }
+  renderSlice82LiveTest();
+}
+
+async function setupWizardStart() {
+  const response = await fetch("/api/setup-wizard/start", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      characterId: setupWizardDraft.characterId,
+      serverKey: setupWizardDraft.serverKey,
+      taskTemplateId: setupWizardDraft.taskTemplateId,
+      configuration: setupWizardConfiguration(),
+    }),
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error ?? payload.message ?? `HTTP ${response.status}`);
+  return payload;
+}
+
+async function startSlice82LiveTest(clipboardWrite) {
+  state.slice82LiveTest = { status: "running", message: "Slice 8.2 Setup Wizard test is running." };
+  renderSlice82LiveTest();
+  const response = await fetch("/api/live-test/slice-8-2/start", { method: "POST" });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error ?? payload.message ?? `HTTP ${response.status}`);
+  if (!payload.reportText || typeof payload.reportText !== "string") {
+    throw new Error("Slice 8.2 Setup Wizard test returned no copyable report.");
+  }
+  state.slice82LastReport = payload.reportText;
+  state.slice82LiveTest = {
+    status: payload.result?.outcome ?? "failed",
+    message: payload.result?.message ?? "Slice 8.2 Setup Wizard test finished.",
+    lastResult: payload.result,
+  };
+  const copied = await clipboardWrite.finish(payload.reportText);
+  renderSlice82LiveTest();
+  return { payload, copied };
+}
+
+elements.setupWizardStepButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const step = Number(button.dataset.setupWizardStep);
+    if (step >= 1 && step <= 6 && step <= setupWizardDraft.step + 1) {
+      setupWizardDraft.step = step;
+      renderSetupWizard();
+    }
+  });
+});
+elements.setupWizardCharacter.addEventListener("change", () => {
+  setupWizardDraft.characterId = elements.setupWizardCharacter.value;
+  renderSetupWizard();
+});
+elements.setupWizardServer.addEventListener("change", () => {
+  setupWizardDraft.serverKey = elements.setupWizardServer.value;
+  renderSetupWizard();
+});
+elements.setupWizardTaskTemplate.addEventListener("change", () => {
+  setupWizardDraft.taskTemplateId = elements.setupWizardTaskTemplate.value;
+  renderSetupWizard();
+});
+for (const input of [
+  elements.setupWizardFarmerMonster, elements.setupWizardFarmerHp, elements.setupWizardFarmerMp,
+  elements.setupWizardFarmerLoot, elements.setupWizardFarmerRespawn,
+  elements.setupWizardScriptName, elements.setupWizardScriptSource,
+]) {
+  input.addEventListener("input", renderSetupWizard);
+  input.addEventListener("change", renderSetupWizard);
+}
+
+elements.setupWizardBack.addEventListener("click", () => {
+  setupWizardDraft.step = Math.max(1, setupWizardDraft.step - 1);
+  renderSetupWizard();
+});
+elements.setupWizardNext.addEventListener("click", () => {
+  if (!setupWizardStageReady(setupWizardDraft.step)) return;
+  setupWizardDraft.step = Math.min(6, setupWizardDraft.step + 1);
+  renderSetupWizard();
+});
+
+elements.setupWizardConnectAccount.addEventListener("click", async () => {
+  const email = elements.setupWizardEmail.value.trim();
+  const password = elements.setupWizardPassword.value;
+  if (!email || !password) {
+    setFeedback("Setup Wizard account connection requires email and password.", "error");
+    return;
+  }
+  elements.setupWizardConnectAccount.disabled = true;
+  try {
+    const response = await fetch("/api/account/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const payload = await response.json();
+    if (!response.ok || payload.status !== "connected") {
+      throw new Error(payload.error ?? payload.message ?? `HTTP ${response.status}`);
+    }
+    elements.setupWizardPassword.value = "";
+    await refreshAccount();
+    await refreshSelection();
+    await refreshSetupWizard();
+    setFeedback("Setup Wizard account connected.", "success");
+  } catch (error) {
+    setFeedback(`Setup Wizard account connection failed: ${error.message}`, "error");
+  } finally {
+    renderSetupWizard();
+  }
+});
+
+elements.setupWizardStart.addEventListener("click", async () => {
+  elements.setupWizardStart.disabled = true;
+  setFeedback("Setup Wizard Start is applying the selected setup…");
+  try {
+    const result = await setupWizardStart();
+    setFeedback(result.message ?? "Setup Wizard completed.", "success");
+    await refreshSelection();
+    await refreshCharacterConnection();
+    await refreshCharacterSessions();
+    await refreshCharacterCards();
+    await refreshScriptRuntime();
+    await refreshSimpleFarmer();
+    await refreshSetupWizard();
+  } catch (error) {
+    setFeedback(`Setup Wizard Start failed: ${error.message}`, "error");
+  } finally {
+    renderSetupWizard();
+  }
+});
+
+elements.startSlice82LiveTest.addEventListener("click", async () => {
+  if (state.slice82LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice82LastReport = null;
+  elements.copySlice82LiveTestResult.hidden = true;
+  setFeedback("Slice 8.2 Setup Wizard test started. It will use one bounded Connect only managed session and will not interrupt the user Script.");
+  try {
+    const { payload, copied } = await startSlice82LiveTest(clipboardWrite);
+    const outcome = payload.result?.outcome ?? "failed";
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 8.2 test ${String(outcome).toUpperCase()}. ${copyMessage}`,
+      outcome === "passed" && copied ? "success" : outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    await refreshSlice82LiveTest();
+    setFeedback(`Slice 8.2 Setup Wizard test could not finish: ${error.message}`, "error");
+  } finally {
+    await refreshSetupWizard();
+    await refreshCharacterSessions();
+    await refreshCharacterCards();
+  }
+});
+
+elements.copySlice82LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice82LastReport) return;
+  try {
+    await writeClipboard(state.slice82LastReport);
+    setFeedback("Complete Slice 8.2 Setup Wizard result and sanitized diagnostic log copied.", "success");
+  } catch (error) {
+    setFeedback(`Setup Wizard result copy failed: ${error.message}`, "error");
+  }
+});
 
 function renderMovementDebug() {
   const debug = state.movementDebug;
@@ -5318,6 +5683,8 @@ await refreshPartyTemplates();
 await refreshSlice74LiveTest();
 await refreshCharacterCards();
 await refreshSlice81LiveTest();
+await refreshSetupWizard();
+await refreshSlice82LiveTest();
 await refreshMovementDebug();
 await refreshGameVersion();
 await refreshGameData();
@@ -5358,6 +5725,8 @@ setInterval(refreshPartyTemplates, 1500);
 setInterval(refreshSlice74LiveTest, 1500);
 setInterval(refreshCharacterCards, 1500);
 setInterval(refreshSlice81LiveTest, 1500);
+setInterval(refreshSetupWizard, 2000);
+setInterval(refreshSlice82LiveTest, 1500);
 setInterval(refreshMovementDebug, 1500);
 setInterval(refreshGameVersion, 2000);
 setInterval(refreshGameData, 2000);
