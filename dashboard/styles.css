@@ -897,6 +897,116 @@ h2 {
   opacity: 0.6;
 }
 
+.dashboard-widget-character-badge {
+  position: absolute;
+  z-index: 18;
+  top: 0.55rem;
+  left: 0.55rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid #4a5568;
+  border-radius: 999px;
+  background: rgba(12, 16, 22, 0.92);
+  color: #cbd5e1;
+  font-size: 0.75rem;
+}
+
+.dashboard-widget-character-badge[hidden],
+.dashboard-widget-character-context[hidden],
+.dashboard-widget-config[hidden] {
+  display: none;
+}
+
+.dashboard-widget-character-context {
+  margin: 0.75rem 0 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #364155;
+  border-radius: 8px;
+  background: rgba(17, 23, 34, 0.78);
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.dashboard-widget-config {
+  position: absolute;
+  z-index: 30;
+  top: 3.2rem;
+  right: 0.55rem;
+  width: min(24rem, calc(100% - 1.1rem));
+  max-height: min(36rem, calc(100vh - 8rem));
+  overflow: auto;
+  display: grid;
+  gap: 0.8rem;
+  padding: 0.85rem;
+  border: 1px solid #4a5568;
+  border-radius: 10px;
+  background: #111722;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
+}
+
+.dashboard-widget-config-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.dashboard-widget-config label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.dashboard-widget-field-options {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.65rem;
+  border: 1px solid #364155;
+  border-radius: 8px;
+}
+
+.dashboard-widget-field-options label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dashboard-widget-field-options legend {
+  padding: 0 0.3rem;
+  color: #cbd5e1;
+}
+
+.dashboard-widget-grid > [data-dashboard-widget][data-widget-display="compact"] .status-grid,
+.dashboard-widget-grid > [data-dashboard-widget][data-widget-display="compact"] .selection-content {
+  gap: 0.45rem;
+}
+
+.dashboard-widget-grid > [data-dashboard-widget][data-widget-display="compact"] .card {
+  padding: 0.6rem;
+}
+
+.dashboard-widget-grid > [data-dashboard-widget][data-widget-display="spacious"] .status-grid,
+.dashboard-widget-grid > [data-dashboard-widget][data-widget-display="spacious"] .selection-content {
+  gap: 1.25rem;
+}
+
+.dashboard-widget-grid > [data-dashboard-widget][data-widget-display="spacious"] .card {
+  padding: 1.25rem;
+}
+
+.dashboard-widget-grid > [data-dashboard-duplicate-of]::after {
+  content: "Duplicate";
+  position: absolute;
+  bottom: 0.55rem;
+  right: 0.55rem;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid #4a5568;
+  border-radius: 999px;
+  background: rgba(12, 16, 22, 0.9);
+  color: #9aa4b2;
+  font-size: 0.7rem;
+}
+
 .dashboard-drag-handle {
   cursor: grab;
 }

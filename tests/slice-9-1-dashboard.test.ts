@@ -32,7 +32,6 @@ test("Slice 9.1 dashboard exposes edit mode without persistence or later-slice c
   const editor = readFileSync(new URL("../dashboard/editor.js", import.meta.url), "utf8");
   const css = readFileSync(new URL("../dashboard/styles.css", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="9\.1"/);
   assert.match(html, /id="edit-dashboard"[^>]*>Edit dashboard</);
   assert.match(html, /id="dashboard-edit-toolbar" hidden/);
   assert.match(html, /id="dashboard-widget-add-select"/);
@@ -63,10 +62,10 @@ test("Slice 9.1 dashboard exposes edit mode without persistence or later-slice c
   assert.match(css, /\.dashboard-editing \.dashboard-widget-controls \{[\s\S]*?display: flex/);
 });
 
-test("normal mode keeps historical harnesses retained while Current verification points only to 9.1", () => {
+test("Slice 9.1 harness remains retained after Current verification advances", () => {
   const html = readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
-  const current = html.match(/<body data-current-verification-slice="([^"]*)">/)?.[1];
-  assert.equal(current, "9.1");
+  assert.match(html, /data-verification-test="9\.1" hidden/);
+  assert.match(html, /id="start-slice-9-1-live-test"/);
 
   for (const slice of ["8.1", "8.2", "8.3", "8.4"]) {
     assert.match(html, new RegExp(`data-verification-test="${slice.replace(".", "\\.")}" hidden`));

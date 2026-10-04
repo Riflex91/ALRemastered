@@ -1,4 +1,8 @@
-import { DashboardEditor, runDashboardEditorVerification } from "/dashboard-editor.js";
+import {
+  DashboardEditor,
+  runDashboardEditorVerification,
+  runDashboardWidgetConfigurationVerification,
+} from "/dashboard-editor.js";
 
 const state = {
   records: [],
@@ -7,6 +11,8 @@ const state = {
   autoScroll: true,
   slice91LiveTest: { status: "idle", message: "Ready." },
   slice91LastReport: null,
+  slice92LiveTest: { status: "idle", message: "Ready." },
+  slice92LastReport: null,
   status: null,
   account: null,
   selection: null,
@@ -93,6 +99,10 @@ const elements = {
   slice91LiveTestStatus: document.querySelector("#slice-9-1-live-test-status"),
   slice91LiveTestNote: document.querySelector("#slice-9-1-live-test-note"),
   copySlice91LiveTestResult: document.querySelector("#copy-slice-9-1-live-test-result"),
+  startSlice92LiveTest: document.querySelector("#start-slice-9-2-live-test"),
+  slice92LiveTestStatus: document.querySelector("#slice-9-2-live-test-status"),
+  slice92LiveTestNote: document.querySelector("#slice-9-2-live-test-note"),
+  copySlice92LiveTestResult: document.querySelector("#copy-slice-9-2-live-test-result"),
   coreStatus: document.querySelector("#core-status"),
   version: document.querySelector("#client-version"),
   uptime: document.querySelector("#uptime"),
@@ -471,7 +481,7 @@ elements.editDashboard.addEventListener("click", () => {
   dashboardEditor.toggle();
   setFeedback(
     dashboardEditor.enabled
-      ? "Dashboard edit mode enabled. Drag, resize, remove, or add widgets. Changes are not persisted."
+      ? "Dashboard edit mode enabled. Drag, resize, configure, duplicate, remove, or add widgets. Changes are not persisted."
       : "Dashboard edit mode disabled. Normal dashboard controls are active.",
   );
 });
@@ -600,6 +610,134 @@ elements.copySlice91LiveTestResult.addEventListener("click", async () => {
 });
 
 renderSlice91LiveTest();
+
+function renderSlice92LiveTest() {
+  const test = state.slice92LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    failed: "FAILED",
+  };
+  elements.slice92LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice92LiveTest.disabled = test.status === "running";
+  elements.copySlice92LiveTestResult.hidden = !state.slice92LastReport;
+  if (test.status === "running") {
+    elements.slice92LiveTestNote.textContent =
+      "Exercising Character binding, field visibility, display options, duplication, independent duplicate settings, and normal mode without gameplay actions.";
+  } else if (test.message) {
+    elements.slice92LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function startSlice92LiveTest(clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice92LiveTest = {
+    status: "running",
+    message: "Slice 9.2 widget configuration test is running.",
+  };
+  renderSlice92LiveTest();
+
+  const verification = await runDashboardWidgetConfigurationVerification(dashboardEditor);
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) {
+    throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  }
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live92-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const stepLines = verification.steps.map((step) =>
+    `- ${step.key}: ${String(step.outcome).toUpperCase()}`
+  );
+  const reportText = [
+    "ALRemastered Slice 9.2 one-click widget configuration test",
+    `Test ID: ${testId}`,
+    "Slice: 9.2",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    "Configuration persistence: false",
+    "Gameplay mutation: false",
+    "Action Gateway requests: 0",
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+
+  const result = {
+    testId,
+    slice: "9.2",
+    outcome,
+    startedAt,
+    completedAt,
+    message: outcome === "passed"
+      ? "Widget configuration verification passed."
+      : "Widget configuration verification failed.",
+    steps: verification.steps,
+    persistence: false,
+    gameplayMutation: false,
+    actionGatewayRequests: 0,
+    rawSocketAccess: false,
+    userScriptTouched: false,
+  };
+
+  state.slice92LastReport = reportText;
+  state.slice92LiveTest = { status: outcome, message: result.message, lastResult: result };
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice92LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice92LiveTest.addEventListener("click", async () => {
+  if (state.slice92LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice92LastReport = null;
+  elements.copySlice92LiveTestResult.hidden = true;
+  setFeedback(
+    "Slice 9.2 widget configuration test started. It changes dashboard DOM only and restores the starting configuration.",
+  );
+  try {
+    const { result, copied } = await startSlice92LiveTest(clipboardWrite);
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 9.2 test ${String(result.outcome).toUpperCase()}. ${copyMessage}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    state.slice92LiveTest = { status: "failed", message: error.message };
+    renderSlice92LiveTest();
+    setFeedback(`Slice 9.2 widget configuration test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice92LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice92LastReport) return;
+  try {
+    await writeClipboard(state.slice92LastReport);
+    setFeedback(
+      "Complete Slice 9.2 widget configuration result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Widget configuration result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice92LiveTest();
 
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
@@ -730,6 +868,7 @@ function renderAccount() {
     account.connectedAt ? formatPublished(account.connectedAt) : "—";
 
   const connected = account.status === "connected";
+  if (!connected) dashboardEditor?.setCharacterOptions([]);
   elements.accountForm.hidden = connected;
   elements.accountDisconnect.hidden = !connected;
   elements.accountConnect.disabled = account.status === "connecting";
@@ -1270,6 +1409,9 @@ function renderSelection() {
 
   elements.characterList.replaceChildren();
   const characters = selection.characters ?? [];
+  dashboardEditor?.setCharacterOptions(
+    characters.map((character) => ({ id: character.id, name: character.name })),
+  );
 
   const previousCharacter = elements.characterSelect.value;
   elements.characterSelect.replaceChildren();
@@ -2105,6 +2247,7 @@ function formatResource(current, maximum) {
 function renderCharacterCards() {
   const cardsState = state.characterCards;
   const cards = Array.isArray(cardsState?.cards) ? cardsState.cards : [];
+  dashboardEditor?.setCharacterSnapshots(cards);
   elements.characterCardsStatus.textContent = cardsState?.status === "ready"
     ? `${cardsState.activeSessionCount ?? 0} / ${cardsState.sessionLimit ?? 4} active`
     : "Unavailable";
