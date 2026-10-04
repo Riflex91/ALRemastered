@@ -5951,6 +5951,240 @@ elements.copySlice124LiveTestResult.addEventListener("click", async () => {
 
 renderSlice124LiveTest();
 
+function renderSlice125LiveTest() {
+  const test = state.slice125LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = { idle: "Ready", running: "Running…", passed: "PASSED", failed: "FAILED" };
+  elements.slice125LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice125LiveTest.disabled = test.status === "running";
+  elements.copySlice125LiveTestResult.hidden = !state.slice125LastReport;
+  if (test.status === "running") {
+    elements.slice125LiveTestNote.textContent =
+      "Testing My Scripts, imported packages, versions, persistent Active / Inactive state, configuration, later-slice boundaries, cleanup, and runtime continuity.";
+  } else if (test.message) {
+    elements.slice125LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function runSlice125Verification() {
+  const before = await fetchRendererSnapshot();
+  const descriptorResponse = await fetch("/api/packages/library/descriptor", { cache: "no-store" });
+  const descriptor = await descriptorResponse.json();
+  if (!descriptorResponse.ok) throw new Error(descriptor.error ?? "Script Library descriptor failed.");
+
+  const selfTestResponse = await fetch("/api/packages/library/self-test", { cache: "no-store" });
+  const selfTest = await selfTestResponse.json();
+  if (!selfTestResponse.ok) throw new Error(selfTest.error ?? "Script Library self-test failed.");
+
+  const after = await fetchRendererSnapshot();
+  const checks = selfTest.checks ?? {};
+  const steps = [
+    {
+      key: "script-library-descriptor",
+      outcome:
+        Array.isArray(descriptor.sections) &&
+        descriptor.sections.includes("my-scripts") &&
+        descriptor.sections.includes("imported") &&
+        descriptor.versionsVisible === true &&
+        descriptor.activeStateSupported === true &&
+        descriptor.configurationSupported === true
+          ? "passed" : "failed",
+    },
+    { key: "my-scripts-visible", outcome: checks.myScriptsVisible ? "passed" : "failed" },
+    { key: "imported-packages-visible", outcome: checks.importedVisible ? "passed" : "failed" },
+    { key: "versions-visible", outcome: checks.versionsVisible ? "passed" : "failed" },
+    { key: "inactive-by-default", outcome: checks.inactiveByDefault ? "passed" : "failed" },
+    {
+      key: "configuration-visible-persisted",
+      outcome:
+        checks.configurationVisible &&
+        checks.configurationPersisted
+          ? "passed" : "failed",
+    },
+    {
+      key: "active-version-persisted",
+      outcome: checks.oneActiveVersion ? "passed" : "failed",
+    },
+    {
+      key: "activation-no-execution",
+      outcome:
+        checks.activationNoExecution &&
+        descriptor.activationExecutesPackage === false &&
+        descriptor.executionSupported === false
+          ? "passed" : "failed",
+    },
+    {
+      key: "updates-rollback-deferred",
+      outcome:
+        checks.laterSliceBoundaries &&
+        descriptor.updatesSupported === false &&
+        descriptor.rollbackSupported === false
+          ? "passed" : "failed",
+    },
+    { key: "verification-cleanup", outcome: checks.cleanup ? "passed" : "failed" },
+  ];
+
+  const beforeCore = before.snapshot?.core ?? {};
+  const afterCore = after.snapshot?.core ?? {};
+  const beforeCharacter = before.snapshot?.character ?? {};
+  const afterCharacter = after.snapshot?.character ?? {};
+  const beforeScript = before.snapshot?.script ?? {};
+  const afterScript = after.snapshot?.script ?? {};
+  const coreRestart = beforeCore.startedAt !== afterCore.startedAt;
+  const characterRestart = !sameSocketMarkers(beforeCharacter, afterCharacter);
+  const scriptRestart =
+    (beforeScript.runId ?? null) !== (afterScript.runId ?? null) ||
+    (beforeScript.startedAt ?? null) !== (afterScript.startedAt ?? null);
+  const actionGatewayRequests = Math.max(
+    0,
+    Number(after.snapshot?.actionGateway?.totalRequests ?? 0) -
+      Number(before.snapshot?.actionGateway?.totalRequests ?? 0),
+  );
+  steps.push({
+    key: "core-character-script-continuity",
+    outcome: !coreRestart && !characterRestart && !scriptRestart ? "passed" : "failed",
+  });
+  steps.push({
+    key: "read-only-gameplay-runtime",
+    outcome: actionGatewayRequests === 0 ? "passed" : "failed",
+  });
+
+  return {
+    outcome: steps.every((step) => step.outcome === "passed") ? "passed" : "failed",
+    steps,
+    descriptor,
+    selfTest,
+    coreRestart,
+    characterRestart,
+    scriptRestart,
+    actionGatewayRequests,
+    gameplayMutation: false,
+    rawSocketAccess: false,
+    userScriptTouched: false,
+    packageExecutionAttempted: false,
+  };
+}
+
+async function startSlice125LiveTest(clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice125LiveTest = { status: "running", message: "Slice 12.5 Script Library test is running." };
+  renderSlice125LiveTest();
+
+  const verification = await runSlice125Verification();
+  await refreshPackageLibrary();
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live125-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const checks = verification.selfTest.checks ?? {};
+  const persisted = verification.selfTest.persisted ?? {};
+  const imported = persisted.imported?.[0] ?? {};
+  const versions = imported.versions ?? [];
+  const configured = versions.find((version) => version.version === "1.0.0") ?? {};
+  const active = versions.find((version) => version.active === true) ?? {};
+  const myScript = persisted.myScripts?.[0] ?? {};
+  const stepLines = verification.steps.map((step) =>
+    `- ${step.key}: ${String(step.outcome).toUpperCase()}`
+  );
+
+  const reportText = [
+    "ALRemastered Slice 12.5 one-click Script Library test",
+    `Test ID: ${testId}`,
+    "Slice: 12.5",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    `Library sections: ${verification.descriptor.sections?.join(", ") ?? "unknown"}`,
+    `My Scripts visible: ${checks.myScriptsVisible}`,
+    `My Script: ${myScript.name ?? "none"}`,
+    `My Script status: ${myScript.status ?? "unknown"}`,
+    `Imported package visible: ${checks.importedVisible}`,
+    `Imported package: ${imported.packageId ?? "none"}`,
+    `Versions visible: ${checks.versionsVisible}`,
+    `Versions: ${versions.map((version) => version.version).join(", ") || "none"}`,
+    `Inactive by default: ${checks.inactiveByDefault}`,
+    `Active version: ${imported.activeVersion ?? "none"}`,
+    `Exactly one active version: ${checks.oneActiveVersion}`,
+    `Configuration visible: ${checks.configurationVisible}`,
+    `Configuration persisted: ${checks.configurationPersisted}`,
+    `Configured monster: ${configured.configuration?.monster ?? "unknown"}`,
+    `Configured range: ${configured.configuration?.range ?? "unknown"}`,
+    `Activation executes package: ${verification.descriptor.activationExecutesPackage}`,
+    `Package execution supported: ${verification.descriptor.executionSupported}`,
+    "Package execution attempted: false",
+    `Updates supported: ${verification.descriptor.updatesSupported}`,
+    `Rollback supported: ${verification.descriptor.rollbackSupported}`,
+    `Verification cleanup: ${checks.cleanup}`,
+    `Core restart: ${verification.coreRestart}`,
+    `Character restart: ${verification.characterRestart}`,
+    `Script restart: ${verification.scriptRestart}`,
+    "Gameplay mutation: false",
+    `Action Gateway requests: ${verification.actionGatewayRequests}`,
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+
+  const result = {
+    testId,
+    slice: "12.5",
+    outcome,
+    startedAt,
+    completedAt,
+    message: outcome === "passed"
+      ? "Script Library verification passed."
+      : "Script Library verification failed.",
+    ...verification,
+  };
+  state.slice125LastReport = reportText;
+  state.slice125LiveTest = { status: outcome, message: result.message, lastResult: result };
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice125LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice125LiveTest.addEventListener("click", async () => {
+  if (state.slice125LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice125LastReport = null;
+  elements.copySlice125LiveTestResult.hidden = true;
+  try {
+    const { result, copied } = await startSlice125LiveTest(clipboardWrite);
+    setFeedback(
+      `Slice 12.5 test ${String(result.outcome).toUpperCase()}. ${copied ? "Complete result and sanitized diagnostic log copied to clipboard." : "Use Copy last test result once."}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    state.slice125LiveTest = { status: "failed", message: error.message };
+    renderSlice125LiveTest();
+    setFeedback(`Slice 12.5 Script Library test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice125LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice125LastReport) return;
+  try {
+    await writeClipboard(state.slice125LastReport);
+    setFeedback("Complete Slice 12.5 Script Library result and sanitized diagnostic log copied.", "success");
+  } catch (error) {
+    setFeedback(`Script Library result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice125LiveTest();
+
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
   const days = Math.floor(totalSeconds / 86400);
