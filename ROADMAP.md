@@ -2650,3 +2650,76 @@ Repository/release gate evidence:
 Result: the real installed Windows alpha.55 run proves technical local Party Coordinator behavior for role assignment and change, one shared target, Tank/Healer/DPS status, explicit no-target state, managed-member removal, session isolation, configuration restoration, and read-only coordination without gameplay mutation, raw sockets, Party Templates, local messaging traffic, or user Script interruption. **Slice 7.3 is VERIFIED.**
 
 Slice 7.4 – Party Templates may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
+
+
+---
+
+## Slice 7.4 Verification Record — Party Templates
+
+**Canonical status update: Slice 7.4 = VERIFIED.**
+
+Release/live environment:
+
+- verified release: `v0.1.0-alpha.56`
+- tested implementation main / release target: `95cdc12d7948322585dd71c2e14d32329278016b`
+- Windows client: `0.1.0-alpha.56`
+- platform: `win32`
+- one-click test ID: `live74-7c8190e0-ca2c-4d1a-bb29-302f478ad7a4`
+- primary Character: `My_Merchant`
+- managed template Characters: `My_Warrior`, `My_Priest`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-04T07:21:15.300Z → 2026-10-04T07:21:15.726Z`
+- diagnostic export: 68 log lines, `Secrets sanitized: yes`.
+
+Party Templates evidence:
+
+- the primary Merchant was recommended as DPS;
+- the temporary Warrior was recommended as Tank;
+- the temporary Priest was recommended as Healer;
+- applying recommended roles produced three matched local assignments:
+  - `My_Merchant → dps`
+  - `My_Warrior → tank`
+  - `My_Priest → healer`;
+- Tank, Healer, and DPS Coordinator aggregates all reached `ready` with one assigned and one ready member each;
+- the template layer reported `templateLayerActive:true`;
+- Party Templates reused the existing Party Coordinator as the coordination path rather than creating a second role-state authority;
+- manual role assignment was validated by overriding the DPS member to Healer;
+- the override explicitly reported `override`;
+- clearing the same role produced `needs-assignment`;
+- applying recommendations again restored DPS with `matched`;
+- removing both temporary managed sessions removed their template assignments with no stale managed-member state;
+- after cleanup the template layer again reflected only the primary member;
+- the pre-test Coordinator configuration was restored, leaving no temporary role/target configuration behind.
+
+Isolation and safety evidence:
+
+- `coordinationTransport:"party-coordinator"`;
+- `localMessagingRequired:false`;
+- local messaging request delta: `0`;
+- local messaging delivery delta: `0`;
+- messaging remained `localOnly:true`;
+- `gameplayMutation:false`;
+- `rawSocketAccess:false`;
+- the user Script runtime remained unloaded and `userScriptInterrupted:false`;
+- only the two temporary managed sessions were removed;
+- final session state returned to `activeSessionCount:1`, `managedSessionCount:0`, `availableSlots:3`;
+- primary `My_Merchant` remained connected;
+- `coordinatorConfigurationRestored:true`.
+
+Repository/release gate evidence:
+
+- implementation PR #109 final feature head: `12ac5449f52455c2eb3aed211fe5fe3c4488a0d8`;
+- final implementation PR CI run `37185032816` completed with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #109 merged with method `merge` into exact implementation main `95cdc12d7948322585dd71c2e14d32329278016b`;
+- exact post-implementation-main CI run `37185171997` completed with all four required jobs successful;
+- release publish run `37185333404` completed successfully;
+- release branch `release/v0.1.0-alpha.56`, tag `v0.1.0-alpha.56`, GitHub release target, and tested implementation main were verified commit-identical at `95cdc12d7948322585dd71c2e14d32329278016b`;
+- published assets:
+  - Windows x64 installer SHA-256 `b0ef6102db5a7b7919f5cfaf8d972f91587119a7741951fe8767d6aa63121c79`
+  - Linux x64 installer SHA-256 `3dc247e5f8c31c8a41fc860f4a861fdce75c92a5d4729f354807fbfdb6dae038`
+  - updater manifest SHA-256 `0499650cfc42da2a75089686c6563944b0be8a5257f4963c88a084d408ea18f4`.
+
+Result: the real installed Windows alpha.56 run proves the complete Slice 7.4 Party Templates scope: Warrior Tank, Priest Healer, DPS recommendation, simple manual role assignment, recommendation restore, managed-member cleanup, and stateless integration over the existing Party Coordinator without gameplay mutation, raw sockets, local messaging traffic, user Script interruption, or stale template-role state. **Slice 7.4 is VERIFIED.**
+
+Phase 8 / Slice 8.1 – Character Cards may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
