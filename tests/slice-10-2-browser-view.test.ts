@@ -71,7 +71,7 @@ test("Slice 10.2 serves a read-only Browser View over the existing Renderer Brid
     assert.equal(script.status, 200);
     const javascript = await script.text();
     assert.match(javascript, /fetch\("\/api\/renderer\/snapshot"/);
-    assert.match(javascript, /new EventSource\("\/api\/renderer\/stream"\)/);
+    assert.match(javascript, /\/api\/renderer\/stream\?clientId=/);
     assert.match(javascript, /window\.close\(\)/);
     assert.doesNotMatch(javascript, /method:\s*["']POST["']/);
     assert.doesNotMatch(javascript, /api\/action-gateway/);
