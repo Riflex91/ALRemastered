@@ -222,6 +222,10 @@ export class DashboardEditor {
 
     const duplicate = source.element.cloneNode(true);
     sanitizeDuplicateContent(duplicate);
+    [...duplicate.children].forEach((child, index) => {
+      const sourceField = source.fields[index];
+      if (sourceField) child.hidden = sourceField.baselineHidden;
+    });
     const duplicateId = `${id}-copy-${++this.duplicateSequence}`;
     duplicate.dataset.dashboardWidget = duplicateId;
     duplicate.dataset.dashboardDuplicateOf = id;
