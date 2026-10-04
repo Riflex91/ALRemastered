@@ -6,7 +6,7 @@
   <title>ALRemastered</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body data-current-verification-slice="12.3">
+<body data-current-verification-slice="12.4">
   <main class="shell">
     <header class="topbar">
       <div>
@@ -378,7 +378,11 @@
       </div>
       <div class="server-picker">
         <input id="package-import-file" type="file" accept=".alrpkg,application/json">
-        <button id="package-import-preview" type="button">Preview package</button>
+        <button id="package-import-preview" type="button">Preview package file</button>
+      </div>
+      <div class="server-picker">
+        <input id="package-import-source" type="url" inputmode="url" autocomplete="off" placeholder="HTTPS .alrpkg link or GitHub blob URL" aria-label="Package link or GitHub source">
+        <button id="package-import-remote-preview" type="button">Preview link / GitHub source</button>
         <button id="package-import-confirm" type="button" hidden>Import inactive package</button>
       </div>
       <div id="package-import-preview-panel" hidden>
@@ -407,7 +411,7 @@
         </article>
       </div>
       <small class="selection-note" id="package-import-note">
-        Preview validates hashes before import. Dangerous permissions require explicit confirmation. Imported packages stay inactive and are never executed by this flow.
+        Preview validates hashes before import. Remote sources must use public HTTPS .alrpkg URLs; supported GitHub blob URLs are fetched as raw package files. Dangerous permissions require explicit confirmation. Remote sources are fetched again on confirmation, imported packages stay inactive, and no package code is executed by this flow.
       </small>
     </section>
 
@@ -421,6 +425,20 @@
         </div>
         <small class="selection-note" id="slice-12-3-live-test-note">
           Exercises preview, description, permissions, configuration, code visibility, dangerous-right confirmation, inactive persistence, cleanup, and runtime continuity. The imported fixture is never executed.
+        </small>
+      </div>
+    </div>
+
+    <div class="selection-content" data-verification-test="12.4" hidden>
+      <div>
+        <h3>Slice 12.4 one-click Link / GitHub Import test</h3>
+        <div class="server-picker">
+          <button id="start-slice-12-4-live-test" type="button">Start test</button>
+          <strong id="slice-12-4-live-test-status" aria-live="polite">Ready</strong>
+          <button id="copy-slice-12-4-live-test-result" type="button" hidden>Copy last test result</button>
+        </div>
+        <small class="selection-note" id="slice-12-4-live-test-note">
+          Verifies public HTTPS package links, supported GitHub blob sources, source re-fetch and stale-preview protection, dangerous-right confirmation, inactive persistence, cleanup, and runtime continuity. No remote package code is executed.
         </small>
       </div>
     </div>
