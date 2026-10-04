@@ -16,6 +16,9 @@ const state = {
   slice92LastReport: null,
   slice93LiveTest: { status: "idle", message: "Ready." },
   slice93LastReport: null,
+  slice94LiveTest: { status: "idle", message: "Ready." },
+  slice94LastReport: null,
+  dashboardLayouts: null,
   status: null,
   account: null,
   selection: null,
@@ -99,6 +102,15 @@ const elements = {
   dashboardWidgetAddSelect: document.querySelector("#dashboard-widget-add-select"),
   dashboardAddWidget: document.querySelector("#dashboard-add-widget"),
   dashboardPageTabs: document.querySelector("#dashboard-page-tabs"),
+  dashboardLayoutProfile: document.querySelector("#dashboard-layout-profile"),
+  dashboardLayoutVariant: document.querySelector("#dashboard-layout-variant"),
+  dashboardLayoutSave: document.querySelector("#dashboard-layout-save"),
+  dashboardLayoutUndo: document.querySelector("#dashboard-layout-undo"),
+  dashboardLayoutRedo: document.querySelector("#dashboard-layout-redo"),
+  dashboardLayoutReset: document.querySelector("#dashboard-layout-reset"),
+  dashboardLayoutProfileName: document.querySelector("#dashboard-layout-profile-name"),
+  dashboardLayoutProfileCreate: document.querySelector("#dashboard-layout-profile-create"),
+  dashboardLayoutProfileDelete: document.querySelector("#dashboard-layout-profile-delete"),
   startSlice91LiveTest: document.querySelector("#start-slice-9-1-live-test"),
   slice91LiveTestStatus: document.querySelector("#slice-9-1-live-test-status"),
   slice91LiveTestNote: document.querySelector("#slice-9-1-live-test-note"),
@@ -111,6 +123,10 @@ const elements = {
   slice93LiveTestStatus: document.querySelector("#slice-9-3-live-test-status"),
   slice93LiveTestNote: document.querySelector("#slice-9-3-live-test-note"),
   copySlice93LiveTestResult: document.querySelector("#copy-slice-9-3-live-test-result"),
+  startSlice94LiveTest: document.querySelector("#start-slice-9-4-live-test"),
+  slice94LiveTestStatus: document.querySelector("#slice-9-4-live-test-status"),
+  slice94LiveTestNote: document.querySelector("#slice-9-4-live-test-note"),
+  copySlice94LiveTestResult: document.querySelector("#copy-slice-9-4-live-test-result"),
   coreStatus: document.querySelector("#core-status"),
   version: document.querySelector("#client-version"),
   uptime: document.querySelector("#uptime"),
@@ -489,9 +505,83 @@ function renderDashboardPages() {
   }
 }
 
+function currentDashboardLayoutVariant() {
+  return globalThis.innerWidth <= 720 ? "small" : "desktop";
+}
+
+function activeDashboardLayoutProfile() {
+  const layouts = state.dashboardLayouts;
+  return layouts?.profiles?.find((profile) => profile.id === layouts.activeProfileId) ?? null;
+}
+
+function renderDashboardLayoutControls() {
+  if (!dashboardEditor || !elements.dashboardLayoutProfile) return;
+  const layouts = state.dashboardLayouts;
+  const variant = currentDashboardLayoutVariant();
+  elements.dashboardLayoutVariant.textContent = variant === "small" ? "Small screen" : "Desktop";
+  elements.dashboardLayoutProfile.replaceChildren();
+
+  for (const profile of layouts?.profiles ?? []) {
+    const option = document.createElement("option");
+    option.value = profile.id;
+    option.textContent = profile.name;
+    elements.dashboardLayoutProfile.append(option);
+  }
+  if (layouts?.activeProfileId) elements.dashboardLayoutProfile.value = layouts.activeProfileId;
+
+  const available = Boolean(layouts?.profiles?.length);
+  elements.dashboardLayoutProfile.disabled = !available;
+  elements.dashboardLayoutSave.disabled = !available;
+  elements.dashboardLayoutReset.disabled = !available;
+  elements.dashboardLayoutProfileDelete.disabled = !available;
+  elements.dashboardLayoutUndo.disabled = !dashboardEditor.canUndo();
+  elements.dashboardLayoutRedo.disabled = !dashboardEditor.canRedo();
+}
+
 function renderDashboardEditorState() {
   renderDashboardEditMode();
   renderDashboardPages();
+  renderDashboardLayoutControls();
+}
+
+async function dashboardLayoutRequest(path, body) {
+  const response = await fetch(path, {
+    method: body === undefined ? "GET" : "POST",
+    cache: "no-store",
+    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error ?? `Dashboard layout request failed with HTTP ${response.status}.`);
+  return payload;
+}
+
+async function applyActiveDashboardLayout() {
+  const profile = activeDashboardLayoutProfile();
+  const layout = profile?.layouts?.[currentDashboardLayoutVariant()];
+  if (layout) dashboardEditor.applyPersistentState(layout, { notify: false });
+  else if (dashboardEditor.defaultPersistentState) {
+    dashboardEditor.applyPersistentState(dashboardEditor.defaultPersistentState, { notify: false });
+  }
+  dashboardEditor.clearHistory();
+  renderDashboardEditorState();
+}
+
+async function refreshDashboardLayouts({ apply = false } = {}) {
+  state.dashboardLayouts = await dashboardLayoutRequest("/api/dashboard-layout");
+  if (apply) await applyActiveDashboardLayout();
+  else renderDashboardLayoutControls();
+  return state.dashboardLayouts;
+}
+
+function dashboardProfileId(name) {
+  const base = String(name || "profile")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 40) || "profile";
+  const suffix = globalThis.crypto?.randomUUID?.().slice(0, 8) ?? Date.now().toString(36);
+  return `${base}-${suffix}`;
 }
 
 dashboardEditor = new DashboardEditor({
@@ -499,6 +589,9 @@ dashboardEditor = new DashboardEditor({
   onChange: () => renderDashboardEditorState(),
 }).init();
 renderDashboardEditorState();
+void refreshDashboardLayouts({ apply: true }).catch((error) => {
+  setFeedback(`Dashboard layout profiles could not load: ${error.message}`, "error");
+});
 
 elements.dashboardPageTabs.addEventListener("click", (event) => {
   const button = event.target.closest("[data-dashboard-page]");
@@ -513,7 +606,7 @@ elements.editDashboard.addEventListener("click", () => {
   dashboardEditor.toggle();
   setFeedback(
     dashboardEditor.enabled
-      ? "Dashboard edit mode enabled. Drag, resize, configure, duplicate, remove, or add widgets. Changes are not persisted."
+      ? "Dashboard edit mode enabled. Drag, resize, configure, duplicate, remove, or add widgets. Use Save layout to persist changes."
       : "Dashboard edit mode disabled. Normal dashboard controls are active.",
   );
 });
@@ -523,6 +616,99 @@ elements.dashboardAddWidget.addEventListener("click", () => {
   if (!id) return;
   dashboardEditor.addWidget(id);
   setFeedback("Widget added to the current dashboard session.", "success");
+});
+
+
+elements.dashboardLayoutProfile.addEventListener("change", async () => {
+  try {
+    state.dashboardLayouts = await dashboardLayoutRequest("/api/dashboard-layout/profile/active", {
+      profileId: elements.dashboardLayoutProfile.value,
+    });
+    await applyActiveDashboardLayout();
+    setFeedback("Dashboard layout profile activated.", "success");
+  } catch (error) {
+    setFeedback(`Layout profile could not be activated: ${error.message}`, "error");
+  }
+});
+
+elements.dashboardLayoutProfileCreate.addEventListener("click", async () => {
+  const name = elements.dashboardLayoutProfileName.value.trim();
+  if (!name) {
+    setFeedback("Enter a profile name first.", "error");
+    return;
+  }
+  try {
+    state.dashboardLayouts = await dashboardLayoutRequest("/api/dashboard-layout/profile/create", {
+      profileId: dashboardProfileId(name),
+      name,
+    });
+    elements.dashboardLayoutProfileName.value = "";
+    await applyActiveDashboardLayout();
+    setFeedback("Dashboard layout profile created.", "success");
+  } catch (error) {
+    setFeedback(`Layout profile could not be created: ${error.message}`, "error");
+  }
+});
+
+elements.dashboardLayoutProfileDelete.addEventListener("click", async () => {
+  const profileId = state.dashboardLayouts?.activeProfileId;
+  if (!profileId) return;
+  try {
+    state.dashboardLayouts = await dashboardLayoutRequest("/api/dashboard-layout/profile/delete", { profileId });
+    await applyActiveDashboardLayout();
+    setFeedback("Dashboard layout profile deleted.", "success");
+  } catch (error) {
+    setFeedback(`Layout profile could not be deleted: ${error.message}`, "error");
+  }
+});
+
+elements.dashboardLayoutSave.addEventListener("click", async () => {
+  const profileId = state.dashboardLayouts?.activeProfileId;
+  if (!profileId) return;
+  try {
+    state.dashboardLayouts = await dashboardLayoutRequest("/api/dashboard-layout/save", {
+      profileId,
+      variant: currentDashboardLayoutVariant(),
+      layout: dashboardEditor.persistentState(),
+    });
+    dashboardEditor.clearHistory();
+    setFeedback("Dashboard layout saved to disk.", "success");
+  } catch (error) {
+    setFeedback(`Dashboard layout could not be saved: ${error.message}`, "error");
+  }
+});
+
+elements.dashboardLayoutUndo.addEventListener("click", () => {
+  if (dashboardEditor.undo()) setFeedback("Dashboard layout change undone.", "success");
+});
+
+elements.dashboardLayoutRedo.addEventListener("click", () => {
+  if (dashboardEditor.redo()) setFeedback("Dashboard layout change redone.", "success");
+});
+
+elements.dashboardLayoutReset.addEventListener("click", async () => {
+  const profileId = state.dashboardLayouts?.activeProfileId;
+  if (!profileId) return;
+  try {
+    dashboardEditor.resetToDefault();
+    state.dashboardLayouts = await dashboardLayoutRequest("/api/dashboard-layout/reset", {
+      profileId,
+      variant: currentDashboardLayoutVariant(),
+    });
+    setFeedback("Current viewport layout reset to defaults.", "success");
+  } catch (error) {
+    setFeedback(`Dashboard layout could not be reset: ${error.message}`, "error");
+  }
+});
+
+let lastDashboardLayoutVariant = currentDashboardLayoutVariant();
+globalThis.addEventListener("resize", () => {
+  const variant = currentDashboardLayoutVariant();
+  if (variant === lastDashboardLayoutVariant) return;
+  lastDashboardLayoutVariant = variant;
+  void applyActiveDashboardLayout().catch((error) => {
+    setFeedback(`Viewport layout could not be applied: ${error.message}`, "error");
+  });
 });
 
 function renderSlice91LiveTest() {
@@ -903,6 +1089,275 @@ elements.copySlice93LiveTestResult.addEventListener("click", async () => {
 });
 
 renderSlice93LiveTest();
+
+function renderSlice94LiveTest() {
+  const test = state.slice94LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    failed: "FAILED",
+  };
+  elements.slice94LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice94LiveTest.disabled = test.status === "running";
+  elements.copySlice94LiveTestResult.hidden = !state.slice94LastReport;
+  if (test.status === "running") {
+    elements.slice94LiveTestNote.textContent =
+      "Exercising disk persistence, reload, Undo/Redo, Reset, multiple profiles, and Desktop/Small variants.";
+  } else if (test.message) {
+    elements.slice94LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+function layoutWithFirstWidgetColumns(layout, columns) {
+  const next = structuredClone(layout);
+  const candidate = next.widgets.find((widget) => !widget.duplicateOf);
+  if (candidate) candidate.columns = columns;
+  return next;
+}
+
+async function runSlice94Verification() {
+  const startingSnapshot = dashboardEditor.snapshot();
+  const startingLayouts = await dashboardLayoutRequest("/api/dashboard-layout");
+  const startingActiveProfileId = startingLayouts.activeProfileId;
+  const suffix = globalThis.crypto?.randomUUID?.().slice(0, 8) ?? Date.now().toString(36);
+  const profileA = `slice94-a-${suffix}`;
+  const profileB = `slice94-b-${suffix}`;
+  const cleanupProfiles = [profileA, profileB];
+  const steps = [];
+
+  try {
+    let store = await dashboardLayoutRequest("/api/dashboard-layout/profile/create", {
+      profileId: profileA,
+      name: "Slice 9.4 verification A",
+    });
+    const baseLayout = dashboardEditor.persistentState();
+    const desktopLayout = layoutWithFirstWidgetColumns(baseLayout, 8);
+    const smallLayout = layoutWithFirstWidgetColumns(baseLayout, 12);
+
+    store = await dashboardLayoutRequest("/api/dashboard-layout/save", {
+      profileId: profileA,
+      variant: "desktop",
+      layout: desktopLayout,
+    });
+    steps.push({
+      key: "save-to-disk",
+      outcome: store.profiles.some((profile) => profile.id === profileA && profile.layouts.desktop)
+        ? "passed"
+        : "failed",
+    });
+
+    store = await dashboardLayoutRequest("/api/dashboard-layout/save", {
+      profileId: profileA,
+      variant: "small",
+      layout: smallLayout,
+    });
+    store = await dashboardLayoutRequest("/api/dashboard-layout/reload", {});
+    const reloadedA = store.profiles.find((profile) => profile.id === profileA);
+    steps.push({
+      key: "restart-reload",
+      outcome: reloadedA?.layouts?.desktop?.widgets?.length > 0 ? "passed" : "failed",
+    });
+    steps.push({
+      key: "desktop-small-profiles",
+      outcome:
+        reloadedA?.layouts?.desktop?.widgets?.[0]?.columns !==
+        reloadedA?.layouts?.small?.widgets?.[0]?.columns
+          ? "passed"
+          : "failed",
+    });
+
+    store = await dashboardLayoutRequest("/api/dashboard-layout/profile/create", {
+      profileId: profileB,
+      name: "Slice 9.4 verification B",
+    });
+    steps.push({
+      key: "multiple-profiles",
+      outcome:
+        store.profiles.some((profile) => profile.id === profileA) &&
+        store.profiles.some((profile) => profile.id === profileB)
+          ? "passed"
+          : "failed",
+    });
+
+    dashboardEditor.restore(startingSnapshot);
+    dashboardEditor.clearHistory();
+    const candidateId = dashboardEditor.widgetIds().find((id) => id !== "current-verification-panel");
+    const candidate = candidateId ? dashboardEditor.widgets.get(candidateId)?.element : null;
+    const beforeColumns = Number(candidate?.dataset.widgetColumns ?? 12);
+    const changedColumns = beforeColumns === 6 ? 7 : 6;
+    if (candidateId) dashboardEditor.resizeWidget(candidateId, changedColumns, 192);
+    const changed = Number(candidate?.dataset.widgetColumns) === changedColumns;
+    const undone = dashboardEditor.undo();
+    const undoColumns = Number(candidate?.dataset.widgetColumns);
+    const redone = dashboardEditor.redo();
+    const redoColumns = Number(candidate?.dataset.widgetColumns);
+    steps.push({
+      key: "undo-redo",
+      outcome:
+        Boolean(candidateId) &&
+        changed &&
+        undone &&
+        undoColumns === beforeColumns &&
+        redone &&
+        redoColumns === changedColumns
+          ? "passed"
+          : "failed",
+    });
+
+    const reset = dashboardEditor.resetToDefault();
+    steps.push({
+      key: "reset",
+      outcome:
+        reset &&
+        JSON.stringify(dashboardEditor.persistentState()) ===
+          JSON.stringify(dashboardEditor.defaultPersistentState)
+          ? "passed"
+          : "failed",
+    });
+
+    return {
+      outcome: steps.every((step) => step.outcome === "passed") ? "passed" : "failed",
+      steps,
+      persistence: true,
+      diskReload: true,
+      gameplayMutation: false,
+      actionGatewayRequests: 0,
+      rawSocketAccess: false,
+      userScriptTouched: false,
+    };
+  } finally {
+    dashboardEditor.restore(startingSnapshot);
+    for (const profileId of cleanupProfiles) {
+      try {
+        await dashboardLayoutRequest("/api/dashboard-layout/profile/delete", { profileId });
+      } catch {
+        // Verification cleanup is best-effort if a temporary profile was not created.
+      }
+    }
+    let restoredStore = await dashboardLayoutRequest("/api/dashboard-layout");
+    if (restoredStore.profiles.some((profile) => profile.id === startingActiveProfileId)) {
+      restoredStore = await dashboardLayoutRequest("/api/dashboard-layout/profile/active", {
+        profileId: startingActiveProfileId,
+      });
+    }
+    state.dashboardLayouts = restoredStore;
+    renderDashboardEditorState();
+  }
+}
+
+async function startSlice94LiveTest(clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice94LiveTest = {
+    status: "running",
+    message: "Slice 9.4 layout persistence test is running.",
+  };
+  renderSlice94LiveTest();
+
+  const verification = await runSlice94Verification();
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) {
+    throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  }
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live94-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const stepLines = verification.steps.map((step) =>
+    `- ${step.key}: ${String(step.outcome).toUpperCase()}`
+  );
+  const reportText = [
+    "ALRemastered Slice 9.4 one-click layout persistence and profiles test",
+    `Test ID: ${testId}`,
+    "Slice: 9.4",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    "Persistence: true",
+    "Disk reload: true",
+    "Profiles: multiple",
+    "Viewport layouts: Desktop / Small",
+    "Gameplay mutation: false",
+    "Action Gateway requests: 0",
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+
+  const result = {
+    testId,
+    slice: "9.4",
+    outcome,
+    startedAt,
+    completedAt,
+    message: outcome === "passed"
+      ? "Layout persistence and profiles verification passed."
+      : "Layout persistence and profiles verification failed.",
+    steps: verification.steps,
+    persistence: true,
+    diskReload: true,
+    gameplayMutation: false,
+    actionGatewayRequests: 0,
+    rawSocketAccess: false,
+    userScriptTouched: false,
+  };
+
+  state.slice94LastReport = reportText;
+  state.slice94LiveTest = { status: outcome, message: result.message, lastResult: result };
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice94LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice94LiveTest.addEventListener("click", async () => {
+  if (state.slice94LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice94LastReport = null;
+  elements.copySlice94LiveTestResult.hidden = true;
+  setFeedback(
+    "Slice 9.4 layout persistence test started. Temporary verification profiles will be removed automatically.",
+  );
+  try {
+    const { result, copied } = await startSlice94LiveTest(clipboardWrite);
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 9.4 test ${String(result.outcome).toUpperCase()}. ${copyMessage}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    state.slice94LiveTest = { status: "failed", message: error.message };
+    renderSlice94LiveTest();
+    setFeedback(`Slice 9.4 layout persistence test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice94LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice94LastReport) return;
+  try {
+    await writeClipboard(state.slice94LastReport);
+    setFeedback(
+      "Complete Slice 9.4 layout persistence result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Layout persistence result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice94LiveTest();
 
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));

@@ -50,7 +50,6 @@ test("Slice 9.3 exposes page tabs and a dashboard-only one-click verification", 
   const editor = readFileSync(new URL("../dashboard/editor.js", import.meta.url), "utf8");
   const css = readFileSync(new URL("../dashboard/styles.css", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="9\.3"/);
   assert.match(html, /id="dashboard-page-tabs"/);
   for (const [id, label] of [
     ["overview", "Overview"],
@@ -83,21 +82,19 @@ test("Slice 9.3 exposes page tabs and a dashboard-only one-click verification", 
   assert.match(css, /data-dashboard-page-visible="false"/);
 });
 
-test("Slice 9.3 retains historical 9.1 and 9.2 verification harnesses", () => {
+test("Slice 9.3 verification harness remains retained after Current verification advances", () => {
   const html = readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
-  assert.match(html, /data-verification-test="9\.1" hidden/);
-  assert.match(html, /id="start-slice-9-1-live-test"/);
-  assert.match(html, /data-verification-test="9\.2" hidden/);
-  assert.match(html, /id="start-slice-9-2-live-test"/);
-  const current = html.match(/<body data-current-verification-slice="([^"]*)">/)?.[1];
-  assert.equal(current, "9.3");
+  for (const slice of ["9.1", "9.2", "9.3"]) {
+    assert.match(html, new RegExp(`data-verification-test="${slice.replace(".", "\\.")}" hidden`));
+    assert.match(html, new RegExp(`id="start-slice-${slice.replace(".", "-")}-live-test"`));
+  }
 });
 
-test("Slice 9.3 does not introduce persistence, profiles, undo-redo, or import-export", () => {
+test("Slice 9.3 page selection remains transient while later layout persistence is added", () => {
   const editor = readFileSync(new URL("../dashboard/editor.js", import.meta.url), "utf8");
   const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
   const combined = `${editor}\n${script}`;
 
-  assert.doesNotMatch(combined, /undoStack|redoStack|layoutProfile|importLayout|exportLayout/);
-  assert.doesNotMatch(combined, /localStorage|sessionStorage|\/api\/dashboard-layout/);
+  assert.match(script, /Page selection persistence: false/);
+  assert.doesNotMatch(combined, /importLayout|exportLayout/);
 });

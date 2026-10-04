@@ -117,6 +117,10 @@ export class DashboardEditor {
     this.activeConfigId = null;
     this.activePage = "overview";
     this.duplicateSequence = 0;
+    this.defaultPersistentState = null;
+    this.historyPast = [];
+    this.historyFuture = [];
+    this.historySuspended = false;
   }
 
   init() {
@@ -151,6 +155,8 @@ export class DashboardEditor {
     this.grid = grid;
     this.document.body.dataset.dashboardEditMode = "false";
     this.document.body.dataset.dashboardPage = this.activePage;
+    this.defaultPersistentState = this.persistentState();
+    this.clearHistory();
     return this;
   }
 
@@ -200,13 +206,6 @@ export class DashboardEditor {
         name: String(character.name || character.id),
       }));
     for (const [id, record] of this.widgets) {
-      if (
-        record.characterId &&
-        !this.characterOptions.some((character) => character.id === record.characterId)
-      ) {
-        record.characterId = "";
-        delete record.element.dataset.widgetCharacter;
-      }
       this.#renderCharacterBadge(id);
       this.#renderCharacterContext(id);
       this.#syncConfigurationPanel(id);
@@ -260,15 +259,14 @@ export class DashboardEditor {
     };
   }
 
-  configureWidget(id, configuration = {}, { notify = true } = {}) {
+  configureWidget(id, configuration = {}, { notify = true, history = notify } = {}) {
     const record = this.widgets.get(id);
     if (!record) return false;
+    if (history) this.#pushHistory();
 
     if (configuration.characterId !== undefined) {
       const characterId = String(configuration.characterId || "");
-      record.characterId = this.characterOptions.some((character) => character.id === characterId)
-        ? characterId
-        : "";
+      record.characterId = characterId;
       if (record.characterId) record.element.dataset.widgetCharacter = record.characterId;
       else delete record.element.dataset.widgetCharacter;
     }
@@ -297,49 +295,15 @@ export class DashboardEditor {
     return true;
   }
 
-  duplicateWidget(id) {
-    const source = this.widgets.get(id);
-    if (!source || !this.grid) return null;
-
-    const duplicate = source.element.cloneNode(true);
-    sanitizeDuplicateContent(duplicate);
-    [...duplicate.children].forEach((child, index) => {
-      const sourceField = source.fields[index];
-      if (sourceField) child.hidden = sourceField.baselineHidden;
-    });
-    const duplicateId = `${id}-copy-${++this.duplicateSequence}`;
-    duplicate.dataset.dashboardWidget = duplicateId;
-    duplicate.dataset.dashboardDuplicateOf = id;
-    duplicate.dataset.widgetColumns = source.element.dataset.widgetColumns || String(DASHBOARD_GRID_COLUMNS);
-    duplicate.style.setProperty(
-      "--dashboard-widget-columns",
-      duplicate.dataset.widgetColumns,
-    );
-    if (source.element.dataset.widgetHeight) {
-      duplicate.dataset.widgetHeight = source.element.dataset.widgetHeight;
-      duplicate.style.setProperty(
-        "--dashboard-widget-height",
-        `${source.element.dataset.widgetHeight}px`,
-      );
-    } else {
-      delete duplicate.dataset.widgetHeight;
-      duplicate.style.removeProperty("--dashboard-widget-height");
-    }
-
-    this.grid.insertBefore(duplicate, source.element.nextSibling);
-    this.#registerWidget(duplicateId, duplicate, {
-      label: `${source.label} copy`,
-      duplicateOf: id,
-      pages: [...source.pages],
-    });
-    this.configureWidget(duplicateId, {
-      characterId: source.characterId,
-      hiddenFields: [...source.hiddenFields],
-      displayMode: source.displayMode,
-    }, { notify: false });
-    this.#startDuplicateMirror(duplicateId);
-    this.onChange();
-    return duplicateId;
+  duplicateWidget(id, { history = true } = {}) {
+    if (history) this.#pushHistory();
+    let duplicateId;
+    do {
+      duplicateId = `${id}-copy-${++this.duplicateSequence}`;
+    } while (this.widgets.has(duplicateId));
+    const created = this.#createDuplicate(id, duplicateId);
+    if (created) this.onChange();
+    return created;
   }
 
   openConfiguration(id) {
@@ -381,8 +345,9 @@ export class DashboardEditor {
     return this.enabled;
   }
 
-  moveWidget(sourceId, targetId) {
+  moveWidget(sourceId, targetId, { history = true } = {}) {
     if (!this.grid || sourceId === targetId) return false;
+    if (history) this.#pushHistory();
     const order = moveWidgetOrder(this.widgetIds(), sourceId, targetId);
     if (order.length === 0) return false;
     for (const id of order) {
@@ -393,9 +358,10 @@ export class DashboardEditor {
     return true;
   }
 
-  resizeWidget(id, columns, heightPx) {
+  resizeWidget(id, columns, heightPx, { history = true } = {}) {
     const widget = this.widgets.get(id)?.element;
     if (!widget) return false;
+    if (history) this.#pushHistory();
     const snappedColumns = clampWidgetColumns(columns);
     const snappedHeight = Math.max(
       DASHBOARD_MIN_HEIGHT_PX,
@@ -409,9 +375,10 @@ export class DashboardEditor {
     return true;
   }
 
-  removeWidget(id) {
+  removeWidget(id, { history = true } = {}) {
     const widget = this.widgets.get(id)?.element;
     if (!widget || this.removed.has(id)) return false;
+    if (history) this.#pushHistory();
     this.removed.add(id);
     widget.dataset.editorRemoved = "true";
     widget.hidden = true;
@@ -420,15 +387,156 @@ export class DashboardEditor {
     return true;
   }
 
-  addWidget(id) {
+  addWidget(id, { history = true } = {}) {
     const widget = this.widgets.get(id)?.element;
     if (!widget || !this.removed.has(id)) return false;
+    if (history) this.#pushHistory();
     this.removed.delete(id);
     delete widget.dataset.editorRemoved;
     widget.hidden = false;
     this.#syncPageVisibility(id);
     this.onChange();
     return true;
+  }
+
+  persistentState() {
+    const widgets = [...this.widgets].map(([id, record]) => ({
+      id,
+      duplicateOf: record.duplicateOf ?? null,
+      columns: Number(record.element.dataset.widgetColumns || DASHBOARD_GRID_COLUMNS),
+      height: record.element.dataset.widgetHeight ? Number(record.element.dataset.widgetHeight) : null,
+      removed: this.removed.has(id),
+      characterId: record.characterId,
+      hiddenFields: [...record.hiddenFields],
+      displayMode: record.displayMode,
+    }));
+    return {
+      schemaVersion: 1,
+      order: this.widgetIds(),
+      widgets,
+    };
+  }
+
+  applyPersistentState(layout, { history = false, notify = true } = {}) {
+    if (!layout || layout.schemaVersion !== 1 || !Array.isArray(layout.widgets) || !Array.isArray(layout.order)) {
+      return false;
+    }
+    if (history) this.#pushHistory();
+    const previousSuspended = this.historySuspended;
+    this.historySuspended = true;
+    try {
+      for (const [id, record] of [...this.widgets]) {
+        if (!record.duplicateOf) continue;
+        record.mirrorObserver?.disconnect?.();
+        record.element.remove();
+        this.widgets.delete(id);
+        this.removed.delete(id);
+      }
+
+      for (const widgetState of layout.widgets) {
+        if (!widgetState?.duplicateOf || this.widgets.has(widgetState.id)) continue;
+        this.#createDuplicate(widgetState.duplicateOf, widgetState.id);
+      }
+
+      const stateById = new Map(layout.widgets.map((widget) => [widget.id, widget]));
+      for (const id of layout.order) {
+        const widget = this.widgets.get(id)?.element;
+        if (widget) this.grid?.append(widget);
+      }
+      for (const id of this.widgetIds()) {
+        if (!layout.order.includes(id)) {
+          const widget = this.widgets.get(id)?.element;
+          if (widget) this.grid?.append(widget);
+        }
+      }
+
+      this.removed.clear();
+      for (const [id, record] of this.widgets) {
+        const state = stateById.get(id);
+        const columns = clampWidgetColumns(state?.columns ?? DASHBOARD_GRID_COLUMNS);
+        record.element.dataset.widgetColumns = String(columns);
+        record.element.style.setProperty("--dashboard-widget-columns", String(columns));
+        if (state?.height) {
+          const height = Math.max(
+            DASHBOARD_MIN_HEIGHT_PX,
+            snapToGrid(state.height, DASHBOARD_GRID_ROW_PX),
+          );
+          record.element.dataset.widgetHeight = String(height);
+          record.element.style.setProperty("--dashboard-widget-height", `${height}px`);
+        } else {
+          delete record.element.dataset.widgetHeight;
+          record.element.style.removeProperty("--dashboard-widget-height");
+        }
+
+        if (state?.removed) {
+          this.removed.add(id);
+          record.element.dataset.editorRemoved = "true";
+          record.element.hidden = true;
+        } else {
+          delete record.element.dataset.editorRemoved;
+          record.element.hidden = false;
+        }
+
+        this.configureWidget(id, {
+          characterId: state?.characterId ?? "",
+          hiddenFields: state?.hiddenFields ?? [],
+          displayMode: state?.displayMode ?? "standard",
+        }, { notify: false, history: false });
+        this.#syncPageVisibility(id);
+      }
+    } finally {
+      this.historySuspended = previousSuspended;
+    }
+    if (notify) this.onChange();
+    return true;
+  }
+
+  resetToDefault() {
+    if (!this.defaultPersistentState) return false;
+    this.#pushHistory();
+    return this.applyPersistentState(this.defaultPersistentState, { notify: true });
+  }
+
+  canUndo() {
+    return this.historyPast.length > 0;
+  }
+
+  canRedo() {
+    return this.historyFuture.length > 0;
+  }
+
+  clearHistory() {
+    this.historyPast = [];
+    this.historyFuture = [];
+    this.onChange();
+  }
+
+  undo() {
+    const previous = this.historyPast.pop();
+    if (!previous) return false;
+    this.historyFuture.push(this.persistentState());
+    this.applyPersistentState(previous, { notify: true });
+    return true;
+  }
+
+  redo() {
+    const next = this.historyFuture.pop();
+    if (!next) return false;
+    this.historyPast.push(this.persistentState());
+    this.applyPersistentState(next, { notify: true });
+    return true;
+  }
+
+  #pushHistory() {
+    if (this.historySuspended || !this.grid) return;
+    const current = this.persistentState();
+    const serialized = JSON.stringify(current);
+    const last = this.historyPast[this.historyPast.length - 1];
+    if (!last || JSON.stringify(last) !== serialized) {
+      this.historyPast.push(current);
+      if (this.historyPast.length > 50) this.historyPast.shift();
+    }
+    this.historyFuture = [];
   }
 
   snapshot() {
@@ -452,6 +560,8 @@ export class DashboardEditor {
       characterSnapshots: [...this.characterSnapshots.entries()].map(([id, value]) => [id, { ...value }]),
       activePage: this.activePage,
       duplicateSequence: this.duplicateSequence,
+      historyPast: this.historyPast.map((entry) => structuredClone(entry)),
+      historyFuture: this.historyFuture.map((entry) => structuredClone(entry)),
     };
   }
 
@@ -474,6 +584,8 @@ export class DashboardEditor {
     this.activePage = normalizeDashboardPage(snapshot.activePage);
     if (this.document?.body) this.document.body.dataset.dashboardPage = this.activePage;
     this.duplicateSequence = Number(snapshot.duplicateSequence ?? this.duplicateSequence);
+    this.historyPast = (snapshot.historyPast ?? []).map((entry) => structuredClone(entry));
+    this.historyFuture = (snapshot.historyFuture ?? []).map((entry) => structuredClone(entry));
     for (const id of snapshot.order ?? []) {
       const widget = this.widgets.get(id)?.element;
       if (widget) this.grid.append(widget);
@@ -512,6 +624,41 @@ export class DashboardEditor {
     else this.disable();
     this.onChange();
     return true;
+  }
+
+  #createDuplicate(sourceId, duplicateId) {
+    const source = this.widgets.get(sourceId);
+    if (!source || !this.grid || this.widgets.has(duplicateId)) return null;
+    const duplicate = source.element.cloneNode(true);
+    sanitizeDuplicateContent(duplicate);
+    [...duplicate.children].forEach((child, index) => {
+      const sourceField = source.fields[index];
+      if (sourceField) child.hidden = sourceField.baselineHidden;
+    });
+    duplicate.dataset.dashboardWidget = duplicateId;
+    duplicate.dataset.dashboardDuplicateOf = sourceId;
+    duplicate.dataset.widgetColumns = source.element.dataset.widgetColumns || String(DASHBOARD_GRID_COLUMNS);
+    duplicate.style.setProperty("--dashboard-widget-columns", duplicate.dataset.widgetColumns);
+    if (source.element.dataset.widgetHeight) {
+      duplicate.dataset.widgetHeight = source.element.dataset.widgetHeight;
+      duplicate.style.setProperty("--dashboard-widget-height", `${source.element.dataset.widgetHeight}px`);
+    } else {
+      delete duplicate.dataset.widgetHeight;
+      duplicate.style.removeProperty("--dashboard-widget-height");
+    }
+    this.grid.insertBefore(duplicate, source.element.nextSibling);
+    this.#registerWidget(duplicateId, duplicate, {
+      label: `${source.label} copy`,
+      duplicateOf: sourceId,
+      pages: [...source.pages],
+    });
+    this.configureWidget(duplicateId, {
+      characterId: source.characterId,
+      hiddenFields: [...source.hiddenFields],
+      displayMode: source.displayMode,
+    }, { notify: false, history: false });
+    this.#startDuplicateMirror(duplicateId);
+    return duplicateId;
   }
 
   #registerWidget(id, widget, { label, duplicateOf, pages }) {
@@ -845,6 +992,7 @@ export class DashboardEditor {
       startY: event.clientY,
       startColumns: Number(widget.dataset.widgetColumns || DASHBOARD_GRID_COLUMNS),
       startHeight: bounds.height,
+      historyCaptured: false,
     };
     event.currentTarget?.setPointerCapture?.(event.pointerId);
     this.document.addEventListener("pointermove", this.#handleResizeMove);
@@ -859,7 +1007,11 @@ export class DashboardEditor {
     const columnWidth = gridWidth / DASHBOARD_GRID_COLUMNS;
     const columns = session.startColumns + Math.round((event.clientX - session.startX) / columnWidth);
     const height = session.startHeight + (event.clientY - session.startY);
-    this.resizeWidget(session.id, columns, height);
+    if (!session.historyCaptured) {
+      this.#pushHistory();
+      session.historyCaptured = true;
+    }
+    this.resizeWidget(session.id, columns, height, { history: false });
   };
 
   #handleResizeEnd = () => {
