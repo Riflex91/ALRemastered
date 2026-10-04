@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "phase": "4-vertical-pilot",
+  "rules": {
+    "allowedScales": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "defaultScale": 8,
+    "preserveLogicalSize": true,
+    "originalFallbackRequired": true,
+    "resolutionSuffixRequired": true,
+    "activeOverridesAllowed": true,
+    "nonDefaultScaleRequiresExceptionReason": true,
+    "note": "8x is the standard for new HD assets. Any lower scale requires scaleExceptionReason."
+  },
+  "replacements": [
+    {
+      "sourcePath": "images/tiles/characters/jubchan_1.png",
+      "hdPath": "characters/jubchan_1@8x.png",
+      "scale": 8,
+      "state": "active",
+      "preserveLogicalSize": true,
+      "originalFallback": true,
+      "role": "phase4-artistic-8x-pilot",
+      "originalBlobSha": "fc464d13e76b2cc61838afdfb483043b3e31f406",
+      "originalPixels": {
+        "width": 78,
+        "height": 144
+      },
+      "hdPixels": {
+        "width": 624,
+        "height": 1152
+      },
+      "runtimeGrid": {
+        "columns": 3,
+        "rows": 4
+      },
+      "logicalCell": {
+        "width": 26,
+        "height": 36
+      },
+      "directionRows": [
+        "front/down",
+        "left",
+        "right",
+        "back/up"
+      ],
+      "artDirection": "blue-gold chibi remaster",
+      "note": "Presentation-only 8x PNG pilot live-validated with Mira (direction=0, j=0) and original aniv2 hat; original gameplay/runtime semantics remain authoritative."
+    },
+    {
+      "sourcePath": "images/tiles/map/doors.png",
+      "hdPath": "map/doors@8x.png",
+      "scale": 8,
+      "state": "active",
+      "preserveLogicalSize": true,
+      "originalFallback": true,
+      "role": "mainland-terrain-technical-8x-pilot",
+      "originalBlobSha": "09921450572b33ca17dab98ff5e705dba8adea1c",
+      "originalPixels": {
+        "width": 192,
+        "height": 256
+      },
+      "hdPixels": {
+        "width": 1536,
+        "height": 2048
+      },
+      "generator": {
+        "method": "nearest-neighbor-png",
+        "expectedSha256": "66fef5c19149ac4cf8a625b0c1b19a5ca6a359f35e1c0ec9d4350bf69de2235f"
+      },
+      "note": "Presentation-only deterministic 8x technical terrain pilot for Mainland doors atlas. Exact logical atlas geometry and original fallback are preserved; no gameplay or map geometry is changed."
+    }
+  ]
+}
