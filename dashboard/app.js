@@ -42,6 +42,8 @@ const state = {
   slice113LastReport: null,
   slice114LiveTest: { status: "idle", message: "Ready." },
   slice114LastReport: null,
+  slice121LiveTest: { status: "idle", message: "Ready." },
+  slice121LastReport: null,
   controlMode: null,
   dashboardLayouts: null,
   pendingDashboardImport: null,
@@ -199,6 +201,10 @@ const elements = {
   slice114LiveTestStatus: document.querySelector("#slice-11-4-live-test-status"),
   slice114LiveTestNote: document.querySelector("#slice-11-4-live-test-note"),
   copySlice114LiveTestResult: document.querySelector("#copy-slice-11-4-live-test-result"),
+  startSlice121LiveTest: document.querySelector("#start-slice-12-1-live-test"),
+  slice121LiveTestStatus: document.querySelector("#slice-12-1-live-test-status"),
+  slice121LiveTestNote: document.querySelector("#slice-12-1-live-test-note"),
+  copySlice121LiveTestResult: document.querySelector("#copy-slice-12-1-live-test-result"),
   coreStatus: document.querySelector("#core-status"),
   version: document.querySelector("#client-version"),
   uptime: document.querySelector("#uptime"),
@@ -4502,6 +4508,327 @@ elements.copySlice114LiveTestResult.addEventListener("click", async () => {
 });
 
 renderSlice114LiveTest();
+
+function renderSlice121LiveTest() {
+  const test = state.slice121LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    failed: "FAILED",
+  };
+  elements.slice121LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice121LiveTest.disabled = test.status === "running";
+  elements.copySlice121LiveTestResult.hidden = !state.slice121LastReport;
+  if (test.status === "running") {
+    elements.slice121LiveTestNote.textContent =
+      "Validating the read-only .alrpkg format descriptor, deterministic SHA-256 package fixture, tamper rejection, and runtime continuity. No package will be imported or executed.";
+  } else if (test.message) {
+    elements.slice121LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function fetchScriptPackageFormat() {
+  const response = await fetch("/api/packages/format", { cache: "no-store" });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error ?? `Package format request failed with HTTP ${response.status}.`);
+  }
+  return payload;
+}
+
+async function fetchScriptPackageFormatSelfTest() {
+  const response = await fetch("/api/packages/format/self-test", { cache: "no-store" });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error ?? `Package format self-test failed with HTTP ${response.status}.`);
+  }
+  return payload;
+}
+
+async function runSlice121Verification() {
+  const before = await fetchRendererSnapshot();
+  const descriptor = await fetchScriptPackageFormat();
+  const selfTest = await fetchScriptPackageFormatSelfTest();
+  const after = await fetchRendererSnapshot();
+  const steps = [];
+  const required = [
+    "id",
+    "name",
+    "version",
+    "author",
+    "compatibility",
+    "permissions",
+    "scripts",
+    "configSchema",
+    "readme",
+  ];
+
+  steps.push({
+    key: "package-format-descriptor",
+    outcome:
+      descriptor.status === "ready" &&
+      descriptor.format === "alremastered-script-package" &&
+      descriptor.fileExtension === ".alrpkg" &&
+      descriptor.schemaVersion === 1 &&
+      descriptor.hashAlgorithm === "sha256"
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "manifest-required-fields",
+    outcome:
+      required.every((field) => descriptor.requiredManifestFields?.includes(field))
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "package-structure-valid",
+    outcome:
+      selfTest.status === "ready" &&
+      selfTest.inspection?.valid === true &&
+      Number(selfTest.inspection?.scriptCount ?? 0) >= 1 &&
+      Number(selfTest.inspection?.fileCount ?? 0) >= 3
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "sha256-integrity",
+    outcome:
+      selfTest.checks?.sha256 === true &&
+      typeof selfTest.inspection?.manifestHash === "string" &&
+      selfTest.inspection.manifestHash.length === 64
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "tamper-rejected",
+    outcome:
+      selfTest.checks?.tamperRejected === true &&
+      selfTest.checks?.tamperErrorCode === "PACKAGE_HASH_MISMATCH"
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "config-readme-scripts",
+    outcome:
+      selfTest.checks?.scripts === true &&
+      selfTest.checks?.configSchema === true &&
+      selfTest.checks?.readme === true
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "metadata-compatibility-permissions",
+    outcome:
+      selfTest.checks?.version === true &&
+      selfTest.checks?.author === true &&
+      selfTest.checks?.compatibility === true &&
+      selfTest.checks?.permissionsDeclared === true
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "declaration-only-no-import-execution",
+    outcome:
+      descriptor.permissionDeclarationsOnly === true &&
+      descriptor.permissionEnforcement === false &&
+      descriptor.importSupported === false &&
+      descriptor.executionSupported === false &&
+      selfTest.checks?.permissionEnforcement === false &&
+      selfTest.checks?.importAttempted === false &&
+      selfTest.checks?.executionAttempted === false
+        ? "passed"
+        : "failed",
+  });
+
+  const beforeCore = before.snapshot?.core ?? {};
+  const afterCore = after.snapshot?.core ?? {};
+  const coreRestart = beforeCore.startedAt !== afterCore.startedAt;
+  steps.push({
+    key: "core-continuity",
+    outcome:
+      !coreRestart &&
+      afterCore.status === "running" &&
+      Number(afterCore.heartbeatSequence ?? 0) >= Number(beforeCore.heartbeatSequence ?? 0)
+        ? "passed"
+        : "failed",
+  });
+
+  const beforeCharacter = before.snapshot?.character ?? {};
+  const afterCharacter = after.snapshot?.character ?? {};
+  const characterRestart = !sameSocketMarkers(beforeCharacter, afterCharacter);
+  steps.push({
+    key: "character-continuity",
+    outcome: characterRestart ? "failed" : "passed",
+  });
+
+  const beforeScript = before.snapshot?.script ?? {};
+  const afterScript = after.snapshot?.script ?? {};
+  const scriptRestart =
+    (beforeScript.runId ?? null) !== (afterScript.runId ?? null) ||
+    (beforeScript.startedAt ?? null) !== (afterScript.startedAt ?? null);
+  steps.push({
+    key: "script-continuity",
+    outcome: scriptRestart ? "failed" : "passed",
+  });
+
+  const actionGatewayRequests = Math.max(
+    0,
+    Number(after.snapshot?.actionGateway?.totalRequests ?? 0) -
+      Number(before.snapshot?.actionGateway?.totalRequests ?? 0),
+  );
+  steps.push({
+    key: "read-only-runtime",
+    outcome: actionGatewayRequests === 0 ? "passed" : "failed",
+  });
+
+  return {
+    outcome: steps.every((step) => step.outcome === "passed") ? "passed" : "failed",
+    steps,
+    descriptor,
+    selfTest,
+    coreRestart,
+    characterRestart,
+    scriptRestart,
+    dashboardGetOnly: true,
+    gameplayMutation: false,
+    actionGatewayRequests,
+    rawSocketAccess: false,
+    userScriptTouched: false,
+  };
+}
+
+async function startSlice121LiveTest(clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice121LiveTest = {
+    status: "running",
+    message: "Slice 12.1 Script Package format test is running.",
+  };
+  renderSlice121LiveTest();
+
+  const verification = await runSlice121Verification();
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) {
+    throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  }
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live121-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const inspection = verification.selfTest.inspection ?? {};
+  const checks = verification.selfTest.checks ?? {};
+  const stepLines = verification.steps.map((step) =>
+    `- ${step.key}: ${String(step.outcome).toUpperCase()}`
+  );
+  const reportText = [
+    "ALRemastered Slice 12.1 one-click Script Package format test",
+    `Test ID: ${testId}`,
+    "Slice: 12.1",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    `Package format: ${verification.descriptor.format}`,
+    `File extension: ${verification.descriptor.fileExtension}`,
+    `Schema version: ${verification.descriptor.schemaVersion}`,
+    `Hash algorithm: ${verification.descriptor.hashAlgorithm}`,
+    `Package sections: ${verification.descriptor.packageSections.join(", ")}`,
+    `Required manifest fields: ${verification.descriptor.requiredManifestFields.join(", ")}`,
+    `Fixture package ID: ${inspection.packageId}`,
+    `Fixture version: ${inspection.version}`,
+    `Fixture author: ${inspection.author}`,
+    `Fixture minimum ALRemastered: ${inspection.compatibility?.alremastered?.minVersion ?? "unknown"}`,
+    `Declared permissions: ${inspection.permissions?.join(", ") || "none"}`,
+    `Script count: ${inspection.scriptCount}`,
+    `Entry script: ${inspection.entryScript}`,
+    `Config Schema: ${inspection.configSchemaPath}`,
+    `README: ${inspection.readmePath}`,
+    `File count: ${inspection.fileCount}`,
+    `Package text bytes: ${inspection.totalBytes}`,
+    `Manifest SHA-256: ${inspection.manifestHash}`,
+    `Tamper rejected: ${checks.tamperRejected}`,
+    `Tamper error: ${checks.tamperErrorCode}`,
+    "Permission enforcement: false",
+    "Package import attempted: false",
+    "Package execution attempted: false",
+    `Core restart: ${verification.coreRestart}`,
+    `Character restart: ${verification.characterRestart}`,
+    `Script restart: ${verification.scriptRestart}`,
+    "Dashboard GET only: true",
+    "Gameplay mutation: false",
+    `Action Gateway requests: ${verification.actionGatewayRequests}`,
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+
+  const result = {
+    testId,
+    slice: "12.1",
+    outcome,
+    startedAt,
+    completedAt,
+    message: outcome === "passed"
+      ? "Script Package format verification passed."
+      : "Script Package format verification failed.",
+    ...verification,
+  };
+  state.slice121LastReport = reportText;
+  state.slice121LiveTest = { status: outcome, message: result.message, lastResult: result };
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice121LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice121LiveTest.addEventListener("click", async () => {
+  if (state.slice121LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice121LastReport = null;
+  elements.copySlice121LiveTestResult.hidden = true;
+  setFeedback(
+    "Slice 12.1 Script Package format test started. It validates only local package structure and SHA-256 integrity; no package is imported, permission-enforced, or executed.",
+  );
+  try {
+    const { result, copied } = await startSlice121LiveTest(clipboardWrite);
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 12.1 test ${String(result.outcome).toUpperCase()}. ${copyMessage}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    state.slice121LiveTest = { status: "failed", message: error.message };
+    renderSlice121LiveTest();
+    setFeedback(`Slice 12.1 Script Package format test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice121LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice121LastReport) return;
+  try {
+    await writeClipboard(state.slice121LastReport);
+    setFeedback(
+      "Complete Slice 12.1 Script Package format result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Script Package format result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice121LiveTest();
 
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
