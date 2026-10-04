@@ -1392,3 +1392,58 @@ Repository/release evidence:
 **Canonical queue status: Slice 7.4 = VERIFIED.**
 
 Do not repeat Slice 7.4 merely because implementation planning text remains elsewhere. The next roadmap slice may begin only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
+
+
+---
+
+### Alpha.57 real one-click result: PASSED — Slice 8.1 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.57`
+- release target / tested implementation main: `620763ca56978a883b0973db5c4126137091ae06`
+- client: `0.1.0-alpha.57` / Windows
+- platform: `win32`
+- test ID: `live81-7b50f7cd-fe27-4fc5-9578-3e8bbabde016`
+- primary Character: `My_Merchant`
+- temporary managed Character: `My_Ranger1`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-04T07:52:06.842Z → 2026-10-04T07:52:07.219Z`
+- diagnostic export: 148 log lines, `Secrets sanitized: yes`.
+
+The one-click harness completed the full Slice 8.1 Character Cards validation:
+
+- preflight exposed live primary Card telemetry with HP `3035/3079`, MP `1838/1915`, map `main`, target `None`, Script status `unloaded`, and Health `healthy`;
+- preflight began with exactly one active primary Character session, zero managed sessions, and the user Script runtime unloaded;
+- managed Start created one temporary `My_Ranger1` session through the existing multi-character session manager;
+- the managed Card immediately reported `sessionRole:"managed"`, `connectionStatus:"connected"`, and Health `healthy`;
+- managed per-Character Script state correctly remained explicitly `not-available` rather than introducing a second Script runtime model;
+- primary Pause was exercised with the isolated `slice81-pause-probe` Script runtime;
+- the probe reached `scriptStatus:"paused"` and the Pause control disabled after the transition;
+- the actual user Script runtime was not touched: `userScriptInterrupted:false`;
+- managed Stop removed only the temporary `My_Ranger1` session;
+- after Stop, the managed Card returned to `connectionStatus:"offline"`, Health `offline`, and Start-ready state;
+- final managed-session count returned to `0`;
+- primary `My_Merchant` remained connected;
+- final user Script status remained `unloaded`;
+- `gameplayMutation:false`;
+- `rawSocketAccess:false`;
+- final Character Cards state contained one active local session out of the four-session limit.
+
+Repository/release evidence:
+
+- implementation PR #111 final feature head: `12767199ae6d916f4e2f724d046f16b983ad33c3`;
+- final implementation PR CI run `37186531446` completed with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #111 merged with method `merge` into exact implementation main `620763ca56978a883b0973db5c4126137091ae06`;
+- exact post-implementation-main CI run `37186688516` completed with all four required jobs successful;
+- release publish run `37186845177` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.57`, tag `v0.1.0-alpha.57`, GitHub release target, and tested implementation `main` were verified commit-identical at `620763ca56978a883b0973db5c4126137091ae06`;
+- published assets:
+  - Windows x64 installer SHA-256 `714eaf46ba9c4d4586a240f916ea3c6fe66407e1e2e06429a692dea06a2787db`
+  - Linux x64 installer SHA-256 `e73d7d991dee142f3418e11b47052c35f75d7bfc13a3fcd2cef5c9276569db38`
+  - updater manifest SHA-256 `55431886b8aa1095014bd62fe83c200e47d84440374fd31d82e94118cd570b9a`.
+
+**Canonical queue status: Slice 8.1 = VERIFIED.**
+
+Do not repeat Slice 8.1 merely because implementation planning text remains elsewhere. Slice 8.2 – Setup Wizard may begin only after this verification documentation is merged and the exact post-merge `main` CI is fully green.

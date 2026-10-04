@@ -2723,3 +2723,69 @@ Repository/release gate evidence:
 Result: the real installed Windows alpha.56 run proves the complete Slice 7.4 Party Templates scope: Warrior Tank, Priest Healer, DPS recommendation, simple manual role assignment, recommendation restore, managed-member cleanup, and stateless integration over the existing Party Coordinator without gameplay mutation, raw sockets, local messaging traffic, user Script interruption, or stale template-role state. **Slice 7.4 is VERIFIED.**
 
 Phase 8 / Slice 8.1 – Character Cards may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
+
+
+---
+
+## Slice 8.1 Verification Record — Character Cards
+
+**Canonical status update: Slice 8.1 = VERIFIED.**
+
+Release/live environment:
+
+- verified release: `v0.1.0-alpha.57`
+- tested implementation main / release target: `620763ca56978a883b0973db5c4126137091ae06`
+- Windows client: `0.1.0-alpha.57`
+- platform: `win32`
+- one-click test ID: `live81-7b50f7cd-fe27-4fc5-9578-3e8bbabde016`
+- primary Character: `My_Merchant`
+- temporary managed Character: `My_Ranger1`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-04T07:52:06.842Z → 2026-10-04T07:52:07.219Z`
+- diagnostic export: 148 log lines, `Secrets sanitized: yes`.
+
+Character Cards evidence:
+
+- the primary Card exposed HP `3035/3079` and MP `1838/1915`;
+- Map was displayed as `main`;
+- Target was explicitly represented as no current target;
+- Script status was displayed as `unloaded`;
+- Health was `healthy` while the primary session was connected and receiving live state;
+- the primary Card correctly disabled Start while connected and exposed Stop;
+- managed Start created `My_Ranger1` through the existing multi-character session manager;
+- the managed Card reported `sessionRole:"managed"`, `connectionStatus:"connected"`, and Health `healthy`;
+- managed Script status remained explicitly `not-available`, preserving the existing single primary Script-runtime architecture;
+- Pause was validated against the isolated `slice81-pause-probe` bound to the primary Card;
+- the probe transitioned to `paused` and the Pause control disabled after the transition;
+- the actual user Script runtime remained untouched;
+- managed Stop removed only `My_Ranger1`;
+- after Stop the managed Card returned to offline Health and Start-ready state;
+- final active state returned to one primary session and zero managed sessions.
+
+Isolation and safety evidence:
+
+- user Script status before and after remained `unloaded`;
+- `userScriptInterrupted:false`;
+- `managedSessionCountAfter:0`;
+- primary `My_Merchant` remained `connected`;
+- `gameplayMutation:false`;
+- `rawSocketAccess:false`;
+- no independent per-managed-Character Script runtime was introduced by Slice 8.1.
+
+Repository/release gate evidence:
+
+- implementation PR #111 final feature head: `12767199ae6d916f4e2f724d046f16b983ad33c3`;
+- final implementation PR CI run `37186531446` completed with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #111 merged with method `merge` into exact implementation main `620763ca56978a883b0973db5c4126137091ae06`;
+- exact post-implementation-main CI run `37186688516` completed with all four required jobs successful;
+- release publish run `37186845177` completed successfully;
+- release branch `release/v0.1.0-alpha.57`, tag `v0.1.0-alpha.57`, GitHub release target, and tested implementation main were verified commit-identical at `620763ca56978a883b0973db5c4126137091ae06`;
+- published assets:
+  - Windows x64 installer SHA-256 `714eaf46ba9c4d4586a240f916ea3c6fe66407e1e2e06429a692dea06a2787db`
+  - Linux x64 installer SHA-256 `e73d7d991dee142f3418e11b47052c35f75d7bfc13a3fcd2cef5c9276569db38`
+  - updater manifest SHA-256 `55431886b8aa1095014bd62fe83c200e47d84440374fd31d82e94118cd570b9a`.
+
+Result: the real installed Windows alpha.57 run proves the complete Slice 8.1 Character Cards scope: Start, Pause, Stop, HP/MP, Map, Target, Script, and Health, while preserving the established primary/managed session model, the single primary Script runtime, user-script isolation, and the no-gameplay-mutation/no-raw-socket safety boundary. **Slice 8.1 is VERIFIED.**
+
+Slice 8.2 – Setup Wizard may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
