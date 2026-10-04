@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { AdventureLandAccountService } from "./account/service.ts";
 import { AdventureLandAccountSource } from "./account/source.ts";
 import { AdventureLandSelectionService } from "./account/selection-service.ts";
@@ -67,6 +68,7 @@ import { SmartMoveService } from "./navigation/smart-move.ts";
 import { WatchdogService } from "./recovery/watchdog.ts";
 import { RendererBridge } from "./renderer/bridge.ts";
 import { RendererHandoffService } from "./renderer/handoff.ts";
+import { AlhdAssetProvider } from "./hd/asset-provider.ts";
 import {
   dashboardUpdateInstallerArguments,
   scheduleInstallerAfterCurrentProcess,
@@ -169,6 +171,7 @@ let shuttingDown = false;
 let dashboard: DashboardServer | undefined;
 let rendererBridge: RendererBridge | undefined;
 let rendererHandoffService: RendererHandoffService | undefined;
+let alhdAssetProvider: AlhdAssetProvider | undefined;
 let controlModeService: ControlModeService | undefined;
 let accountService: AdventureLandAccountService | undefined;
 let selectionService: AdventureLandSelectionService | undefined;
@@ -920,6 +923,20 @@ diagnostics.registerComponent("script-runtime", () => {
   };
 });
 
+alhdAssetProvider = new AlhdAssetProvider({
+  manifestPath: fileURLToPath(new URL("../assets/alhd/hd-assets.json", import.meta.url)),
+  hdAssetRoot: fileURLToPath(new URL("../assets/alhd/hd-assets/", import.meta.url)),
+  sourceRef: "Riflex91/Riflex91-Repo@43bcdee99ab12a92f7cbf8e7bcdac8f0e99983f2/Adventure Land HD/manifests/hd-assets.json",
+});
+diagnostics.registerComponent("alhd-assets", () => {
+  const state = alhdAssetProvider!.state();
+  return {
+    name: "alhd-assets",
+    status: state.manifestStatus === "invalid" ? "degraded" : "healthy",
+    message: state.message,
+  };
+});
+
 rendererHandoffService = new RendererHandoffService({
   character: () => characterService!.state(),
 });
@@ -975,6 +992,7 @@ dashboard = new DashboardServer({
   dashboardLayoutStore,
   rendererBridge,
   rendererHandoffService,
+  alhdAssetProvider,
   controlModeService,
   actionGateway,
   movementService,
