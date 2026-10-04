@@ -629,6 +629,45 @@
         </div>
       </div>
 
+
+      <div class="selection-content" id="template-config-panel">
+        <div>
+          <p class="eyebrow">Phase 8 template configuration</p>
+          <h3>Template Configuration</h3>
+          <div class="server-picker">
+            <label>
+              <span class="label">Template</span>
+              <select id="template-config-template" aria-label="Configurable template"></select>
+            </label>
+            <strong id="template-config-status" aria-live="polite">Waiting</strong>
+          </div>
+          <div id="template-config-fields" class="template-config-fields"></div>
+          <div class="toolbar">
+            <button id="template-config-save" type="button">Save settings</button>
+            <button id="template-config-reset" type="button">Reset settings</button>
+            <button id="template-config-start" type="button">Start template</button>
+            <button id="template-config-stop" type="button">Stop template</button>
+          </div>
+          <small class="selection-note" id="template-config-note">
+            Normal template settings can be changed without editing script code. Template execution still uses the existing validated template service and Script runtime.
+          </small>
+        </div>
+      </div>
+
+      <div class="selection-content">
+        <div>
+          <h3>Slice 8.3 one-click Template Configuration test</h3>
+          <div class="server-picker">
+            <button id="start-slice-8-3-live-test" type="button">Start Template Configuration test</button>
+            <strong id="slice-8-3-live-test-status" aria-live="polite">Ready</strong>
+            <button id="copy-slice-8-3-live-test-result" type="button" hidden>Copy last test result</button>
+          </div>
+          <small class="selection-note" id="slice-8-3-live-test-note">
+            Requires one connected primary Character with at least one visible monster type. The test changes and restores normal Template Configuration settings only; it does not start gameplay automation, modify the user Script runtime, or use raw sockets.
+          </small>
+        </div>
+      </div>
+
       <div class="selection-content" id="simple-farmer-panel">
         <div>
           <h3>Simple Farmer Template</h3>
