@@ -6,7 +6,7 @@
   <title>ALRemastered</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body data-current-verification-slice="12.1">
+<body data-current-verification-slice="12.2">
   <main class="shell">
     <header class="topbar">
       <div>
@@ -350,6 +350,20 @@
         </div>
         <small class="selection-note" id="slice-12-1-live-test-note">
           Validates the ALRemastered .alrpkg container, required manifest metadata, Scripts, Config Schema, README, compatibility, declared permissions, and SHA-256 integrity. No package is imported or executed.
+        </small>
+      </div>
+    </div>
+
+    <div class="selection-content" data-verification-test="12.2" hidden>
+      <div>
+        <h3>Slice 12.2 one-click Permission System test</h3>
+        <div class="server-picker">
+          <button id="start-slice-12-2-live-test" type="button">Start test</button>
+          <strong id="slice-12-2-live-test-status" aria-live="polite">Ready</strong>
+          <button id="copy-slice-12-2-live-test-result" type="button" hidden>Copy last test result</button>
+        </div>
+        <small class="selection-note" id="slice-12-2-live-test-note">
+          Validates the canonical package permission registry, default-deny decisions, explicit approval for dangerous rights, and read-only runtime continuity. No package is imported or executed.
         </small>
       </div>
     </div>
