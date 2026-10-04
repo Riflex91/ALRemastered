@@ -51,7 +51,20 @@
         </div>
         <strong id="browser-hd-mode">HD preferred</strong>
       </div>
+      <div class="server-picker">
+        <label>
+          <span class="label">Graphics profile</span>
+          <select id="browser-graphics-profile" aria-label="Graphics profile">
+            <option value="original">Original</option>
+            <option value="hd-performance">HD Performance</option>
+            <option value="hd-auto" selected>HD Auto</option>
+            <option value="hd-maximum">HD Maximum</option>
+          </select>
+        </label>
+      </div>
       <div class="status-grid">
+        <article class="card"><span class="label">Profile limit</span><strong id="browser-graphics-profile-limit">—</strong></article>
+        <article class="card"><span class="label">Renderer generation</span><strong id="browser-graphics-generation">0</strong></article>
         <article class="card"><span class="label">Available</span><strong id="browser-hd-available">—</strong></article>
         <article class="card"><span class="label">Applied</span><strong id="browser-hd-applied">—</strong></article>
         <article class="card"><span class="label">Missing</span><strong id="browser-hd-missing">—</strong></article>
