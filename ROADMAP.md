@@ -3049,3 +3049,28 @@ Repository/release evidence:
 
 Slice 9.3 may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green. Persistence/restart/undo-redo/profiles remain reserved for Slice 9.4.
 
+---
+
+## Verification Evidence — Slice 9.3 Dashboard Pages and Tabs
+
+**Status: VERIFIED**
+
+> 2026-10-04: VERIFIED on Windows with `0.1.0-alpha.63`. The real installed one-click test `live93-31e93fd2-d0de-44d7-bce5-eda4cc1fee4a` passed the page catalog, Overview, Combat, Party, Merchant, Logs, Debugging, and return-to-Overview checks. Page selection remained intentionally transient for Slice 9.3 (`Page selection persistence: false`), the test made no gameplay mutation, issued zero Action Gateway requests, used no raw socket access, and did not touch the user Script runtime. The sanitized diagnostic export contained 11 lines and reported `Secrets sanitized: yes`.
+
+Repository/release evidence:
+
+- implementation PR #124 final feature head: `6fea7902ec7076d5bb67033a610143e64f134ab0`;
+- final implementation PR CI run `37196889016` completed on that exact head with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #124 merged with method `merge` into exact implementation main `8c752243892c8123df2b5a7c69e417655ba04a62`;
+- exact post-implementation-main CI run `37197051999` completed with all four required jobs successful;
+- release publish run `37197211506` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.63`, tag `v0.1.0-alpha.63`, GitHub release target, publish-run head, and tested implementation `main` were verified commit-identical at `8c752243892c8123df2b5a7c69e417655ba04a62`;
+- published assets:
+  - Windows x64 installer SHA-256 `4ccd0c505f3680656cf02f2773bfe59809ae4f7fb3f663d65e0ca7489c17a08d`
+  - Linux x64 installer SHA-256 `f475fad1d1b29675a77755601ce6673b9aa697d51a506b628078890a1856974e`
+  - updater manifest SHA-256 `ef123174d592b75b0d426fb7ac42255edb8d72d781e8620f7055c47477dd9388`.
+
+**Canonical roadmap status: Slice 9.3 = VERIFIED.**
+
+Slice 9.4 – Layout Persistence and Profiles may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
+
