@@ -12,6 +12,7 @@ import { AdventureLandRespawnService } from "./action/respawn.ts";
 import { AdventureLandCharacterService } from "./character/service.ts";
 import { MultiCharacterSessionManager } from "./character/session-manager.ts";
 import { LocalCharacterMessagingService } from "./character/messaging.ts";
+import { PartyCoordinatorService } from "./party/coordinator.ts";
 import { AdventureLandCharacterTransport } from "./character/transport.ts";
 import { CoreRuntime } from "./core/app.ts";
 import { openDashboard } from "./dashboard/open.ts";
@@ -40,6 +41,7 @@ import { Slice63LiveTestService } from "./live-test/slice-6-3.ts";
 import { Slice64LiveTestService } from "./live-test/slice-6-4.ts";
 import { Slice71LiveTestService } from "./live-test/slice-7-1.ts";
 import { Slice72LiveTestService } from "./live-test/slice-7-2.ts";
+import { Slice73LiveTestService } from "./live-test/slice-7-3.ts";
 import { getUserPaths } from "./platform/paths.ts";
 import { AdventureLandScriptApiBridge } from "./script/adventure-api.ts";
 import { ScriptRuntimeService } from "./script/runtime.ts";
@@ -153,6 +155,7 @@ let selectionService: AdventureLandSelectionService | undefined;
 let characterService: AdventureLandCharacterService | undefined;
 let multiCharacterSessionManager: MultiCharacterSessionManager | undefined;
 let localCharacterMessagingService: LocalCharacterMessagingService | undefined;
+let partyCoordinatorService: PartyCoordinatorService | undefined;
 let actionGateway: ActionGateway | undefined;
 let movementService: AdventureLandMovementService | undefined;
 let attackService: AdventureLandAttackService | undefined;
@@ -177,6 +180,7 @@ let slice63LiveTestService: Slice63LiveTestService | undefined;
 let slice64LiveTestService: Slice64LiveTestService | undefined;
 let slice71LiveTestService: Slice71LiveTestService | undefined;
 let slice72LiveTestService: Slice72LiveTestService | undefined;
+let slice73LiveTestService: Slice73LiveTestService | undefined;
 let mapModelService: AdventureLandMapModelService | undefined;
 let movementDebugService: MovementDebugService | undefined;
 let pathPlannerService: SimplePathPlannerService | undefined;
@@ -473,6 +477,15 @@ diagnostics.registerComponent("character-messaging", () => {
     message: state.message,
   };
 });
+partyCoordinatorService = new PartyCoordinatorService({
+  logger,
+  sessions: multiCharacterSessionManager!,
+});
+diagnostics.registerComponent("party-coordinator", () => ({
+  name: "party-coordinator",
+  status: "healthy",
+  message: partyCoordinatorService!.state().message,
+}));
 mapModelService = new AdventureLandMapModelService({
   logger,
   gameData: () => gameDataService!.data(),
@@ -718,6 +731,15 @@ slice72LiveTestService = new Slice72LiveTestService({
   sessions: multiCharacterSessionManager!,
   messaging: localCharacterMessagingService!,
 });
+slice73LiveTestService = new Slice73LiveTestService({
+  logger,
+  userRuntime: scriptRuntime!,
+  primary: characterService!,
+  selection: selectionService!,
+  sessions: multiCharacterSessionManager!,
+  coordinator: partyCoordinatorService!,
+  messaging: localCharacterMessagingService!,
+});
 watchdogService.start();
 diagnostics.registerComponent("watchdog", () => {
   const state = watchdogService!.state();
@@ -747,6 +769,7 @@ dashboard = new DashboardServer({
   characterService,
   multiCharacterSessionManager,
   localCharacterMessagingService,
+  partyCoordinatorService,
   actionGateway,
   movementService,
   attackService,
@@ -769,6 +792,7 @@ dashboard = new DashboardServer({
   slice64LiveTestService,
   slice71LiveTestService,
   slice72LiveTestService,
+  slice73LiveTestService,
   mapModelService,
   movementDebugService,
   pathPlannerService,

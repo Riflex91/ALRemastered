@@ -47,6 +47,9 @@ const state = {
   characterMessaging: null,
   slice72LiveTest: null,
   slice72LastReport: null,
+  partyCoordinator: null,
+  slice73LiveTest: null,
+  slice73LastReport: null,
   movementDebug: null,
   update: null,
   gameVersion: null,
@@ -223,6 +226,16 @@ const elements = {
   slice72LiveTestStatus: document.querySelector("#slice-7-2-live-test-status"),
   slice72LiveTestNote: document.querySelector("#slice-7-2-live-test-note"),
   copySlice72LiveTestResult: document.querySelector("#copy-slice-7-2-live-test-result"),
+  partyCoordinatorStatus: document.querySelector("#party-coordinator-status"),
+  partyCoordinatorMembers: document.querySelector("#party-coordinator-members"),
+  partyCoordinatorTarget: document.querySelector("#party-coordinator-target"),
+  partyCoordinatorRoles: document.querySelector("#party-coordinator-roles"),
+  partyCoordinatorList: document.querySelector("#party-coordinator-list"),
+  partyCoordinatorNote: document.querySelector("#party-coordinator-note"),
+  startSlice73LiveTest: document.querySelector("#start-slice-7-3-live-test"),
+  slice73LiveTestStatus: document.querySelector("#slice-7-3-live-test-status"),
+  slice73LiveTestNote: document.querySelector("#slice-7-3-live-test-note"),
+  copySlice73LiveTestResult: document.querySelector("#copy-slice-7-3-live-test-result"),
   movementDebugStatus: document.querySelector("#movement-debug-status"),
   movementDebugTrailCount: document.querySelector("#movement-debug-trail-count"),
   movementDebugMovementCount: document.querySelector("#movement-debug-movement-count"),
@@ -1617,6 +1630,66 @@ function renderSlice72LiveTest() {
   }
 }
 
+function renderPartyCoordinator() {
+  const coordinator = state.partyCoordinator;
+  if (!coordinator) {
+    elements.partyCoordinatorStatus.textContent = "Waiting";
+    elements.partyCoordinatorMembers.textContent = "0";
+    elements.partyCoordinatorTarget.textContent = "None";
+    elements.partyCoordinatorRoles.textContent = "Waiting";
+    elements.partyCoordinatorList.value = "No local Coordinator members.";
+    return;
+  }
+  elements.partyCoordinatorStatus.textContent =
+    coordinator.status === "ready" ? "Ready" : "Needs setup";
+  elements.partyCoordinatorMembers.textContent = String(coordinator.memberCount ?? 0);
+  elements.partyCoordinatorTarget.textContent = coordinator.target?.id ?? "None";
+  const roleLabel = (name, role) =>
+    `${name}: ${role?.status === "ready" ? "Ready" : role?.status === "degraded" ? "Degraded" : "Unassigned"}`;
+  elements.partyCoordinatorRoles.textContent = [
+    roleLabel("Tank", coordinator.roles?.tank),
+    roleLabel("Healer", coordinator.roles?.healer),
+    roleLabel("DPS", coordinator.roles?.dps),
+  ].join(" · ");
+  const members = Array.isArray(coordinator.members) ? coordinator.members : [];
+  elements.partyCoordinatorList.value = members.length
+    ? members.map((member) => {
+      const session = member.sessionRole === "primary" ? "PRIMARY" : "MANAGED";
+      const role = member.role ? member.role.toUpperCase() : "NO ROLE";
+      const name = member.characterName ?? member.characterId;
+      return `[${session}] ${name} — ${role} — ${member.status} — ${member.connectionStatus}`;
+    }).join("\n")
+    : "No local Coordinator members.";
+  elements.partyCoordinatorNote.textContent = coordinator.message ??
+    "Party Coordinator provides technical role and target state without combat or movement automation.";
+}
+
+function renderSlice73LiveTest() {
+  const test = state.slice73LiveTest;
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    blocked: "BLOCKED",
+    failed: "FAILED",
+    unavailable: "Unavailable",
+  };
+  const status = test?.status ?? "idle";
+  elements.slice73LiveTestStatus.textContent = labels[status] ?? status;
+  elements.startSlice73LiveTest.disabled = status === "running";
+  elements.copySlice73LiveTestResult.hidden = !state.slice73LastReport;
+  if (status === "running") {
+    elements.slice73LiveTestNote.textContent =
+      "Connecting one temporary managed Character, exercising Tank / Healer / DPS Coordinator state and one logical shared target, then removing only the temporary session.";
+  } else if (test?.message) {
+    elements.slice73LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  } else {
+    elements.slice73LiveTestNote.textContent =
+      "Requires one connected primary Character, one additional offline Character, and no running or paused user script. No gameplay mutation, raw sockets, Party Templates, or Coordinator messaging traffic are used.";
+  }
+}
+
 function renderMovementDebug() {
   const debug = state.movementDebug;
   if (!debug) {
@@ -2354,6 +2427,39 @@ async function refreshSlice72LiveTest() {
       message: "Slice 7.2 local Character messaging status could not be loaded.",
     };
     renderSlice72LiveTest();
+  }
+}
+
+async function refreshPartyCoordinator() {
+  try {
+    const response = await fetch("/api/party-coordinator", { cache: "no-store" });
+    state.partyCoordinator = response.ok
+      ? await response.json()
+      : { status: "unavailable", memberCount: 0, message: "Party Coordinator is unavailable." };
+    renderPartyCoordinator();
+  } catch {
+    state.partyCoordinator = {
+      status: "unavailable",
+      memberCount: 0,
+      message: "Party Coordinator status could not be loaded.",
+    };
+    renderPartyCoordinator();
+  }
+}
+
+async function refreshSlice73LiveTest() {
+  try {
+    const response = await fetch("/api/live-test/slice-7-3", { cache: "no-store" });
+    state.slice73LiveTest = response.ok
+      ? await response.json()
+      : { status: "unavailable", message: "Slice 7.3 Party Coordinator test is unavailable." };
+    renderSlice73LiveTest();
+  } catch {
+    state.slice73LiveTest = {
+      status: "unavailable",
+      message: "Slice 7.3 Party Coordinator test status could not be loaded.",
+    };
+    renderSlice73LiveTest();
   }
 }
 
@@ -3284,6 +3390,40 @@ async function startSlice72LiveTest(clipboardWrite) {
   await refreshCharacterConnection();
   await refreshCharacterSessions();
   await refreshCharacterMessaging();
+  await refreshScriptRuntime();
+  await refreshDiagnostics();
+  return { payload, copied };
+}
+
+async function startSlice73LiveTest(clipboardWrite) {
+  state.slice73LiveTest = {
+    status: "running",
+    message: "Slice 7.3 Party Coordinator test is running.",
+  };
+  renderSlice73LiveTest();
+  const response = await fetch("/api/live-test/slice-7-3/start", { method: "POST" });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      payload.error ?? payload.message ??
+        `Slice 7.3 Party Coordinator test failed with HTTP ${response.status}`,
+    );
+  }
+  if (!payload.reportText || typeof payload.reportText !== "string") {
+    throw new Error("Slice 7.3 Party Coordinator test returned no copyable report.");
+  }
+  state.slice73LastReport = payload.reportText;
+  state.slice73LiveTest = {
+    status: payload.result?.outcome ?? "failed",
+    message: payload.result?.message ?? "Slice 7.3 Party Coordinator test finished.",
+    lastResult: payload.result,
+  };
+  const copied = await clipboardWrite.finish(payload.reportText);
+  renderSlice73LiveTest();
+  await refreshCharacterConnection();
+  await refreshCharacterSessions();
+  await refreshCharacterMessaging();
+  await refreshPartyCoordinator();
   await refreshScriptRuntime();
   await refreshDiagnostics();
   return { payload, copied };
@@ -4445,6 +4585,48 @@ elements.copySlice72LiveTestResult.addEventListener("click", async () => {
   }
 });
 
+elements.startSlice73LiveTest.addEventListener("click", async () => {
+  if (state.slice73LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice73LastReport = null;
+  elements.copySlice73LiveTestResult.hidden = true;
+  setFeedback(
+    "Slice 7.3 Party Coordinator test started. One temporary managed Character will verify technical role and target state without gameplay automation.",
+  );
+  try {
+    const { payload, copied } = await startSlice73LiveTest(clipboardWrite);
+    const outcome = payload.result?.outcome ?? "failed";
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 7.3 test ${String(outcome).toUpperCase()}. ${copyMessage}`,
+      outcome === "passed" && copied ? "success" : outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    await refreshSlice73LiveTest();
+    setFeedback(`Slice 7.3 Party Coordinator test could not finish: ${error.message}`, "error");
+  } finally {
+    renderSlice73LiveTest();
+    await refreshCharacterSessions();
+    await refreshCharacterMessaging();
+    await refreshPartyCoordinator();
+  }
+});
+
+elements.copySlice73LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice73LastReport) return;
+  try {
+    await writeClipboard(state.slice73LastReport);
+    setFeedback(
+      "Complete Slice 7.3 Party Coordinator result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Party Coordinator result copy failed: ${error.message}`, "error");
+  }
+});
+
 elements.reloadGameData.addEventListener("click", async () => {
   elements.reloadGameData.disabled = true;
   setFeedback("Reloading Adventure Land game data…");
@@ -4573,6 +4755,8 @@ await refreshCharacterSessions();
 await refreshSlice71LiveTest();
 await refreshCharacterMessaging();
 await refreshSlice72LiveTest();
+await refreshPartyCoordinator();
+await refreshSlice73LiveTest();
 await refreshMovementDebug();
 await refreshGameVersion();
 await refreshGameData();
@@ -4607,6 +4791,8 @@ setInterval(refreshCharacterSessions, 1500);
 setInterval(refreshSlice71LiveTest, 1500);
 setInterval(refreshCharacterMessaging, 1500);
 setInterval(refreshSlice72LiveTest, 1500);
+setInterval(refreshPartyCoordinator, 1500);
+setInterval(refreshSlice73LiveTest, 1500);
 setInterval(refreshMovementDebug, 1500);
 setInterval(refreshGameVersion, 2000);
 setInterval(refreshGameData, 2000);
