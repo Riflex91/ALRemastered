@@ -2998,3 +2998,29 @@ Result: the real installed Windows alpha.60 run proves the complete Slice 8.4 �
 **Phase 8 is complete through Slice 8.4.**
 
 Phase 9 / Slice 9.1 – Dashboard Edit Mode may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
+
+---
+
+## Verification Evidence — Slice 9.1 Dashboard Edit Mode
+
+**Status: VERIFIED**
+
+> 2026-10-04: VERIFIED on Windows with `0.1.0-alpha.61`. The real installed one-click test `live91-8e196f02-0e2e-4d61-bfdd-e725d8eaf058` passed Edit dashboard mode, drag-and-drop reordering, resize, 12-column / 48 px grid snapping, widget remove/add, and return to normal mode. The test remained transient by design (`Persistence: false`), made no gameplay mutation, issued zero Action Gateway requests, used no raw socket access, and did not touch the user Script runtime. The sanitized diagnostic export contained 11 lines and reported `Secrets sanitized: yes`.
+
+Repository/release evidence:
+
+- implementation PR #120 final feature head: `ac10b06123ebceee458bfefb7ad9b413c16e01b7`;
+- final implementation PR CI run `37193902258` completed with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #120 merged with method `merge` into exact implementation main `9345ddbd9be81a17e993b766de2b0819cf6c0804`;
+- exact post-implementation-main CI run `37194083144` completed with all four required jobs successful;
+- release publish run `37194244198` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.61`, tag `v0.1.0-alpha.61`, GitHub release target, publish-run head, and tested implementation `main` were verified commit-identical at `9345ddbd9be81a17e993b766de2b0819cf6c0804`;
+- published assets:
+  - Windows x64 installer SHA-256 `512bb62f79133c34b728546731a0678c9c0b5bd6e4ebd3101f55773554f41379`
+  - Linux x64 installer SHA-256 `253a69dcf0e8fb082027344fac2282cdf41dd810f16cf97332cad2b4114fbb0f`
+  - updater manifest SHA-256 `e49658e6031e8d0c154b7b4b3db068f2ed03fcc73905df7f6a81e7e6de58c31b`.
+
+**Canonical roadmap status: Slice 9.1 = VERIFIED.**
+
+Slice 9.2 – Widget-Konfiguration may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
+
