@@ -6,7 +6,7 @@
   <title>ALRemastered</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body data-current-verification-slice="10.2">
+<body data-current-verification-slice="10.3">
   <main class="shell">
     <header class="topbar">
       <div>
@@ -16,6 +16,14 @@
       <div class="topbar-actions">
         <button id="check-game-version" type="button">Check game version</button>
         <button id="check-updates" type="button">Check for updates</button>
+        <label>
+          <span class="label">Control mode</span>
+          <select id="control-mode" aria-label="Control mode">
+            <option value="automatic">Automatic</option>
+            <option value="assist">Assist</option>
+            <option value="manual">Manual</option>
+          </select>
+        </label>
         <button id="open-browser-view" type="button">Open browser view</button>
         <button id="edit-dashboard" type="button" aria-pressed="false">Edit dashboard</button>
         <div class="status-pill" id="connection-status">Connecting…</div>
@@ -244,6 +252,20 @@
         </div>
         <small class="selection-note" id="slice-10-2-live-test-note">
           Opens the read-only Browser View, verifies the current Character state is rendered from the Renderer Bridge, closes the test window automatically, and confirms Core/Character/Script continuity with zero gameplay mutations.
+        </small>
+      </div>
+    </div>
+
+    <div class="selection-content" data-verification-test="10.3" hidden>
+      <div>
+        <h3>Slice 10.3 one-click control modes test</h3>
+        <div class="server-picker">
+          <button id="start-slice-10-3-live-test" type="button">Start test</button>
+          <strong id="slice-10-3-live-test-status" aria-live="polite">Ready</strong>
+          <button id="copy-slice-10-3-live-test-result" type="button" hidden>Copy last test result</button>
+        </div>
+        <small class="selection-note" id="slice-10-3-live-test-note">
+          Verifies Automatic, Assist, and Manual gateway policy with non-gameplay probes, confirms explicit user actions still pass through the Action Gateway, restores the starting mode, and does not restart or replace the running Character or user Script.
         </small>
       </div>
     </div>

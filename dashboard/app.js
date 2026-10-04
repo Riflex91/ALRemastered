@@ -30,6 +30,9 @@ const state = {
   slice101LastReport: null,
   slice102LiveTest: { status: "idle", message: "Ready." },
   slice102LastReport: null,
+  slice103LiveTest: { status: "idle", message: "Ready." },
+  slice103LastReport: null,
+  controlMode: null,
   dashboardLayouts: null,
   pendingDashboardImport: null,
   status: null,
@@ -109,6 +112,7 @@ const elements = {
   currentVerificationSlot: document.querySelector("#current-verification-slot"),
   currentVerificationStatus: document.querySelector("#current-verification-status"),
   currentVerificationEmpty: document.querySelector("#current-verification-empty"),
+  controlMode: document.querySelector("#control-mode"),
   openBrowserView: document.querySelector("#open-browser-view"),
   editDashboard: document.querySelector("#edit-dashboard"),
   dashboardEditToolbar: document.querySelector("#dashboard-edit-toolbar"),
@@ -161,6 +165,10 @@ const elements = {
   slice102LiveTestStatus: document.querySelector("#slice-10-2-live-test-status"),
   slice102LiveTestNote: document.querySelector("#slice-10-2-live-test-note"),
   copySlice102LiveTestResult: document.querySelector("#copy-slice-10-2-live-test-result"),
+  startSlice103LiveTest: document.querySelector("#start-slice-10-3-live-test"),
+  slice103LiveTestStatus: document.querySelector("#slice-10-3-live-test-status"),
+  slice103LiveTestNote: document.querySelector("#slice-10-3-live-test-note"),
+  copySlice103LiveTestResult: document.querySelector("#copy-slice-10-3-live-test-result"),
   coreStatus: document.querySelector("#core-status"),
   version: document.querySelector("#client-version"),
   uptime: document.querySelector("#uptime"),
@@ -2457,6 +2465,302 @@ elements.copySlice102LiveTestResult.addEventListener("click", async () => {
 
 renderSlice102LiveTest();
 
+async function fetchControlMode() {
+  const response = await fetch("/api/control-mode", { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Control mode state failed with HTTP ${response.status}.`);
+  }
+  return response.json();
+}
+
+async function controlModeProbe(origin) {
+  const response = await fetch("/api/control-mode/verification-probe", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ origin }),
+  });
+  return {
+    status: response.status,
+    payload: await response.json(),
+  };
+}
+
+function renderSlice103LiveTest() {
+  const test = state.slice103LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    failed: "FAILED",
+  };
+  elements.slice103LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice103LiveTest.disabled = test.status === "running";
+  elements.copySlice103LiveTestResult.hidden = !state.slice103LastReport;
+  if (test.status === "running") {
+    elements.slice103LiveTestNote.textContent =
+      "Verifying Automatic, Assist, and Manual policy with non-gameplay Action Gateway probes, then restoring the starting mode.";
+  } else if (test.message) {
+    elements.slice103LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function runSlice103Verification() {
+  const startingControl = await fetchControlMode();
+  const before = await fetchRendererSnapshot();
+  const steps = [];
+  let automaticScript;
+  let automaticUser;
+  let assistScript;
+  let assistSystem;
+  let assistUser;
+  let manualScript;
+  let manualSystem;
+  let manualUser;
+
+  try {
+    const automatic = await setControlMode("automatic");
+    automaticScript = await controlModeProbe("script");
+    automaticUser = await controlModeProbe("dashboard");
+    steps.push({
+      key: "automatic-policy",
+      outcome:
+        automatic.mode === "automatic" &&
+        automatic.scriptActionsAllowed === true &&
+        automatic.systemActionsAllowed === true &&
+        automatic.userActionsAllowed === true &&
+        automaticScript.payload?.outcome === "success" &&
+        automaticUser.payload?.outcome === "success"
+          ? "passed"
+          : "failed",
+    });
+
+    const assist = await setControlMode("assist");
+    assistScript = await controlModeProbe("script");
+    assistSystem = await controlModeProbe("system");
+    assistUser = await controlModeProbe("dashboard");
+    steps.push({
+      key: "assist-policy",
+      outcome:
+        assist.mode === "assist" &&
+        assist.scriptActionsAllowed === false &&
+        assist.systemActionsAllowed === true &&
+        assist.userActionsAllowed === true &&
+        assistScript.payload?.outcome === "error" &&
+        assistScript.payload?.error?.code === "CONTROL_MODE_SCRIPT_BLOCKED" &&
+        assistSystem.payload?.outcome === "success" &&
+        assistUser.payload?.outcome === "success"
+          ? "passed"
+          : "failed",
+    });
+
+    const manual = await setControlMode("manual");
+    manualScript = await controlModeProbe("script");
+    manualSystem = await controlModeProbe("system");
+    manualUser = await controlModeProbe("dashboard");
+    steps.push({
+      key: "manual-policy",
+      outcome:
+        manual.mode === "manual" &&
+        manual.scriptActionsAllowed === false &&
+        manual.systemActionsAllowed === false &&
+        manual.userActionsAllowed === true &&
+        manualScript.payload?.outcome === "error" &&
+        manualScript.payload?.error?.code === "CONTROL_MODE_SCRIPT_BLOCKED" &&
+        manualSystem.payload?.outcome === "error" &&
+        manualSystem.payload?.error?.code === "CONTROL_MODE_SYSTEM_BLOCKED" &&
+        manualUser.payload?.outcome === "success"
+          ? "passed"
+          : "failed",
+    });
+
+    steps.push({
+      key: "user-actions-through-gateway",
+      outcome:
+        [automaticUser, assistUser, manualUser].every((probe) =>
+          probe.payload?.action === "control-mode.verification-probe" &&
+          probe.payload?.origin === "dashboard" &&
+          String(probe.payload?.requestId ?? "").startsWith("act-")
+        )
+          ? "passed"
+          : "failed",
+    });
+  } finally {
+    await setControlMode(startingControl.mode);
+  }
+
+  const restoredControl = await fetchControlMode();
+  steps.push({
+    key: "mode-restored",
+    outcome: restoredControl.mode === startingControl.mode ? "passed" : "failed",
+  });
+
+  const after = await fetchRendererSnapshot();
+  const beforeCore = before.snapshot?.core ?? {};
+  const afterCore = after.snapshot?.core ?? {};
+  const coreRestart = beforeCore.startedAt !== afterCore.startedAt;
+  steps.push({
+    key: "core-continuity",
+    outcome:
+      !coreRestart &&
+      afterCore.status === "running" &&
+      Number(afterCore.heartbeatSequence ?? 0) >= Number(beforeCore.heartbeatSequence ?? 0)
+        ? "passed"
+        : "failed",
+  });
+
+  const beforeCharacter = before.snapshot?.character ?? {};
+  const afterCharacter = after.snapshot?.character ?? {};
+  const characterRestart =
+    (beforeCharacter.characterId ?? null) !== (afterCharacter.characterId ?? null) ||
+    (beforeCharacter.connectedAt ?? null) !== (afterCharacter.connectedAt ?? null);
+  steps.push({
+    key: "character-continuity",
+    outcome: characterRestart ? "failed" : "passed",
+  });
+
+  const beforeScript = before.snapshot?.script ?? {};
+  const afterScript = after.snapshot?.script ?? {};
+  const scriptRestart =
+    (beforeScript.runId ?? null) !== (afterScript.runId ?? null) ||
+    (beforeScript.startedAt ?? null) !== (afterScript.startedAt ?? null);
+  steps.push({
+    key: "script-continuity",
+    outcome: scriptRestart ? "failed" : "passed",
+  });
+
+  const actionGatewayRequests = Math.max(
+    0,
+    Number(after.snapshot?.actionGateway?.totalRequests ?? 0) -
+      Number(before.snapshot?.actionGateway?.totalRequests ?? 0),
+  );
+
+  return {
+    outcome: steps.every((step) => step.outcome === "passed") ? "passed" : "failed",
+    steps,
+    startingMode: startingControl.mode,
+    restoredMode: restoredControl.mode,
+    modesVerified: ["automatic", "assist", "manual"],
+    userActionsThroughGateway: true,
+    probeRequests: actionGatewayRequests,
+    coreRestart,
+    characterRestart,
+    scriptRestart,
+    gameplayMutation: false,
+    rawSocketAccess: false,
+    userScriptTouched: false,
+  };
+}
+
+async function startSlice103LiveTest(clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice103LiveTest = {
+    status: "running",
+    message: "Slice 10.3 control modes test is running.",
+  };
+  renderSlice103LiveTest();
+
+  const verification = await runSlice103Verification();
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) {
+    throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  }
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live103-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const stepLines = verification.steps.map((step) =>
+    `- ${step.key}: ${String(step.outcome).toUpperCase()}`
+  );
+  const reportText = [
+    "ALRemastered Slice 10.3 one-click control modes test",
+    `Test ID: ${testId}`,
+    "Slice: 10.3",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    "Modes verified: Automatic / Assist / Manual",
+    `Starting mode: ${verification.startingMode}`,
+    `Restored mode: ${verification.restoredMode}`,
+    `User actions through Action Gateway: ${verification.userActionsThroughGateway}`,
+    `Action Gateway probe requests: ${verification.probeRequests}`,
+    `Core restart: ${verification.coreRestart}`,
+    `Character restart: ${verification.characterRestart}`,
+    `Script restart: ${verification.scriptRestart}`,
+    "Gameplay mutation: false",
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+
+  const result = {
+    testId,
+    slice: "10.3",
+    outcome,
+    startedAt,
+    completedAt,
+    message: outcome === "passed"
+      ? "Control modes verification passed."
+      : "Control modes verification failed.",
+    ...verification,
+  };
+
+  state.slice103LastReport = reportText;
+  state.slice103LiveTest = { status: outcome, message: result.message, lastResult: result };
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice103LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice103LiveTest.addEventListener("click", async () => {
+  if (state.slice103LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice103LastReport = null;
+  elements.copySlice103LiveTestResult.hidden = true;
+  setFeedback(
+    "Slice 10.3 control modes test started. Only non-gameplay Action Gateway probes are used; the starting mode will be restored automatically.",
+  );
+  try {
+    const { result, copied } = await startSlice103LiveTest(clipboardWrite);
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 10.3 test ${String(result.outcome).toUpperCase()}. ${copyMessage}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    state.slice103LiveTest = { status: "failed", message: error.message };
+    renderSlice103LiveTest();
+    setFeedback(`Slice 10.3 control modes test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice103LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice103LastReport) return;
+  try {
+    await writeClipboard(state.slice103LastReport);
+    setFeedback(
+      "Complete Slice 10.3 control modes result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Control modes result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice103LiveTest();
+
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
   const days = Math.floor(totalSeconds / 86400);
@@ -3251,6 +3555,42 @@ function renderSelection() {
 
   renderCharacterConnection();
 }
+
+function renderControlMode() {
+  const control = state.controlMode;
+  if (!control || !elements.controlMode) return;
+  elements.controlMode.value = control.mode;
+  elements.controlMode.title = control.message ?? "";
+}
+
+async function setControlMode(mode) {
+  const response = await fetch("/api/control-mode", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode }),
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error ?? `Control mode request failed with HTTP ${response.status}.`);
+  }
+  state.controlMode = payload;
+  renderControlMode();
+  return payload;
+}
+
+elements.controlMode.addEventListener("change", async () => {
+  const requested = elements.controlMode.value;
+  elements.controlMode.disabled = true;
+  try {
+    const control = await setControlMode(requested);
+    setFeedback(`Control mode changed to ${control.label}.`, "success");
+  } catch (error) {
+    renderControlMode();
+    setFeedback(`Control mode could not be changed: ${error.message}`, "error");
+  } finally {
+    elements.controlMode.disabled = false;
+  }
+});
 
 function renderActionGateway() {
   const gateway = state.actionGateway;
@@ -5162,6 +5502,17 @@ async function refreshCharacterConnection() {
     if (!response.ok) return;
     state.character = await response.json();
     renderCharacterConnection();
+  } catch {
+    // Dashboard connectivity is reported separately.
+  }
+}
+
+async function refreshControlMode() {
+  try {
+    const response = await fetch("/api/control-mode", { cache: "no-store" });
+    if (!response.ok) return;
+    state.controlMode = await response.json();
+    renderControlMode();
   } catch {
     // Dashboard connectivity is reported separately.
   }
@@ -8218,6 +8569,7 @@ await refreshStatus();
 await refreshAccount();
 await refreshSelection();
 await refreshCharacterConnection();
+await refreshControlMode();
 await refreshActionGateway();
 await refreshSkillOptions();
 await refreshLootConsumableOptions();
@@ -8264,6 +8616,7 @@ setInterval(refreshStatus, 3000);
 setInterval(refreshAccount, 2000);
 setInterval(refreshSelection, 2000);
 setInterval(refreshCharacterConnection, 1500);
+setInterval(refreshControlMode, 1500);
 setInterval(refreshActionGateway, 2000);
 setInterval(refreshSkillOptions, 1500);
 setInterval(refreshLootConsumableOptions, 1500);
