@@ -6,7 +6,7 @@
   <title>ALRemastered</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body data-current-verification-slice="11.3">
+<body data-current-verification-slice="11.4">
   <main class="shell">
     <header class="topbar">
       <div>
@@ -322,6 +322,20 @@
         </div>
         <small class="selection-note" id="slice-11-3-live-test-note">
           Opens Browser View, verifies HD is preferred and an eligible packaged ALHD asset is applied, confirms missing or blocked assets stay original, and proves Headless did not load HD image payloads before Browser attach.
+        </small>
+      </div>
+    </div>
+
+    <div class="selection-content" data-verification-test="11.4" hidden>
+      <div>
+        <h3>Slice 11.4 one-click Graphics Profiles test</h3>
+        <div class="server-picker">
+          <button id="start-slice-11-4-live-test" type="button">Start test</button>
+          <strong id="slice-11-4-live-test-status" aria-live="polite">Ready</strong>
+          <button id="copy-slice-11-4-live-test-result" type="button" hidden>Copy last test result</button>
+        </div>
+        <small class="selection-note" id="slice-11-4-live-test-note">
+          Opens Browser View and switches through Original, HD Performance, HD Auto, and HD Maximum. Verifies profile-specific texture policy, renderer reinitialization, original fallback, and uninterrupted Core / Character / Script runtime.
         </small>
       </div>
     </div>

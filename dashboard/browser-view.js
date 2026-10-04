@@ -1,3 +1,10 @@
+import {
+  DEFAULT_GRAPHICS_PROFILE,
+  graphicsProfileDefinition,
+  normalizeGraphicsProfile,
+  resolveGraphicsProfileTextureLimit,
+} from "/graphics-profiles.js";
+
 const elements = {
   connection: document.querySelector("#browser-view-connection"),
   close: document.querySelector("#close-browser-view"),
@@ -17,6 +24,9 @@ const elements = {
   handoffMode: document.querySelector("#browser-handoff-mode"),
   socketStrategy: document.querySelector("#browser-socket-strategy"),
   hdMode: document.querySelector("#browser-hd-mode"),
+  graphicsProfile: document.querySelector("#browser-graphics-profile"),
+  graphicsProfileLimit: document.querySelector("#browser-graphics-profile-limit"),
+  graphicsGeneration: document.querySelector("#browser-graphics-generation"),
   hdAvailable: document.querySelector("#browser-hd-available"),
   hdApplied: document.querySelector("#browser-hd-applied"),
   hdMissing: document.querySelector("#browser-hd-missing"),
@@ -38,6 +48,10 @@ const verificationState = {
   handoffMode: null,
   alhdReady: false,
   alhdStatus: null,
+  graphicsProfile: DEFAULT_GRAPHICS_PROFILE,
+  rendererGeneration: 0,
+  profileHistory: [],
+  setGraphicsProfile: null,
 };
 globalThis.__alrBrowserViewState = verificationState;
 
@@ -147,55 +161,124 @@ function loadImage(dataUrl, entry) {
   });
 }
 
-async function loadBrowserHdAssets() {
+async function fetchAlhdProviderState() {
+  const response = await fetch("/api/hd/assets", { cache: "no-store" });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error ?? `ALHD provider state failed with HTTP ${response.status}.`);
+  }
+  return payload;
+}
+
+function requestedGraphicsProfile() {
+  const requested = new URLSearchParams(window.location.search).get("graphicsProfile");
+  if (requested) return normalizeGraphicsProfile(requested);
+  try {
+    return normalizeGraphicsProfile(localStorage.getItem("alremastered.graphicsProfile"));
+  } catch {
+    return DEFAULT_GRAPHICS_PROFILE;
+  }
+}
+
+function persistGraphicsProfile(profile) {
+  try {
+    localStorage.setItem("alremastered.graphicsProfile", profile);
+  } catch {
+    // Profile persistence is best-effort only.
+  }
+}
+
+async function applyGraphicsProfile(profileValue, options = {}) {
+  const profile = normalizeGraphicsProfile(profileValue);
+  const definition = graphicsProfileDefinition(profile);
   const capability = detectWebglTextureCapability();
-  const plan = await fetchBrowserHdPlan(capability.maxTextureSize);
+  const effectiveTextureLimit = resolveGraphicsProfileTextureLimit(
+    profile,
+    capability.maxTextureSize,
+  );
   const applied = [];
-  const missing = new Set(plan.missing ?? []);
+  let available = 0;
+  let missing = [];
+  let blocked = [];
+
   elements.hdPreviews.replaceChildren();
 
-  for (const entry of plan.entries ?? []) {
-    if (entry.mode !== "hd") continue;
-    try {
-      const payload = await fetchBrowserHdPayload(entry.hdPath);
-      const image = await loadImage(
-        `data:${payload.mediaType};base64,${payload.base64}`,
-        entry,
-      );
-      elements.hdPreviews.append(image);
-      applied.push(entry.sourcePath);
-    } catch {
-      missing.add(entry.sourcePath);
+  if (definition.usesHd) {
+    const plan = await fetchBrowserHdPlan(effectiveTextureLimit);
+    available = Number(plan.available ?? 0);
+    const missingSet = new Set(plan.missing ?? []);
+    blocked = [...(plan.blocked ?? [])].sort();
+
+    for (const entry of plan.entries ?? []) {
+      if (entry.mode !== "hd") continue;
+      try {
+        const payload = await fetchBrowserHdPayload(entry.hdPath);
+        const image = await loadImage(
+          `data:${payload.mediaType};base64,${payload.base64}`,
+          entry,
+        );
+        elements.hdPreviews.append(image);
+        applied.push(entry.sourcePath);
+      } catch {
+        missingSet.add(entry.sourcePath);
+      }
     }
+    missing = [...missingSet].sort();
+  } else {
+    const provider = await fetchAlhdProviderState();
+    available = Number(provider.activeReplacementCount ?? 0);
   }
 
+  verificationState.rendererGeneration += 1;
+  verificationState.graphicsProfile = profile;
+  verificationState.profileHistory.push(profile);
+
   const status = Object.freeze({
-    mode: "HD",
-    available: Number(plan.available ?? 0),
+    mode: definition.usesHd ? "HD" : "Original",
+    profile,
+    profileLabel: definition.label,
+    available,
     applied: applied.length,
     paths: Object.freeze(applied.slice()),
-    missing: Object.freeze([...missing].sort()),
-    blocked: Object.freeze([...(plan.blocked ?? [])].sort()),
-    maxTextureSize: capability.maxTextureSize,
+    missing: Object.freeze(missing),
+    blocked: Object.freeze(blocked),
+    maxTextureSize: effectiveTextureLimit,
+    hardwareMaxTextureSize: capability.maxTextureSize,
     webglContext: capability.contextType,
     temporaryContextReleased: capability.contextReleased,
+    rendererGeneration: verificationState.rendererGeneration,
     headlessHdAssetsLoaded: false,
     presentationOnly: true,
     originalFallback: true,
   });
+
   verificationState.alhdStatus = status;
   verificationState.alhdReady = true;
-  elements.hdMode.textContent = "HD preferred";
+  if (options.persist !== false) persistGraphicsProfile(profile);
+
+  elements.graphicsProfile.value = profile;
+  elements.hdMode.textContent = definition.label;
+  elements.graphicsProfileLimit.textContent = definition.usesHd
+    ? value(effectiveTextureLimit, "Hardware maximum")
+    : "Original only";
+  elements.graphicsGeneration.textContent = String(status.rendererGeneration);
   elements.hdAvailable.textContent = String(status.available);
   elements.hdApplied.textContent = String(status.applied);
   elements.hdMissing.textContent = String(status.missing.length);
   elements.hdBlocked.textContent = String(status.blocked.length);
-  elements.hdTextureLimit.textContent = value(status.maxTextureSize, "Unavailable");
-  elements.hdMessage.textContent =
-    `HD is the Browser default. Applied ${status.applied}/${status.available}; ` +
-    `${status.missing.length} missing and ${status.blocked.length} blocked use original assets.`;
+  elements.hdTextureLimit.textContent = value(status.hardwareMaxTextureSize, "Unavailable");
+  elements.hdMessage.textContent = definition.usesHd
+    ? `${definition.label}: applied ${status.applied}/${status.available}; ` +
+      `${status.missing.length} missing and ${status.blocked.length} blocked use original assets.`
+    : "Original profile selected. No HD image payloads are loaded; Adventure Land originals remain authoritative.";
   return status;
 }
+
+async function loadBrowserHdAssets() {
+  return await applyGraphicsProfile(requestedGraphicsProfile(), { persist: false });
+}
+
+verificationState.setGraphicsProfile = async (profile) => await applyGraphicsProfile(profile);
 
 function value(value, fallback = "—") {
   return value === undefined || value === null || value === "" ? fallback : String(value);
@@ -278,6 +361,18 @@ function connectStream() {
     elements.connection.textContent = "Reconnecting…";
   });
 }
+
+elements.graphicsProfile.addEventListener("change", async () => {
+  elements.graphicsProfile.disabled = true;
+  try {
+    await applyGraphicsProfile(elements.graphicsProfile.value);
+  } catch (error) {
+    elements.hdMessage.textContent =
+      error instanceof Error ? error.message : "Graphics profile switch failed.";
+  } finally {
+    elements.graphicsProfile.disabled = false;
+  }
+});
 
 elements.close.addEventListener("click", () => {
   source?.close();

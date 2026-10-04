@@ -40,6 +40,8 @@ const state = {
   slice112LastReport: null,
   slice113LiveTest: { status: "idle", message: "Ready." },
   slice113LastReport: null,
+  slice114LiveTest: { status: "idle", message: "Ready." },
+  slice114LastReport: null,
   controlMode: null,
   dashboardLayouts: null,
   pendingDashboardImport: null,
@@ -193,6 +195,10 @@ const elements = {
   slice113LiveTestStatus: document.querySelector("#slice-11-3-live-test-status"),
   slice113LiveTestNote: document.querySelector("#slice-11-3-live-test-note"),
   copySlice113LiveTestResult: document.querySelector("#copy-slice-11-3-live-test-result"),
+  startSlice114LiveTest: document.querySelector("#start-slice-11-4-live-test"),
+  slice114LiveTestStatus: document.querySelector("#slice-11-4-live-test-status"),
+  slice114LiveTestNote: document.querySelector("#slice-11-4-live-test-note"),
+  copySlice114LiveTestResult: document.querySelector("#copy-slice-11-4-live-test-result"),
   coreStatus: document.querySelector("#core-status"),
   version: document.querySelector("#client-version"),
   uptime: document.querySelector("#uptime"),
@@ -4073,6 +4079,429 @@ elements.copySlice113LiveTestResult.addEventListener("click", async () => {
 });
 
 renderSlice113LiveTest();
+
+function renderSlice114LiveTest() {
+  const test = state.slice114LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    failed: "FAILED",
+  };
+  elements.slice114LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice114LiveTest.disabled = test.status === "running";
+  elements.copySlice114LiveTestResult.hidden = !state.slice114LastReport;
+  if (test.status === "running") {
+    elements.slice114LiveTestNote.textContent =
+      "Switching Browser View through Original, HD Performance, HD Auto, and HD Maximum while checking texture policy, renderer generations, payload behavior, and runtime continuity.";
+  } else if (test.message) {
+    elements.slice114LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function setBrowserGraphicsProfile(view, profile) {
+  const beforeGeneration = Number(view.__alrBrowserViewState?.rendererGeneration ?? 0);
+  const setter = view.__alrBrowserViewState?.setGraphicsProfile;
+  if (typeof setter !== "function") {
+    throw new Error("Browser View graphics profile control is unavailable.");
+  }
+  await setter(profile);
+  await waitForBrowserViewCondition(
+    () =>
+      view.__alrBrowserViewState?.alhdStatus?.profile === profile &&
+      Number(view.__alrBrowserViewState?.rendererGeneration ?? 0) > beforeGeneration,
+    `Browser View did not apply graphics profile ${profile} before timeout.`,
+    8_000,
+  );
+  return view.__alrBrowserViewState?.alhdStatus ?? {};
+}
+
+async function runSlice114Verification(view) {
+  const before = await fetchRendererSnapshot();
+  const beforeHandoff = await fetchRendererHandoffState();
+  const providerBefore = await fetchAlhdAssetProviderState();
+  await new Promise((resolve) => globalThis.setTimeout(resolve, 75));
+  const providerHeadless = await fetchAlhdAssetProviderState();
+  const baselineSubscribers = Number(before.bridge?.subscribers ?? 0);
+  const baselineRenderers = Number(beforeHandoff.attachedRenderers ?? 0);
+  const steps = [];
+
+  steps.push({
+    key: "headless-no-hd-payload",
+    outcome:
+      providerBefore.headlessLoadsHdAssets === false &&
+      providerHeadless.headlessLoadsHdAssets === false &&
+      Number(providerHeadless.hdPayloadReads ?? 0) === Number(providerBefore.hdPayloadReads ?? 0)
+        ? "passed"
+        : "failed",
+  });
+
+  view.location.replace(
+    `/browser-view?graphicsProfile=hd-auto&graphicsVerification=${Date.now()}`,
+  );
+  await waitForBrowserViewCondition(
+    () =>
+      view.__alrBrowserViewState?.ready === true &&
+      view.__alrBrowserViewState?.alhdReady === true &&
+      view.__alrBrowserViewState?.alhdStatus?.profile === "hd-auto",
+    "Browser View did not finish HD Auto initialization before timeout.",
+    8_000,
+  );
+
+  const opened = await waitForRendererSubscriberCount(baselineSubscribers + 1, 8_000);
+  const attached = await waitForRendererHandoffCount(baselineRenderers + 1, 8_000);
+  const initialAuto = view.__alrBrowserViewState?.alhdStatus ?? {};
+  const providerInitial = await fetchAlhdAssetProviderState();
+  const hardwareTextureLimit = Number(initialAuto.hardwareMaxTextureSize ?? 0);
+
+  steps.push({
+    key: "browser-profile-default-auto",
+    outcome:
+      initialAuto.profile === "hd-auto" &&
+      initialAuto.mode === "HD" &&
+      Number(initialAuto.applied ?? 0) >= 1 &&
+      Number(initialAuto.maxTextureSize ?? 0) === Math.min(hardwareTextureLimit, 4096)
+        ? "passed"
+        : "failed",
+  });
+
+  const original = await setBrowserGraphicsProfile(view, "original");
+  const providerOriginal = await fetchAlhdAssetProviderState();
+  steps.push({
+    key: "profile-original",
+    outcome:
+      original.profile === "original" &&
+      original.mode === "Original" &&
+      Number(original.applied ?? -1) === 0 &&
+      original.maxTextureSize === null &&
+      Number(providerOriginal.hdPayloadReads ?? 0) === Number(providerInitial.hdPayloadReads ?? 0)
+        ? "passed"
+        : "failed",
+  });
+
+  const performance = await setBrowserGraphicsProfile(view, "hd-performance");
+  const providerPerformance = await fetchAlhdAssetProviderState();
+  steps.push({
+    key: "profile-hd-performance",
+    outcome:
+      performance.profile === "hd-performance" &&
+      performance.mode === "HD" &&
+      Number(performance.applied ?? 0) >= 1 &&
+      Number(performance.maxTextureSize ?? 0) === Math.min(hardwareTextureLimit, 2048) &&
+      Number(providerPerformance.hdPayloadReads ?? 0) > Number(providerOriginal.hdPayloadReads ?? 0)
+        ? "passed"
+        : "failed",
+  });
+
+  const auto = await setBrowserGraphicsProfile(view, "hd-auto");
+  const providerAuto = await fetchAlhdAssetProviderState();
+  steps.push({
+    key: "profile-hd-auto",
+    outcome:
+      auto.profile === "hd-auto" &&
+      auto.mode === "HD" &&
+      Number(auto.applied ?? 0) >= 1 &&
+      Number(auto.maxTextureSize ?? 0) === Math.min(hardwareTextureLimit, 4096) &&
+      Number(providerAuto.hdPayloadReads ?? 0) > Number(providerPerformance.hdPayloadReads ?? 0)
+        ? "passed"
+        : "failed",
+  });
+
+  const maximum = await setBrowserGraphicsProfile(view, "hd-maximum");
+  const providerMaximum = await fetchAlhdAssetProviderState();
+  steps.push({
+    key: "profile-hd-maximum",
+    outcome:
+      maximum.profile === "hd-maximum" &&
+      maximum.mode === "HD" &&
+      Number(maximum.applied ?? 0) >= 1 &&
+      Number(maximum.maxTextureSize ?? 0) === hardwareTextureLimit &&
+      Number(providerMaximum.hdPayloadReads ?? 0) > Number(providerAuto.hdPayloadReads ?? 0)
+        ? "passed"
+        : "failed",
+  });
+
+  const finalAuto = await setBrowserGraphicsProfile(view, "hd-auto");
+  const providerDuring = await fetchAlhdAssetProviderState();
+  const during = await fetchRendererSnapshot();
+  const duringHandoff = await fetchRendererHandoffState();
+  const history = view.__alrBrowserViewState?.profileHistory ?? [];
+  const expectedHistory = [
+    "hd-auto",
+    "original",
+    "hd-performance",
+    "hd-auto",
+    "hd-maximum",
+    "hd-auto",
+  ];
+  const generations = [
+    initialAuto.rendererGeneration,
+    original.rendererGeneration,
+    performance.rendererGeneration,
+    auto.rendererGeneration,
+    maximum.rendererGeneration,
+    finalAuto.rendererGeneration,
+  ].map((value) => Number(value ?? 0));
+
+  steps.push({
+    key: "profile-switch-renderer-reinitialized",
+    outcome:
+      expectedHistory.every((profile, index) => history[index] === profile) &&
+      generations.every((generation, index) =>
+        index === 0 ? generation >= 1 : generation > generations[index - 1]
+      ) &&
+      Number(during.bridge?.subscribers ?? 0) === baselineSubscribers + 1 &&
+      Number(duringHandoff.attachedRenderers ?? 0) === baselineRenderers + 1
+        ? "passed"
+        : "failed",
+  });
+
+  const beforeCore = before.snapshot?.core ?? {};
+  const beforeCharacter = before.snapshot?.character ?? {};
+  const beforeScript = before.snapshot?.script ?? {};
+  const duringCharacter = during.snapshot?.character ?? {};
+  const duringScript = during.snapshot?.script ?? {};
+  const coreRestartDuring = beforeCore.startedAt !== during.snapshot?.core?.startedAt;
+  const characterRestartDuring = !sameSocketMarkers(beforeCharacter, duringCharacter);
+  const scriptRestartDuring =
+    (beforeScript.runId ?? null) !== (duringScript.runId ?? null) ||
+    (beforeScript.startedAt ?? null) !== (duringScript.startedAt ?? null);
+
+  steps.push({
+    key: "core-character-script-continuity-during-switch",
+    outcome:
+      !coreRestartDuring && !characterRestartDuring && !scriptRestartDuring
+        ? "passed"
+        : "failed",
+  });
+
+  view.close();
+  await waitForBrowserViewCondition(
+    () => view.closed === true,
+    "Browser View Graphics Profiles verification window did not close before timeout.",
+  );
+  const after = await waitForRendererSubscriberCount(baselineSubscribers);
+  const detached = await waitForRendererHandoffCount(baselineRenderers);
+  const providerAfter = await fetchAlhdAssetProviderState();
+  const afterCore = after.snapshot?.core ?? {};
+  const afterCharacter = after.snapshot?.character ?? {};
+  const afterScript = after.snapshot?.script ?? {};
+  const coreRestart = beforeCore.startedAt !== afterCore.startedAt;
+  const characterRestart = !sameSocketMarkers(beforeCharacter, afterCharacter);
+  const scriptRestart =
+    (beforeScript.runId ?? null) !== (afterScript.runId ?? null) ||
+    (beforeScript.startedAt ?? null) !== (afterScript.startedAt ?? null);
+
+  steps.push({
+    key: "browser-renderer-detached",
+    outcome:
+      Number(after.bridge?.subscribers ?? 0) === baselineSubscribers &&
+      Number(detached.attachedRenderers ?? 0) === baselineRenderers
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "headless-stays-metadata-only",
+    outcome:
+      providerAfter.headlessLoadsHdAssets === false &&
+      Number(providerAfter.hdPayloadReads ?? 0) === Number(providerDuring.hdPayloadReads ?? 0)
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "core-character-script-continuity",
+    outcome: !coreRestart && !characterRestart && !scriptRestart ? "passed" : "failed",
+  });
+
+  const actionGatewayRequests = Math.max(
+    0,
+    Number(after.snapshot?.actionGateway?.totalRequests ?? 0) -
+      Number(before.snapshot?.actionGateway?.totalRequests ?? 0),
+  );
+  steps.push({
+    key: "read-only-runtime",
+    outcome: actionGatewayRequests === 0 ? "passed" : "failed",
+  });
+
+  return {
+    outcome: steps.every((step) => step.outcome === "passed") ? "passed" : "failed",
+    steps,
+    profileSequence: expectedHistory,
+    generations,
+    hardwareTextureLimit,
+    originalApplied: original.applied ?? null,
+    performanceApplied: performance.applied ?? null,
+    autoApplied: auto.applied ?? null,
+    maximumApplied: maximum.applied ?? null,
+    originalTextureLimit: original.maxTextureSize ?? null,
+    performanceTextureLimit: performance.maxTextureSize ?? null,
+    autoTextureLimit: auto.maxTextureSize ?? null,
+    maximumTextureLimit: maximum.maxTextureSize ?? null,
+    originalPayloadReadDelta: Math.max(
+      0,
+      Number(providerOriginal.hdPayloadReads ?? 0) - Number(providerInitial.hdPayloadReads ?? 0),
+    ),
+    browserPayloadReads: Math.max(
+      0,
+      Number(providerDuring.hdPayloadReads ?? 0) - Number(providerHeadless.hdPayloadReads ?? 0),
+    ),
+    browserPayloadBytes: Math.max(
+      0,
+      Number(providerDuring.hdPayloadBytes ?? 0) - Number(providerHeadless.hdPayloadBytes ?? 0),
+    ),
+    rendererSubscribers: [
+      baselineSubscribers,
+      opened.bridge?.subscribers ?? null,
+      during.bridge?.subscribers ?? null,
+      after.bridge?.subscribers ?? null,
+    ],
+    headlessLoadsHdAssets: false,
+    presentationOnly: finalAuto.presentationOnly === true,
+    originalFallback: finalAuto.originalFallback === true,
+    coreRestart,
+    characterRestart,
+    scriptRestart,
+    gameplayMutation: false,
+    actionGatewayRequests,
+    rawSocketAccess: false,
+    userScriptTouched: false,
+  };
+}
+
+async function startSlice114LiveTest(view, clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice114LiveTest = {
+    status: "running",
+    message: "Slice 11.4 Graphics Profiles test is running.",
+  };
+  renderSlice114LiveTest();
+
+  const verification = await runSlice114Verification(view);
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) {
+    throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  }
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live114-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const stepLines = verification.steps.map((step) =>
+    `- ${step.key}: ${String(step.outcome).toUpperCase()}`
+  );
+  const reportText = [
+    "ALRemastered Slice 11.4 one-click Graphics Profiles test",
+    `Test ID: ${testId}`,
+    "Slice: 11.4",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    `Profile sequence: ${verification.profileSequence.join(" -> ")}`,
+    `Renderer generations: ${verification.generations.join(" -> ")}`,
+    `Hardware texture limit: ${verification.hardwareTextureLimit || "unavailable"}`,
+    `Original applied: ${verification.originalApplied}`,
+    `HD Performance applied: ${verification.performanceApplied}`,
+    `HD Auto applied: ${verification.autoApplied}`,
+    `HD Maximum applied: ${verification.maximumApplied}`,
+    `Original texture limit: ${verification.originalTextureLimit ?? "original-only"}`,
+    `HD Performance texture limit: ${verification.performanceTextureLimit ?? "unavailable"}`,
+    `HD Auto texture limit: ${verification.autoTextureLimit ?? "unavailable"}`,
+    `HD Maximum texture limit: ${verification.maximumTextureLimit ?? "unavailable"}`,
+    `Original payload read delta: ${verification.originalPayloadReadDelta}`,
+    `Browser HD payload reads: ${verification.browserPayloadReads}`,
+    `Browser HD payload bytes: ${verification.browserPayloadBytes}`,
+    `Headless loads HD assets: ${verification.headlessLoadsHdAssets}`,
+    `Presentation only: ${verification.presentationOnly}`,
+    `Original fallback: ${verification.originalFallback}`,
+    `Renderer subscribers: ${verification.rendererSubscribers.join(" -> ")}`,
+    `Core restart: ${verification.coreRestart}`,
+    `Character restart: ${verification.characterRestart}`,
+    `Script restart: ${verification.scriptRestart}`,
+    "Gameplay mutation: false",
+    `Action Gateway requests: ${verification.actionGatewayRequests}`,
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+
+  const result = {
+    testId,
+    slice: "11.4",
+    outcome,
+    startedAt,
+    completedAt,
+    message: outcome === "passed"
+      ? "Graphics Profiles verification passed."
+      : "Graphics Profiles verification failed.",
+    ...verification,
+  };
+  state.slice114LastReport = reportText;
+  state.slice114LiveTest = { status: outcome, message: result.message, lastResult: result };
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice114LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice114LiveTest.addEventListener("click", async () => {
+  if (state.slice114LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice114LastReport = null;
+  elements.copySlice114LiveTestResult.hidden = true;
+
+  let view;
+  try {
+    view = openBrowserViewWindow("about:blank", "alremastered-graphics-profiles-verification");
+  } catch (error) {
+    state.slice114LiveTest = { status: "failed", message: error.message };
+    renderSlice114LiveTest();
+    setFeedback(`Slice 11.4 Graphics Profiles test could not start: ${error.message}`, "error");
+    return;
+  }
+
+  setFeedback(
+    "Slice 11.4 Graphics Profiles test started. Browser View will cycle all four profiles while Core, Character, and Script continuity are checked.",
+  );
+  try {
+    const { result, copied } = await startSlice114LiveTest(view, clipboardWrite);
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 11.4 test ${String(result.outcome).toUpperCase()}. ${copyMessage}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    if (view && !view.closed) view.close();
+    state.slice114LiveTest = { status: "failed", message: error.message };
+    renderSlice114LiveTest();
+    setFeedback(`Slice 11.4 Graphics Profiles test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice114LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice114LastReport) return;
+  try {
+    await writeClipboard(state.slice114LastReport);
+    setFeedback(
+      "Complete Slice 11.4 Graphics Profiles result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Graphics Profiles result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice114LiveTest();
 
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));

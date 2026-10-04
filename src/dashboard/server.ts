@@ -2241,6 +2241,7 @@ export class DashboardServer {
       "/browser-view": "browser-view.html",
       "/browser-view.html": "browser-view.html",
       "/browser-view.js": "browser-view.js",
+      "/graphics-profiles.js": "graphics-profiles.js",
       "/dashboard-editor.js": "editor.js",
       "/dashboard-layout-transfer.js": "layout-transfer.js",
     };
