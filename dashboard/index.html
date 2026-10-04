@@ -111,6 +111,102 @@
       </form>
     </section>
 
+
+    <section class="setup-wizard-panel" id="setup-wizard">
+      <div class="diagnostics-heading">
+        <div>
+          <p class="eyebrow">Phase 8 beginner setup</p>
+          <h2>Setup Wizard</h2>
+        </div>
+        <strong id="setup-wizard-status" aria-live="polite">Waiting for account</strong>
+      </div>
+
+      <nav class="setup-wizard-steps" aria-label="Setup Wizard steps">
+        <button type="button" data-setup-wizard-step="1">1. Account</button>
+        <button type="button" data-setup-wizard-step="2">2. Character</button>
+        <button type="button" data-setup-wizard-step="3">3. Server</button>
+        <button type="button" data-setup-wizard-step="4">4. Task / Template</button>
+        <button type="button" data-setup-wizard-step="5">5. Configuration</button>
+        <button type="button" data-setup-wizard-step="6">6. Start</button>
+      </nav>
+
+      <div class="setup-wizard-stage" data-setup-wizard-panel="1">
+        <h3>Account</h3>
+        <p id="setup-wizard-account-note">Connect your Adventure Land account. Credentials stay in memory only.</p>
+        <div class="account-form setup-wizard-account-form">
+          <label><span class="label">Email</span><input id="setup-wizard-email" type="email" autocomplete="username" maxlength="254"></label>
+          <label><span class="label">Password</span><input id="setup-wizard-password" type="password" autocomplete="current-password" maxlength="1024"></label>
+          <button id="setup-wizard-connect-account" type="button">Connect account</button>
+        </div>
+      </div>
+
+      <div class="setup-wizard-stage" data-setup-wizard-panel="2" hidden>
+        <h3>Character</h3>
+        <label><span class="label">Character</span><select id="setup-wizard-character" aria-label="Setup Wizard Character"></select></label>
+        <small>Select the Character this setup should start.</small>
+      </div>
+
+      <div class="setup-wizard-stage" data-setup-wizard-panel="3" hidden>
+        <h3>Server</h3>
+        <label><span class="label">Server</span><select id="setup-wizard-server" aria-label="Setup Wizard Server"></select></label>
+        <small>The server is applied only when Start is pressed.</small>
+      </div>
+
+      <div class="setup-wizard-stage" data-setup-wizard-panel="4" hidden>
+        <h3>Task / Template</h3>
+        <label><span class="label">Task / Template</span><select id="setup-wizard-task-template" aria-label="Setup Wizard Task or Template"></select></label>
+        <small id="setup-wizard-task-note">Choose an existing task or template. The Wizard does not create a second automation system.</small>
+      </div>
+
+      <div class="setup-wizard-stage" data-setup-wizard-panel="5" hidden>
+        <h3>Configuration</h3>
+        <div id="setup-wizard-config-connect-only">
+          <p>No additional configuration is required for Connect only.</p>
+        </div>
+        <div id="setup-wizard-config-simple-farmer" class="script-runtime-editor" hidden>
+          <label><span class="label">Monster</span><input id="setup-wizard-farmer-monster" type="text" maxlength="120" placeholder="First visible monster at Start"></label>
+          <label><span class="label">HP threshold %</span><input id="setup-wizard-farmer-hp" type="number" min="1" max="99" step="1" value="50"></label>
+          <label><span class="label">MP threshold %</span><input id="setup-wizard-farmer-mp" type="number" min="1" max="99" step="1" value="30"></label>
+          <label><span class="label">Loot</span><input id="setup-wizard-farmer-loot" type="checkbox" checked></label>
+          <label><span class="label">Respawn</span><input id="setup-wizard-farmer-respawn" type="checkbox" checked></label>
+          <small>Leave Monster blank to use the first visible monster type after the primary Character connects.</small>
+        </div>
+        <div id="setup-wizard-config-custom-script" class="script-runtime-editor" hidden>
+          <label><span class="label">Script name</span><input id="setup-wizard-script-name" type="text" maxlength="80" value="wizard-script"></label>
+          <label><span class="label">JavaScript source</span><textarea id="setup-wizard-script-source" rows="7" spellcheck="false">console.info("Started from Setup Wizard.");</textarea></label>
+          <small>Custom Script reuses the existing isolated primary Script runtime.</small>
+        </div>
+      </div>
+
+      <div class="setup-wizard-stage" data-setup-wizard-panel="6" hidden>
+        <h3>Start</h3>
+        <div class="card setup-wizard-summary">
+          <strong id="setup-wizard-summary">Complete the previous stages.</strong>
+        </div>
+        <button id="setup-wizard-start" type="button">Start setup</button>
+        <small id="setup-wizard-start-note">Start applies the selected server, starts the Character through existing Character Cards controls, then starts the chosen task or template when applicable.</small>
+      </div>
+
+      <div class="toolbar setup-wizard-navigation">
+        <button id="setup-wizard-back" type="button">Back</button>
+        <button id="setup-wizard-next" type="button">Next</button>
+      </div>
+
+      <div class="selection-content">
+        <div>
+          <h3>Slice 8.2 one-click Setup Wizard test</h3>
+          <div class="server-picker">
+            <button id="start-slice-8-2-live-test" type="button">Start Setup Wizard test</button>
+            <strong id="slice-8-2-live-test-status" aria-live="polite">Ready</strong>
+            <button id="copy-slice-8-2-live-test-result" type="button" hidden>Copy last test result</button>
+          </div>
+          <small class="selection-note" id="slice-8-2-live-test-note">
+            Requires a connected account, one connected primary Character, one offline secondary Character, one free session slot, and no running or paused user Script. The test verifies all six English Wizard stages with a bounded Connect only start, then removes only the temporary managed session.
+          </small>
+        </div>
+      </div>
+    </section>
+
     <section class="selection-panel" id="selection-panel" hidden>
       <div class="diagnostics-heading">
         <div>

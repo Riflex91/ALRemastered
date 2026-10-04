@@ -18,6 +18,7 @@ import { AdventureLandCharacterTransport } from "./character/transport.ts";
 import { CoreRuntime } from "./core/app.ts";
 import { openDashboard } from "./dashboard/open.ts";
 import { CharacterCardsService } from "./dashboard/character-cards.ts";
+import { SetupWizardService } from "./dashboard/setup-wizard.ts";
 import { DashboardServer } from "./dashboard/server.ts";
 import { DiagnosticsService } from "./diagnostics/service.ts";
 import { AdventureLandGameDataCache } from "./game/data-cache.ts";
@@ -46,6 +47,7 @@ import { Slice72LiveTestService } from "./live-test/slice-7-2.ts";
 import { Slice73LiveTestService } from "./live-test/slice-7-3.ts";
 import { Slice74LiveTestService } from "./live-test/slice-7-4.ts";
 import { Slice81LiveTestService } from "./live-test/slice-8-1.ts";
+import { Slice82LiveTestService } from "./live-test/slice-8-2.ts";
 import { getUserPaths } from "./platform/paths.ts";
 import { AdventureLandScriptApiBridge } from "./script/adventure-api.ts";
 import { ScriptRuntimeService } from "./script/runtime.ts";
@@ -162,6 +164,7 @@ let localCharacterMessagingService: LocalCharacterMessagingService | undefined;
 let partyCoordinatorService: PartyCoordinatorService | undefined;
 let partyTemplateService: PartyTemplateService | undefined;
 let characterCardsService: CharacterCardsService | undefined;
+let setupWizardService: SetupWizardService | undefined;
 let actionGateway: ActionGateway | undefined;
 let movementService: AdventureLandMovementService | undefined;
 let attackService: AdventureLandAttackService | undefined;
@@ -189,6 +192,7 @@ let slice72LiveTestService: Slice72LiveTestService | undefined;
 let slice73LiveTestService: Slice73LiveTestService | undefined;
 let slice74LiveTestService: Slice74LiveTestService | undefined;
 let slice81LiveTestService: Slice81LiveTestService | undefined;
+let slice82LiveTestService: Slice82LiveTestService | undefined;
 let mapModelService: AdventureLandMapModelService | undefined;
 let movementDebugService: MovementDebugService | undefined;
 let pathPlannerService: SimplePathPlannerService | undefined;
@@ -662,6 +666,22 @@ simpleFarmerService = new SimpleFarmerTemplateService({
   character: characterService!,
   runtime: scriptRuntime,
 });
+setupWizardService = new SetupWizardService({
+  logger,
+  account: accountService!,
+  selection: selectionService!,
+  cards: characterCardsService!,
+  farmer: simpleFarmerService,
+  runtime: scriptRuntime,
+});
+diagnostics.registerComponent("setup-wizard", () => {
+  const state = setupWizardService!.state();
+  return {
+    name: "setup-wizard",
+    status: state.status === "ready" ? "healthy" : "degraded",
+    message: state.message,
+  };
+});
 slice41LiveTestService = new Slice41LiveTestService({
   logger,
   runtime: scriptRuntime,
@@ -797,6 +817,16 @@ slice81LiveTestService = new Slice81LiveTestService({
   selection: selectionService!,
   sessions: multiCharacterSessionManager!,
 });
+slice82LiveTestService = new Slice82LiveTestService({
+  logger,
+  account: accountService!,
+  selection: selectionService!,
+  primary: characterService!,
+  sessions: multiCharacterSessionManager!,
+  cards: characterCardsService!,
+  wizard: setupWizardService!,
+  userRuntime: scriptRuntime!,
+});
 watchdogService.start();
 diagnostics.registerComponent("watchdog", () => {
   const state = watchdogService!.state();
@@ -829,6 +859,7 @@ dashboard = new DashboardServer({
   partyCoordinatorService,
   partyTemplateService,
   characterCardsService,
+  setupWizardService,
   actionGateway,
   movementService,
   attackService,
@@ -854,6 +885,7 @@ dashboard = new DashboardServer({
   slice73LiveTestService,
   slice74LiveTestService,
   slice81LiveTestService,
+  slice82LiveTestService,
   mapModelService,
   movementDebugService,
   pathPlannerService,
