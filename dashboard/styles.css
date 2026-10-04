@@ -911,8 +911,20 @@ h2 {
 }
 
 .dashboard-widget-character-badge[hidden],
+.dashboard-widget-character-context[hidden],
 .dashboard-widget-config[hidden] {
   display: none;
+}
+
+.dashboard-widget-character-context {
+  margin: 0.75rem 0 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #364155;
+  border-radius: 8px;
+  background: rgba(17, 23, 34, 0.78);
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  line-height: 1.45;
 }
 
 .dashboard-widget-config {
