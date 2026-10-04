@@ -328,21 +328,47 @@ export class DashboardServer {
       }
       return this.#json(response, this.#alhdAssetProvider.state());
     }
+    if (method === "GET" && path === "/api/hd/assets/diagnostics") {
+      if (!this.#alhdAssetProvider) {
+        return this.#json(response, { error: "ALHD asset provider is unavailable." }, 503);
+      }
+      try {
+        const url = new URL(pathWithQuery, "http://127.0.0.1");
+        const maxTextureSize = parseOptionalPositiveInteger(
+          url.searchParams.get("maxTextureSize"),
+          "maxTextureSize",
+        );
+        return this.#json(response, this.#alhdAssetProvider.diagnose(maxTextureSize));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Invalid texture diagnostics request.";
+        return this.#json(response, { error: message }, 400);
+      }
+    }
     if (method === "GET" && path === "/api/hd/assets/resolve") {
       if (!this.#alhdAssetProvider) {
         return this.#json(response, { error: "ALHD asset provider is unavailable." }, 503);
       }
       let sourcePath = "";
+      let maxTextureSize: number | null | undefined;
       try {
-        sourcePath = new URL(pathWithQuery, "http://127.0.0.1").searchParams.get("sourcePath") ?? "";
-      } catch {
-        return this.#json(response, { error: "Invalid asset resolution request." }, 400);
+        const url = new URL(pathWithQuery, "http://127.0.0.1");
+        sourcePath = url.searchParams.get("sourcePath") ?? "";
+        maxTextureSize = parseOptionalPositiveInteger(
+          url.searchParams.get("maxTextureSize"),
+          "maxTextureSize",
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Invalid asset resolution request.";
+        return this.#json(response, { error: message }, 400);
       }
       if (!sourcePath.trim()) {
         return this.#json(response, { error: "sourcePath is required." }, 400);
       }
       try {
-        return this.#json(response, this.#alhdAssetProvider.resolve(sourcePath));
+        return this.#json(
+          response,
+          this.#alhdAssetProvider.resolve(sourcePath, { maxTextureSize }),
+        );
       } catch (error) {
         const message = error instanceof Error ? error.message : "Invalid sourcePath.";
         return this.#json(response, { error: message }, 400);
@@ -2395,6 +2421,18 @@ function parsePathLocation(
     x: record.x,
     y: record.y,
   };
+}
+
+function parseOptionalPositiveInteger(
+  value: string | null,
+  name: string,
+): number | null | undefined {
+  if (value === null || value === "") return undefined;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${name} must be a positive integer.`);
+  }
+  return parsed;
 }
 
 function rendererClientId(pathWithQuery: string): string | undefined {
