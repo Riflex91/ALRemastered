@@ -34,7 +34,7 @@ test("Slice 9.2 exposes transient widget configuration without later-slice persi
   assert.match(editor, /Widget configuration/);
   assert.match(editor, /Visible fields/);
   assert.match(editor, /Duplicate widget/);
-  assert.match(editor, /data-widget-display/);
+  assert.match(editor, /dataset\.widgetDisplay/);
   assert.match(editor, /data\.widgetCharacter/);
   assert.match(editor, /sanitizeDuplicateContent/);
   assert.match(editor, /removeAttribute\("id"\)/);
