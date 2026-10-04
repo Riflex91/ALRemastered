@@ -169,7 +169,7 @@ test("Slice 12.2 remains retained while Slice 12.4 is the current verification",
   const server = readFileSync(new URL("../src/dashboard/server.js", import.meta.url), "utf8");
   const permissions = readFileSync(new URL("../src/packages/permissions.js", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="12\.4"/);
+  assert.match(html, /data-current-verification-slice="12\.5"/);
   assert.match(html, /data-verification-test="12\.1" hidden/);
   assert.match(html, /data-verification-test="12\.2" hidden/);
   assert.match(html, /Slice 12\.2 one-click Permission System test/);
