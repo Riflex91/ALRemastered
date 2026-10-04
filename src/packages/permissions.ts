@@ -266,8 +266,19 @@ export function runScriptPackagePermissionSelfTest() {
     gameplayMutation: false,
   });
 
+  const ready =
+    checks.canonicalPermissions &&
+    checks.safeDeclaredAllowed &&
+    checks.dangerousDefaultDenied &&
+    checks.dangerousExplicitApprovalAllowed &&
+    checks.undeclaredDenied &&
+    checks.unknownDenied &&
+    checks.importAttempted === false &&
+    checks.executionAttempted === false &&
+    checks.gameplayMutation === false;
+
   return Object.freeze({
-    status: Object.values(checks).every((value) => value === true) ? "ready" : "failed",
+    status: ready ? "ready" : "failed",
     descriptor: scriptPackagePermissionDescriptor(),
     checks,
     sampleDecisions: Object.freeze({
