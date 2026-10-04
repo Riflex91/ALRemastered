@@ -41,6 +41,7 @@ function compileTree(sourceRoot) {
 compileTree("src");
 compileTree("tests");
 cpSync("dashboard", join(buildRoot, "dashboard"), { recursive: true });
+cpSync("assets", join(buildRoot, "assets"), { recursive: true });
 
 const stagedPackage = { ...sourcePackage, version: buildVersion };
 writeFileSync(join(buildRoot, "package.json"), `${JSON.stringify(stagedPackage, null, 2)}\n`, "utf8");

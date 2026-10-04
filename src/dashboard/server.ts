@@ -42,6 +42,7 @@ import type { AdventureLandVersionService } from "../game/version-service.ts";
 import type { Logger, LogRecord } from "../logging/logger.ts";
 import type { RendererBridge } from "../renderer/bridge.ts";
 import type { RendererHandoffService } from "../renderer/handoff.ts";
+import type { AlhdAssetProvider } from "../hd/asset-provider.ts";
 import type { Slice35LiveTestService } from "../live-test/slice-3-5.ts";
 import type { Slice41LiveTestService } from "../live-test/slice-4-1.ts";
 import type { Slice42LiveTestService } from "../live-test/slice-4-2.ts";
@@ -92,6 +93,7 @@ export interface DashboardServerOptions {
   readonly dashboardLayoutStore?: DashboardLayoutStore;
   readonly rendererBridge?: RendererBridge;
   readonly rendererHandoffService?: RendererHandoffService;
+  readonly alhdAssetProvider?: AlhdAssetProvider;
   readonly controlModeService?: ControlModeService;
   readonly actionGateway?: ActionGateway;
   readonly movementService?: AdventureLandMovementService;
@@ -152,6 +154,7 @@ export class DashboardServer {
   readonly #dashboardLayoutStore?: DashboardLayoutStore;
   readonly #rendererBridge?: RendererBridge;
   readonly #rendererHandoffService?: RendererHandoffService;
+  readonly #alhdAssetProvider?: AlhdAssetProvider;
   readonly #controlModeService?: ControlModeService;
   readonly #actionGateway?: ActionGateway;
   readonly #movementService?: AdventureLandMovementService;
@@ -216,6 +219,7 @@ export class DashboardServer {
     this.#dashboardLayoutStore = options.dashboardLayoutStore;
     this.#rendererBridge = options.rendererBridge;
     this.#rendererHandoffService = options.rendererHandoffService;
+    this.#alhdAssetProvider = options.alhdAssetProvider;
     this.#controlModeService = options.controlModeService;
     this.#actionGateway = options.actionGateway;
     this.#movementService = options.movementService;
@@ -317,6 +321,33 @@ export class DashboardServer {
     const pathWithQuery = request.url ?? "/";
     const method = request.method ?? "GET";
     const path = pathWithQuery.split("?", 1)[0];
+
+    if (method === "GET" && path === "/api/hd/assets") {
+      if (!this.#alhdAssetProvider) {
+        return this.#json(response, { status: "unavailable" }, 503);
+      }
+      return this.#json(response, this.#alhdAssetProvider.state());
+    }
+    if (method === "GET" && path === "/api/hd/assets/resolve") {
+      if (!this.#alhdAssetProvider) {
+        return this.#json(response, { error: "ALHD asset provider is unavailable." }, 503);
+      }
+      let sourcePath = "";
+      try {
+        sourcePath = new URL(pathWithQuery, "http://127.0.0.1").searchParams.get("sourcePath") ?? "";
+      } catch {
+        return this.#json(response, { error: "Invalid asset resolution request." }, 400);
+      }
+      if (!sourcePath.trim()) {
+        return this.#json(response, { error: "sourcePath is required." }, 400);
+      }
+      try {
+        return this.#json(response, this.#alhdAssetProvider.resolve(sourcePath));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Invalid sourcePath.";
+        return this.#json(response, { error: message }, 400);
+      }
+    }
 
     if (method === "GET" && path === "/api/account") {
       if (!this.#accountService) return this.#json(response, { status: "unavailable" }, 503);
