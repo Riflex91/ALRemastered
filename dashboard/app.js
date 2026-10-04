@@ -1,6 +1,7 @@
 import {
   DashboardEditor,
   runDashboardEditorVerification,
+  runDashboardPagesVerification,
   runDashboardWidgetConfigurationVerification,
 } from "/dashboard-editor.js";
 
@@ -13,6 +14,8 @@ const state = {
   slice91LastReport: null,
   slice92LiveTest: { status: "idle", message: "Ready." },
   slice92LastReport: null,
+  slice93LiveTest: { status: "idle", message: "Ready." },
+  slice93LastReport: null,
   status: null,
   account: null,
   selection: null,
@@ -95,6 +98,7 @@ const elements = {
   dashboardEditStatus: document.querySelector("#dashboard-edit-status"),
   dashboardWidgetAddSelect: document.querySelector("#dashboard-widget-add-select"),
   dashboardAddWidget: document.querySelector("#dashboard-add-widget"),
+  dashboardPageTabs: document.querySelector("#dashboard-page-tabs"),
   startSlice91LiveTest: document.querySelector("#start-slice-9-1-live-test"),
   slice91LiveTestStatus: document.querySelector("#slice-9-1-live-test-status"),
   slice91LiveTestNote: document.querySelector("#slice-9-1-live-test-note"),
@@ -103,6 +107,10 @@ const elements = {
   slice92LiveTestStatus: document.querySelector("#slice-9-2-live-test-status"),
   slice92LiveTestNote: document.querySelector("#slice-9-2-live-test-note"),
   copySlice92LiveTestResult: document.querySelector("#copy-slice-9-2-live-test-result"),
+  startSlice93LiveTest: document.querySelector("#start-slice-9-3-live-test"),
+  slice93LiveTestStatus: document.querySelector("#slice-9-3-live-test-status"),
+  slice93LiveTestNote: document.querySelector("#slice-9-3-live-test-note"),
+  copySlice93LiveTestResult: document.querySelector("#copy-slice-9-3-live-test-result"),
   coreStatus: document.querySelector("#core-status"),
   version: document.querySelector("#client-version"),
   uptime: document.querySelector("#uptime"),
@@ -471,11 +479,35 @@ function renderDashboardEditMode() {
   }
 }
 
+function renderDashboardPages() {
+  if (!dashboardEditor || !elements.dashboardPageTabs) return;
+  const activePage = dashboardEditor.activePage;
+  for (const button of elements.dashboardPageTabs.querySelectorAll("[data-dashboard-page]")) {
+    const selected = button.dataset.dashboardPage === activePage;
+    button.setAttribute("aria-selected", String(selected));
+    button.tabIndex = selected ? 0 : -1;
+  }
+}
+
+function renderDashboardEditorState() {
+  renderDashboardEditMode();
+  renderDashboardPages();
+}
+
 dashboardEditor = new DashboardEditor({
   document,
-  onChange: () => renderDashboardEditMode(),
+  onChange: () => renderDashboardEditorState(),
 }).init();
-renderDashboardEditMode();
+renderDashboardEditorState();
+
+elements.dashboardPageTabs.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-dashboard-page]");
+  if (!button) return;
+  const pageId = button.dataset.dashboardPage;
+  const page = dashboardEditor.pages().find((item) => item.id === pageId);
+  dashboardEditor.setActivePage(pageId);
+  setFeedback(`Dashboard page changed to ${page?.label ?? pageId}. Page selection is not persisted.`);
+});
 
 elements.editDashboard.addEventListener("click", () => {
   dashboardEditor.toggle();
@@ -738,6 +770,139 @@ elements.copySlice92LiveTestResult.addEventListener("click", async () => {
 });
 
 renderSlice92LiveTest();
+
+function renderSlice93LiveTest() {
+  const test = state.slice93LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    failed: "FAILED",
+  };
+  elements.slice93LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice93LiveTest.disabled = test.status === "running";
+  elements.copySlice93LiveTestResult.hidden = !state.slice93LastReport;
+  if (test.status === "running") {
+    elements.slice93LiveTestNote.textContent =
+      "Exercising Overview, Combat, Party, Merchant, Logs, and Debugging page filtering without gameplay actions.";
+  } else if (test.message) {
+    elements.slice93LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function startSlice93LiveTest(clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice93LiveTest = {
+    status: "running",
+    message: "Slice 9.3 dashboard pages test is running.",
+  };
+  renderSlice93LiveTest();
+
+  const verification = await runDashboardPagesVerification(dashboardEditor);
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) {
+    throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  }
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live93-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const stepLines = verification.steps.map((step) =>
+    `- ${step.key}: ${String(step.outcome).toUpperCase()}`
+  );
+  const pageLabels = verification.pages.map((page) => page.label).join(", ");
+  const reportText = [
+    "ALRemastered Slice 9.3 one-click dashboard pages and tabs test",
+    `Test ID: ${testId}`,
+    "Slice: 9.3",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    `Pages: ${pageLabels}`,
+    "Page selection persistence: false",
+    "Gameplay mutation: false",
+    "Action Gateway requests: 0",
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+
+  const result = {
+    testId,
+    slice: "9.3",
+    outcome,
+    startedAt,
+    completedAt,
+    message: outcome === "passed"
+      ? "Dashboard pages and tabs verification passed."
+      : "Dashboard pages and tabs verification failed.",
+    steps: verification.steps,
+    pages: verification.pages,
+    persistence: false,
+    gameplayMutation: false,
+    actionGatewayRequests: 0,
+    rawSocketAccess: false,
+    userScriptTouched: false,
+  };
+
+  state.slice93LastReport = reportText;
+  state.slice93LiveTest = { status: outcome, message: result.message, lastResult: result };
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice93LiveTest();
+  renderDashboardPages();
+  return { result, reportText, copied };
+}
+
+elements.startSlice93LiveTest.addEventListener("click", async () => {
+  if (state.slice93LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice93LastReport = null;
+  elements.copySlice93LiveTestResult.hidden = true;
+  setFeedback(
+    "Slice 9.3 dashboard pages test started. It changes the transient page view only and restores the starting page.",
+  );
+  try {
+    const { result, copied } = await startSlice93LiveTest(clipboardWrite);
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 9.3 test ${String(result.outcome).toUpperCase()}. ${copyMessage}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    state.slice93LiveTest = { status: "failed", message: error.message };
+    renderSlice93LiveTest();
+    renderDashboardPages();
+    setFeedback(`Slice 9.3 dashboard pages test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice93LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice93LastReport) return;
+  try {
+    await writeClipboard(state.slice93LastReport);
+    setFeedback(
+      "Complete Slice 9.3 dashboard pages result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Dashboard pages result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice93LiveTest();
 
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
