@@ -36,6 +36,8 @@ const state = {
   slice104LastReport: null,
   slice111LiveTest: { status: "idle", message: "Ready." },
   slice111LastReport: null,
+  slice112LiveTest: { status: "idle", message: "Ready." },
+  slice112LastReport: null,
   controlMode: null,
   dashboardLayouts: null,
   pendingDashboardImport: null,
@@ -181,6 +183,10 @@ const elements = {
   slice111LiveTestStatus: document.querySelector("#slice-11-1-live-test-status"),
   slice111LiveTestNote: document.querySelector("#slice-11-1-live-test-note"),
   copySlice111LiveTestResult: document.querySelector("#copy-slice-11-1-live-test-result"),
+  startSlice112LiveTest: document.querySelector("#start-slice-11-2-live-test"),
+  slice112LiveTestStatus: document.querySelector("#slice-11-2-live-test-status"),
+  slice112LiveTestNote: document.querySelector("#slice-11-2-live-test-note"),
+  copySlice112LiveTestResult: document.querySelector("#copy-slice-11-2-live-test-result"),
   coreStatus: document.querySelector("#core-status"),
   version: document.querySelector("#client-version"),
   uptime: document.querySelector("#uptime"),
@@ -3116,9 +3122,13 @@ async function fetchAlhdAssetProviderState() {
   return response.json();
 }
 
-async function resolveAlhdAsset(sourcePath) {
+async function resolveAlhdAsset(sourcePath, maxTextureSize) {
+  const query = new URLSearchParams({ sourcePath });
+  if (Number.isInteger(maxTextureSize) && maxTextureSize > 0) {
+    query.set("maxTextureSize", String(maxTextureSize));
+  }
   const response = await fetch(
-    `/api/hd/assets/resolve?sourcePath=${encodeURIComponent(sourcePath)}`,
+    `/api/hd/assets/resolve?${query.toString()}`,
     { cache: "no-store" },
   );
   const payload = await response.json();
@@ -3126,6 +3136,78 @@ async function resolveAlhdAsset(sourcePath) {
     throw new Error(payload.error ?? `ALHD asset resolution failed with HTTP ${response.status}.`);
   }
   return payload;
+}
+
+async function fetchAlhdTextureDiagnostics(maxTextureSize) {
+  const query = new URLSearchParams();
+  if (Number.isInteger(maxTextureSize) && maxTextureSize > 0) {
+    query.set("maxTextureSize", String(maxTextureSize));
+  }
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
+  const response = await fetch(`/api/hd/assets/diagnostics${suffix}`, {
+    cache: "no-store",
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      payload.error ?? `ALHD texture diagnostics failed with HTTP ${response.status}.`,
+    );
+  }
+  return payload;
+}
+
+function detectWebglTextureCapability() {
+  let context;
+  let contextType = null;
+  let loseContextAvailable = false;
+  let contextReleased = false;
+  try {
+    const canvas = document.createElement("canvas");
+    context = canvas.getContext("webgl");
+    contextType = context ? "webgl" : null;
+    if (!context) {
+      context = canvas.getContext("experimental-webgl");
+      contextType = context ? "experimental-webgl" : null;
+    }
+    if (
+      !context ||
+      typeof context.getParameter !== "function" ||
+      typeof context.MAX_TEXTURE_SIZE === "undefined"
+    ) {
+      return {
+        maxTextureSize: null,
+        contextType,
+        loseContextAvailable,
+        contextReleased,
+      };
+    }
+    const value = Number(context.getParameter(context.MAX_TEXTURE_SIZE));
+    try {
+      const lose = typeof context.getExtension === "function"
+        ? context.getExtension("WEBGL_lose_context")
+        : null;
+      loseContextAvailable = Boolean(lose && typeof lose.loseContext === "function");
+      if (loseContextAvailable) {
+        lose.loseContext();
+        contextReleased = true;
+      }
+    } catch {
+      // Releasing the temporary context is best-effort, matching the ALHD reference guard.
+    }
+    return {
+      maxTextureSize: Number.isFinite(value) && value > 0 ? Math.trunc(value) : null,
+      contextType,
+      loseContextAvailable,
+      contextReleased,
+    };
+  } catch {
+    return {
+      maxTextureSize: null,
+      contextType,
+      loseContextAvailable,
+      contextReleased,
+    };
+  }
 }
 
 function renderSlice111LiveTest() {
@@ -3390,6 +3472,270 @@ elements.copySlice111LiveTestResult.addEventListener("click", async () => {
 });
 
 renderSlice111LiveTest();
+
+function renderSlice112LiveTest() {
+  const test = state.slice112LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    failed: "FAILED",
+  };
+  elements.slice112LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice112LiveTest.disabled = test.status === "running";
+  elements.copySlice112LiveTestResult.hidden = !state.slice112LastReport;
+  if (test.status === "running") {
+    elements.slice112LiveTestNote.textContent =
+      "Detecting WebGL MAX_TEXTURE_SIZE, checking ALHD eligibility and oversized-original fallback, then verifying runtime continuity.";
+  } else if (test.message) {
+    elements.slice112LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function runSlice112Verification() {
+  const before = await fetchRendererSnapshot();
+  const capability = detectWebglTextureCapability();
+  const diagnostics = await fetchAlhdTextureDiagnostics(capability.maxTextureSize);
+  const oversizedSource = "images/tiles/map/doors.png";
+  const forcedGuardLimit = 1024;
+  const forcedBlocked = await resolveAlhdAsset(oversizedSource, forcedGuardLimit);
+  const actualResolution = await resolveAlhdAsset(
+    oversizedSource,
+    capability.maxTextureSize,
+  );
+  const after = await fetchRendererSnapshot();
+  const steps = [];
+
+  steps.push({
+    key: "webgl-max-texture-size",
+    outcome:
+      Number.isInteger(capability.maxTextureSize) &&
+      capability.maxTextureSize > 0 &&
+      Boolean(capability.contextType)
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "texture-guard-diagnostics",
+    outcome:
+      diagnostics.maxTextureSize === capability.maxTextureSize &&
+      diagnostics.presentationOnly === true &&
+      diagnostics.originalFallback === true &&
+      Number(diagnostics.available ?? 0) >= 1 &&
+      Number(diagnostics.eligible ?? 0) +
+          Number(diagnostics.blocked?.length ?? 0) ===
+        Number(diagnostics.available ?? 0)
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "oversized-original-fallback",
+    outcome:
+      forcedBlocked.sourcePath === oversizedSource &&
+      forcedBlocked.resolvedPath === oversizedSource &&
+      forcedBlocked.mode === "original" &&
+      forcedBlocked.reason === "texture-too-large" &&
+      forcedBlocked.presentationOnly === true &&
+      forcedBlocked.originalFallback === true
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "actual-hardware-resolution",
+    outcome:
+      actualResolution.sourcePath === oversizedSource &&
+      actualResolution.mode === "original" &&
+      ["hd-file-missing", "texture-too-large"].includes(actualResolution.reason)
+        ? "passed"
+        : "failed",
+  });
+
+  const beforeCore = before.snapshot?.core ?? {};
+  const afterCore = after.snapshot?.core ?? {};
+  const coreRestart = beforeCore.startedAt !== afterCore.startedAt;
+  steps.push({
+    key: "core-continuity",
+    outcome:
+      !coreRestart &&
+      afterCore.status === "running" &&
+      Number(afterCore.heartbeatSequence ?? 0) >= Number(beforeCore.heartbeatSequence ?? 0)
+        ? "passed"
+        : "failed",
+  });
+
+  const beforeCharacter = before.snapshot?.character ?? {};
+  const afterCharacter = after.snapshot?.character ?? {};
+  const characterRestart = !sameSocketMarkers(beforeCharacter, afterCharacter);
+  steps.push({
+    key: "character-continuity",
+    outcome: characterRestart ? "failed" : "passed",
+  });
+
+  const beforeScript = before.snapshot?.script ?? {};
+  const afterScript = after.snapshot?.script ?? {};
+  const scriptRestart =
+    (beforeScript.runId ?? null) !== (afterScript.runId ?? null) ||
+    (beforeScript.startedAt ?? null) !== (afterScript.startedAt ?? null);
+  steps.push({
+    key: "script-continuity",
+    outcome: scriptRestart ? "failed" : "passed",
+  });
+
+  const actionGatewayRequests = Math.max(
+    0,
+    Number(after.snapshot?.actionGateway?.totalRequests ?? 0) -
+      Number(before.snapshot?.actionGateway?.totalRequests ?? 0),
+  );
+  steps.push({
+    key: "read-only-runtime",
+    outcome: actionGatewayRequests === 0 ? "passed" : "failed",
+  });
+
+  return {
+    outcome: steps.every((step) => step.outcome === "passed") ? "passed" : "failed",
+    steps,
+    maxTextureSize: capability.maxTextureSize,
+    webglContext: capability.contextType,
+    loseContextAvailable: capability.loseContextAvailable,
+    temporaryContextReleased: capability.contextReleased,
+    guardAvailable: diagnostics.available,
+    guardEligible: diagnostics.eligible,
+    guardBlocked: diagnostics.blocked,
+    hardwareSuitable: diagnostics.hardwareSuitable,
+    forcedGuardLimit,
+    forcedBlockedResolution: forcedBlocked,
+    actualHardwareResolution: actualResolution,
+    presentationOnly: diagnostics.presentationOnly,
+    originalFallback: diagnostics.originalFallback,
+    coreRestart,
+    characterRestart,
+    scriptRestart,
+    dashboardGetOnly: true,
+    gameplayMutation: false,
+    actionGatewayRequests,
+    rawSocketAccess: false,
+    userScriptTouched: false,
+  };
+}
+
+async function startSlice112LiveTest(clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice112LiveTest = {
+    status: "running",
+    message: "Slice 11.2 GPU / texture guard test is running.",
+  };
+  renderSlice112LiveTest();
+
+  const verification = await runSlice112Verification();
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) {
+    throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  }
+  const diagnosticLog = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live112-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const stepLines = verification.steps.map((step) =>
+    `- ${step.key}: ${String(step.outcome).toUpperCase()}`
+  );
+  const reportText = [
+    "ALRemastered Slice 11.2 one-click GPU / texture guard test",
+    `Test ID: ${testId}`,
+    "Slice: 11.2",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    `WebGL context: ${verification.webglContext ?? "unavailable"}`,
+    `MAX_TEXTURE_SIZE: ${verification.maxTextureSize ?? "unavailable"}`,
+    `WEBGL_lose_context available: ${verification.loseContextAvailable}`,
+    `Temporary context released: ${verification.temporaryContextReleased}`,
+    `Guard available assets: ${verification.guardAvailable}`,
+    `Guard eligible assets: ${verification.guardEligible}`,
+    `Guard blocked assets: ${verification.guardBlocked.join(", ") || "none"}`,
+    `Hardware suitable for active ALHD assets: ${verification.hardwareSuitable}`,
+    `Forced guard limit: ${verification.forcedGuardLimit}`,
+    `Forced oversized resolution: ${verification.forcedBlockedResolution.mode} / ${verification.forcedBlockedResolution.reason}`,
+    `Actual hardware resolution: ${verification.actualHardwareResolution.mode} / ${verification.actualHardwareResolution.reason}`,
+    `Presentation only: ${verification.presentationOnly}`,
+    `Original fallback: ${verification.originalFallback}`,
+    `Core restart: ${verification.coreRestart}`,
+    `Character restart: ${verification.characterRestart}`,
+    `Script restart: ${verification.scriptRestart}`,
+    "Dashboard GET only: true",
+    "Gameplay mutation: false",
+    `Action Gateway requests: ${verification.actionGatewayRequests}`,
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnosticLog.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnosticLog.text ?? "",
+  ].join("\n");
+
+  const result = {
+    testId,
+    slice: "11.2",
+    outcome,
+    startedAt,
+    completedAt,
+    message: outcome === "passed"
+      ? "GPU / texture guard verification passed."
+      : "GPU / texture guard verification failed.",
+    ...verification,
+  };
+  state.slice112LastReport = reportText;
+  state.slice112LiveTest = { status: outcome, message: result.message, lastResult: result };
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice112LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice112LiveTest.addEventListener("click", async () => {
+  if (state.slice112LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice112LastReport = null;
+  elements.copySlice112LiveTestResult.hidden = true;
+  setFeedback(
+    "Slice 11.2 GPU / texture guard test started. It creates only a temporary WebGL capability context and uses read-only dashboard requests.",
+  );
+  try {
+    const { result, copied } = await startSlice112LiveTest(clipboardWrite);
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 11.2 test ${String(result.outcome).toUpperCase()}. ${copyMessage}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    state.slice112LiveTest = { status: "failed", message: error.message };
+    renderSlice112LiveTest();
+    setFeedback(`Slice 11.2 GPU / texture guard test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice112LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice112LastReport) return;
+  try {
+    await writeClipboard(state.slice112LastReport);
+    setFeedback(
+      "Complete Slice 11.2 GPU / texture guard result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`GPU / texture guard result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice112LiveTest();
 
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));

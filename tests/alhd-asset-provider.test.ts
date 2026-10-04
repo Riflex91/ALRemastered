@@ -114,3 +114,61 @@ test("ALHD asset provider rejects paths that escape the presentation asset root"
   });
   assert.throws(() => provider.resolve("../game-data.json"), /stay inside the asset root/);
 });
+
+test("ALHD texture guard blocks oversized HD textures and keeps originals", () => {
+  const provider = new AlhdAssetProvider({
+    manifestPath: "/virtual/hd-assets.json",
+    hdAssetRoot: "/virtual/hd-assets",
+    sourceRef: "test-ref",
+    readText: () => manifest,
+    fileExists: (path) =>
+      path === "/virtual/hd-assets.json" ||
+      path.replaceAll("\\", "/").endsWith("/virtual/hd-assets/map/source@8x.png"),
+  });
+
+  const supported = provider.diagnose(4096);
+  assert.equal(supported.maxTextureSize, 4096);
+  assert.equal(supported.available, 1);
+  assert.equal(supported.eligible, 1);
+  assert.deepEqual(supported.blocked, []);
+  assert.equal(supported.hardwareSuitable, true);
+
+  const blocked = provider.diagnose(64);
+  assert.equal(blocked.available, 1);
+  assert.equal(blocked.eligible, 0);
+  assert.deepEqual(blocked.blocked, ["images/source.png"]);
+  assert.equal(blocked.hardwareSuitable, false);
+  assert.equal(blocked.presentationOnly, true);
+  assert.equal(blocked.originalFallback, true);
+
+  assert.deepEqual(provider.resolve("images/source.png", { maxTextureSize: 64 }), {
+    schemaVersion: 1,
+    sourcePath: "images/source.png",
+    resolvedPath: "images/source.png",
+    mode: "original",
+    reason: "texture-too-large",
+    presentationOnly: true,
+    originalFallback: true,
+  });
+});
+
+test("ALHD texture guard accepts unknown capability without fabricating a hardware limit", () => {
+  const provider = new AlhdAssetProvider({
+    manifestPath: "/virtual/hd-assets.json",
+    hdAssetRoot: "/virtual/hd-assets",
+    sourceRef: "test-ref",
+    readText: () => manifest,
+    fileExists: (path) => path === "/virtual/hd-assets.json",
+  });
+
+  const diagnostics = provider.diagnose(null);
+  assert.equal(diagnostics.maxTextureSize, null);
+  assert.equal(diagnostics.hardwareSuitable, null);
+  assert.equal(diagnostics.eligible, 1);
+  assert.deepEqual(diagnostics.blocked, []);
+  assert.throws(
+    () => provider.diagnose(0),
+    /maxTextureSize must be a positive integer/,
+  );
+});
+
