@@ -3351,3 +3351,82 @@ Scope/safety evidence:
 
 Slice 10.4 – Headless ↔ Browser Live Handoff may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
 
+---
+
+## Verification Evidence — Slice 10.4 Headless ↔ Browser Live Handoff
+
+**Status: VERIFIED**
+
+> 2026-10-04: VERIFIED on Windows with `0.1.0-alpha.69`. The accepted real installed one-click test `live104-a0d81974-84de-46ae-8171-e3e92e1e3a75` passed dynamic Browser renderer attach/detach, live headless Character socket continuity, running user Script continuity, Core/Character/Script continuity, soft-handoff policy, and zero test-generated gameplay actions. The Browser renderer used the existing Renderer Bridge over SSE, renderer subscribers and attached renderers returned cleanly from `0 → 1 → 0`, the headless Character socket remained Core-owned and preserved, no Core/Character/Script restart occurred, and the test used no raw-socket shortcut.
+
+Live verification evidence:
+
+- client: `0.1.0-alpha.69`;
+- platform: `win32`;
+- test ID: `live104-a0d81974-84de-46ae-8171-e3e92e1e3a75`;
+- outcome: `PASSED`;
+- test window: `2026-10-04T14:22:04.712Z → 2026-10-04T14:22:04.799Z`;
+- `headless-socket-ready: PASSED`;
+- `renderer-attach: PASSED`;
+- `socket-continuity-browser: PASSED`;
+- `script-continuity-browser: PASSED`;
+- `renderer-detach: PASSED`;
+- `socket-preserved: PASSED`;
+- `core-continuity: PASSED`;
+- `character-continuity: PASSED`;
+- `script-continuity: PASSED`;
+- `soft-handoff-policy: PASSED`;
+- `no-gameplay-action: PASSED`;
+- renderer transport: `SSE`;
+- renderer mode: `headless → browser → headless`;
+- renderer subscribers: `0 → 1 → 0`;
+- attached renderers: `0 → 1 → 0`;
+- socket ownership: `headless-core`;
+- socket strategy: `preserve`;
+- `Socket preserved: true`;
+- reconnect fallback: `soft-handoff`;
+- `Soft handoff used: false`;
+- `Core restart: false`;
+- `Character restart: false`;
+- `Script restart: false`;
+- `Gameplay mutation: false`;
+- test-generated Action Gateway requests: `0`;
+- `Raw socket shortcut: false`;
+- `User Script touched: false`;
+- diagnostic export: 34 log lines, `Secrets sanitized: yes`.
+
+Running-script evidence:
+
+- the real headless Character `My_Ranger1` connected on `SR_EUII` before the handoff;
+- user Script `simple-farmer-template` was loaded and started with run ID `script-df4b578d-148f-4236-8daa-8aa29b257a6d`;
+- the Script continued issuing successful `character.attack` requests through the Action Gateway immediately before the one-click handoff verification;
+- the one-click snapshot checks then verified the same Script run across Browser attach and detach with no Script restart;
+- the user explicitly accepted this installed Alpha.69 run as the canonical fully-passed Slice 10.4 live verification.
+
+Repository/release evidence:
+
+- implementation PR #137 final feature head: `e36f51b90a05ee90f0426e5584abe0106ba83b15`;
+- final implementation PR CI run `37207707303` completed on that exact head with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #137 merged with method `merge` into exact implementation main `14d5f4e3cc8e33e69aefa620a115f0ba35fe5d39`;
+- exact post-implementation-main CI run `37207876721` completed with all four required jobs successful;
+- release publish run `37208027223` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.69`, tag `v0.1.0-alpha.69`, GitHub Release target, publish-run head, and tested implementation `main` were verified commit-identical at `14d5f4e3cc8e33e69aefa620a115f0ba35fe5d39`;
+- published assets:
+  - Windows x64 installer SHA-256 `c8313024a53cad9cd239a860ec8840d5ee743b27bac803bc7696d4def20ba431`
+  - Linux x64 installer SHA-256 `4f64783d5cb1af1561af105c28d590264bc5dff1c04790c4001ffae941d41e02`
+  - updater manifest SHA-256 `69852fd6948642780818f7c97de2b52df4d34c5dfc35ef32a8b98f1801df9a9b`.
+
+Scope/safety evidence:
+
+- Browser renderer attach/detach is bound to the existing read-only Renderer Bridge SSE lifecycle;
+- the Adventure Land Character socket remains owned by the headless Core and is not transferred to Browser JavaScript;
+- the active Character connection remained intact without reconnect during the accepted test;
+- the running user Script remained on the same runtime/run across the live renderer transition;
+- if a future public-browser takeover technically requires reconnect, the recorded fallback is a soft handoff rather than a Bot-process restart;
+- no new gameplay mutation route, Action Gateway bypass, browser raw-socket ownership, forced Character reconnect, or user Script replacement was introduced;
+- superseded follow-up PR #138 was closed unmerged after the canonical active-socket Alpha.69 test passed.
+
+**Canonical roadmap status: Slice 10.4 = VERIFIED.**
+
+Phase 11 / Slice 11.1 – ALHD Asset Provider may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
+
