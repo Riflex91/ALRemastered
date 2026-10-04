@@ -14,6 +14,8 @@ const elements = {
   snapshotTime: document.querySelector("#browser-snapshot-time"),
   coreStatus: document.querySelector("#browser-core-status"),
   scriptStatus: document.querySelector("#browser-script-status"),
+  handoffMode: document.querySelector("#browser-handoff-mode"),
+  socketStrategy: document.querySelector("#browser-socket-strategy"),
 };
 
 const verificationState = {
@@ -23,10 +25,30 @@ const verificationState = {
   lastCharacterId: null,
   lastCharacterStatus: null,
   lastSequence: null,
+  clientId: `browser-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`,
+  handoffAttached: false,
+  handoffMode: null,
 };
 globalThis.__alrBrowserViewState = verificationState;
 
 let source;
+
+async function refreshHandoffState() {
+  const response = await fetch("/api/renderer/handoff", { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Renderer handoff state failed with HTTP ${response.status}.`);
+  }
+  const handoff = await response.json();
+  verificationState.handoffMode = handoff.mode ?? null;
+  verificationState.handoffAttached =
+    handoff.mode === "browser" && Number(handoff.attachedRenderers ?? 0) > 0;
+  elements.handoffMode.textContent = value(handoff.mode, "Unavailable");
+  elements.socketStrategy.textContent =
+    handoff.socketStrategy === "preserve"
+      ? "Preserve headless socket"
+      : value(handoff.socketStrategy, "Unavailable");
+  return handoff;
+}
 
 function value(value, fallback = "—") {
   return value === undefined || value === null || value === "" ? fallback : String(value);
@@ -87,9 +109,14 @@ async function loadInitialSnapshot() {
 
 function connectStream() {
   source?.close();
-  source = new EventSource("/api/renderer/stream");
+  source = new EventSource(
+    `/api/renderer/stream?clientId=${encodeURIComponent(verificationState.clientId)}`,
+  );
   source.addEventListener("open", () => {
     elements.connection.textContent = "Live";
+    void refreshHandoffState().catch(() => {
+      elements.handoffMode.textContent = "Unavailable";
+    });
   });
   source.addEventListener("state", (event) => {
     try {
@@ -121,6 +148,7 @@ window.addEventListener("beforeunload", () => source?.close());
 
 try {
   await loadInitialSnapshot();
+  await refreshHandoffState();
   connectStream();
 } catch (error) {
   elements.connection.textContent = "Unavailable";
