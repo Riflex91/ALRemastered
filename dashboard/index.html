@@ -6,7 +6,7 @@
   <title>ALRemastered</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body data-current-verification-slice="9.4">
+<body data-current-verification-slice="9.5">
   <main class="shell">
     <header class="topbar">
       <div>
@@ -53,6 +53,22 @@
             <select id="dashboard-widget-add-select" aria-label="Removed dashboard widgets"></select>
           </label>
           <button id="dashboard-add-widget" type="button">Add widget</button>
+        </div>
+        <div class="toolbar dashboard-layout-transfer">
+          <button id="dashboard-layout-export" type="button">Export profile</button>
+          <button id="dashboard-layout-import" type="button">Import profile</button>
+          <input id="dashboard-layout-import-file" type="file" accept=".json,application/json" hidden>
+        </div>
+        <div class="dashboard-layout-import-panel" id="dashboard-layout-import-panel" hidden>
+          <div>
+            <strong>Import dashboard profile</strong>
+            <small id="dashboard-layout-import-summary">Choose a portable ALRemastered dashboard profile.</small>
+          </div>
+          <div class="dashboard-layout-role-mappings" id="dashboard-layout-role-mappings"></div>
+          <div class="toolbar">
+            <button id="dashboard-layout-import-apply" type="button">Import profile</button>
+            <button id="dashboard-layout-import-cancel" type="button">Cancel import</button>
+          </div>
         </div>
       </div>
     </div>
@@ -185,6 +201,20 @@
         </div>
         <small class="selection-note" id="slice-9-4-live-test-note">
           Exercises disk save/reload, Undo/Redo, Reset, multiple profiles, and separate Desktop/Small layouts. The test uses temporary verification profiles and restores the starting layout and active profile.
+        </small>
+      </div>
+    </div>
+
+    <div class="selection-content" data-verification-test="9.5" hidden>
+      <div>
+        <h3>Slice 9.5 one-click dashboard import/export test</h3>
+        <div class="server-picker">
+          <button id="start-slice-9-5-live-test" type="button">Start dashboard import/export test</button>
+          <strong id="slice-9-5-live-test-status" aria-live="polite">Ready</strong>
+          <button id="copy-slice-9-5-live-test-result" type="button" hidden>Copy last test result</button>
+        </div>
+        <small class="selection-note" id="slice-9-5-live-test-note">
+          Exercises role-neutral export, JSON validation, Character role mapping, persistent import/reload, and cleanup. Exported layouts contain no fixed Character IDs or Character names and the test does not dispatch gameplay actions.
         </small>
       </div>
     </div>
