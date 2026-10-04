@@ -29,6 +29,10 @@ test("Slice 9.2 exposes transient widget configuration without later-slice persi
   assert.match(html, /widget duplication/);
 
   assert.match(editor, /setCharacterOptions\(/);
+  assert.match(editor, /setCharacterSnapshots\(/);
+  assert.match(editor, /dashboard-widget-character-context/);
+  assert.match(editor, /MutationObserver/);
+  assert.match(editor, /mirrorObserver/);
   assert.match(editor, /configureWidget\(/);
   assert.match(editor, /duplicateWidget\(/);
   assert.match(editor, /Widget configuration/);
@@ -37,17 +41,20 @@ test("Slice 9.2 exposes transient widget configuration without later-slice persi
   assert.match(editor, /dataset\.widgetDisplay/);
   assert.match(editor, /dataset\.widgetCharacter/);
   assert.match(editor, /sanitizeDuplicateContent/);
+  assert.match(editor, /element\.removeAttribute\?\.\("id"\)/);
   assert.match(editor, /removeAttribute\("id"\)/);
   assert.match(editor, /control\.disabled = true/);
   assert.doesNotMatch(editor, /localStorage|sessionStorage|\/api\/dashboard-layout/);
 
   assert.match(script, /runDashboardWidgetConfigurationVerification/);
   assert.match(script, /dashboardEditor\?\.setCharacterOptions/);
+  assert.match(script, /dashboardEditor\?\.setCharacterSnapshots\(cards\)/);
   assert.match(script, /Configuration persistence: false/);
   assert.match(script, /Action Gateway requests: 0/);
   assert.match(script, /User Script touched: false/);
 
   assert.match(css, /\.dashboard-widget-config/);
+  assert.match(css, /\.dashboard-widget-character-context/);
   assert.match(css, /data-widget-display="compact"/);
   assert.match(css, /data-widget-display="spacious"/);
   assert.match(css, /data-dashboard-duplicate-of/);
