@@ -817,15 +817,34 @@ h2 {
 
 
 .dashboard-edit-toolbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(240px, 0.8fr) minmax(0, 2fr);
   align-items: end;
-  justify-content: space-between;
   gap: 1rem;
   margin: 1rem 0;
   padding: 0.9rem 1rem;
   border: 1px solid #3a4761;
   border-radius: 12px;
   background: #111722;
+}
+
+.dashboard-edit-summary {
+  align-self: start;
+}
+
+.dashboard-layout-controls {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.dashboard-layout-controls .toolbar {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.dashboard-layout-controls input,
+.dashboard-layout-controls select {
+  min-width: 10rem;
 }
 
 .dashboard-edit-toolbar[hidden] {
@@ -1049,6 +1068,22 @@ h2 {
 }
 
 @media (max-width: 720px) {
+  .dashboard-edit-toolbar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .dashboard-layout-controls .toolbar {
+    justify-content: stretch;
+  }
+
+  .dashboard-layout-controls label,
+  .dashboard-layout-controls input,
+  .dashboard-layout-controls select,
+  .dashboard-layout-controls button {
+    width: 100%;
+  }
+
   .dashboard-page-tabs {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
