@@ -2800,3 +2800,91 @@ Scope and safety:
 
 Slice 12.5 – Script Library may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
 
+---
+
+### Alpha.78 real one-click result: PASSED — Slice 12.5 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.78`
+- release target / tested implementation main: `5334ec274f6af5546e573ddee340d224f0257b87`
+- client: `0.1.0-alpha.78` / Windows
+- platform: `win32`
+- test ID: `live125-b7296b62-d07a-4d34-b656-b8c51e4f1206`
+- outcome: `passed`
+- test window: `2026-10-04T19:20:40.550Z → 2026-10-04T19:20:40.589Z`
+- diagnostic export: 11 log lines, `Secrets sanitized: yes`.
+
+The one-click harness completed the full Slice 12.5 validation:
+
+- `script-library-descriptor: PASSED`;
+- `my-scripts-visible: PASSED`;
+- `imported-packages-visible: PASSED`;
+- `versions-visible: PASSED`;
+- `inactive-by-default: PASSED`;
+- `configuration-visible-persisted: PASSED`;
+- `active-version-persisted: PASSED`;
+- `activation-no-execution: PASSED`;
+- `updates-rollback-deferred: PASSED`;
+- `verification-cleanup: PASSED`;
+- `core-character-script-continuity: PASSED`;
+- `read-only-gameplay-runtime: PASSED`;
+- Library sections: `my-scripts, imported`;
+- My Scripts visible: `true`;
+- My Script: `User Script`;
+- My Script status: `running`;
+- imported package visible: `true`;
+- imported package: `org.alremastered.slice125-fixture`;
+- versions visible: `true`;
+- versions: `1.1.0, 1.0.0`;
+- inactive by default: `true`;
+- active version: `1.1.0`;
+- exactly one active version: `true`;
+- configuration visible: `true`;
+- configuration persisted: `true`;
+- configured monster: `crab`;
+- configured range: `175`;
+- activation executes package: `false`;
+- package execution supported: `false`;
+- package execution attempted: `false`;
+- updates supported: `false`;
+- rollback supported: `false`;
+- verification cleanup: `true`;
+- `Core restart: false`;
+- `Character restart: false`;
+- `Script restart: false`;
+- `Gameplay mutation: false`;
+- Action Gateway requests: `0`;
+- `Raw socket access: false`;
+- `User Script touched: false`.
+
+Repository/release evidence:
+
+- implementation PR #156 final feature head: `19ad56a866efa1e695a149fb7ef2dd0ad71afd7a`;
+- final implementation PR CI run `37227247584`: all four required jobs successful;
+- implementation main: `5334ec274f6af5546e573ddee340d224f0257b87`;
+- exact post-implementation-main CI run `37227426286`: all four required jobs successful;
+- release publish run `37227622926`: Linux, Windows, and GitHub Release successful;
+- release branch, tag, release target, publish head, and tested implementation main are commit-identical at `5334ec274f6af5546e573ddee340d224f0257b87`;
+- Windows x64 installer SHA-256: `552cf4e74d01d79b50d1f7790abc58c610385d76bf274330d7e4060af4fef0b3`;
+- Linux x64 installer SHA-256: `ebc2c6f34ae595b970e2b63feae11ea2fd9667d121aa84b5a84970a95bb5dbcb`;
+- updater manifest SHA-256: `05a5fb682e050ba04f8b6b4dcd22ef13ab37bb6e46bdf471d2732d73f99362c0`.
+
+Scope and safety:
+
+- My Scripts surfaces the existing User Script runtime state;
+- Imported surfaces imported package versions without executing them;
+- imported versions begin inactive;
+- Active / Inactive is persistent library metadata only;
+- only one imported version per package can be active;
+- package configuration is visible and persisted after Config Schema validation;
+- the real Windows client confirmed the User Script remained running;
+- update discovery, changelog, package update, rollback, and update-time permission re-confirmation remain deferred to Slice 12.6;
+- verification cleanup completed successfully;
+- Core, Character, and Script remained continuous;
+- no gameplay mutation, Action Gateway requests, raw socket access, package execution, or User Script replacement occurred.
+
+**Canonical queue status: Slice 12.5 = VERIFIED.**
+
+Slice 12.6 – Updates and Rollback may begin only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
+
