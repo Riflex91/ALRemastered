@@ -53,6 +53,9 @@ const state = {
   partyTemplates: null,
   slice74LiveTest: null,
   slice74LastReport: null,
+  characterCards: null,
+  slice81LiveTest: null,
+  slice81LastReport: null,
   movementDebug: null,
   update: null,
   gameVersion: null,
@@ -253,6 +256,13 @@ const elements = {
   slice74LiveTestStatus: document.querySelector("#slice-7-4-live-test-status"),
   slice74LiveTestNote: document.querySelector("#slice-7-4-live-test-note"),
   copySlice74LiveTestResult: document.querySelector("#copy-slice-7-4-live-test-result"),
+  characterCardsGrid: document.querySelector("#character-cards-grid"),
+  characterCardsStatus: document.querySelector("#character-cards-status"),
+  characterCardsNote: document.querySelector("#character-cards-note"),
+  startSlice81LiveTest: document.querySelector("#start-slice-8-1-live-test"),
+  slice81LiveTestStatus: document.querySelector("#slice-8-1-live-test-status"),
+  slice81LiveTestNote: document.querySelector("#slice-8-1-live-test-note"),
+  copySlice81LiveTestResult: document.querySelector("#copy-slice-8-1-live-test-result"),
   movementDebugStatus: document.querySelector("#movement-debug-status"),
   movementDebugTrailCount: document.querySelector("#movement-debug-trail-count"),
   movementDebugMovementCount: document.querySelector("#movement-debug-movement-count"),
@@ -1787,6 +1797,131 @@ function renderSlice74LiveTest() {
   }
 }
 
+
+function appendCharacterCardMetric(container, label, value) {
+  const metric = document.createElement("div");
+  metric.className = "character-card-metric";
+  const labelNode = document.createElement("span");
+  labelNode.className = "label";
+  labelNode.textContent = label;
+  const valueNode = document.createElement("strong");
+  valueNode.textContent = value;
+  metric.append(labelNode, valueNode);
+  container.append(metric);
+}
+
+function formatResource(current, maximum) {
+  return typeof current === "number" && typeof maximum === "number"
+    ? `${Math.round(current)} / ${Math.round(maximum)}`
+    : "—";
+}
+
+function renderCharacterCards() {
+  const cardsState = state.characterCards;
+  const cards = Array.isArray(cardsState?.cards) ? cardsState.cards : [];
+  elements.characterCardsStatus.textContent = cardsState?.status === "ready"
+    ? `${cardsState.activeSessionCount ?? 0} / ${cardsState.sessionLimit ?? 4} active`
+    : "Unavailable";
+  elements.characterCardsGrid.replaceChildren();
+
+  if (cards.length === 0) {
+    const empty = document.createElement("article");
+    empty.className = "card character-card";
+    empty.textContent = "Connect an account and load Characters to show Character Cards.";
+    elements.characterCardsGrid.append(empty);
+  }
+
+  for (const card of cards) {
+    const article = document.createElement("article");
+    article.className = "card character-card";
+    article.dataset.health = card.health?.status ?? "offline";
+
+    const header = document.createElement("div");
+    header.className = "character-card-header";
+    const title = document.createElement("div");
+    const name = document.createElement("strong");
+    name.className = "character-card-name";
+    name.textContent = card.characterName ?? card.characterId;
+    const meta = document.createElement("small");
+    meta.textContent = `${card.characterType ?? "unknown"} · Level ${card.level ?? "—"} · ${card.sessionRole?.toUpperCase() ?? "OFFLINE"}`;
+    title.append(name, meta);
+    const health = document.createElement("span");
+    health.className = "status-pill character-card-health";
+    health.dataset.health = card.health?.status ?? "offline";
+    health.textContent = card.health?.status === "healthy"
+      ? "Healthy"
+      : card.health?.status === "critical"
+        ? "Critical"
+        : card.health?.status === "attention"
+          ? "Attention"
+          : "Offline";
+    health.title = card.health?.message ?? "";
+    header.append(title, health);
+    article.append(header);
+
+    const metrics = document.createElement("div");
+    metrics.className = "character-card-metrics";
+    appendCharacterCardMetric(metrics, "HP", formatResource(card.hp, card.maxHp));
+    appendCharacterCardMetric(metrics, "MP", formatResource(card.mp, card.maxMp));
+    appendCharacterCardMetric(metrics, "Map", card.map ?? "—");
+    appendCharacterCardMetric(metrics, "Target", card.target ?? "None");
+    const scriptLabel = card.script?.status === "not-available"
+      ? "Not available"
+      : card.script?.name
+        ? `${card.script.name} · ${card.script.status}`
+        : card.script?.status ?? "unloaded";
+    appendCharacterCardMetric(metrics, "Script", scriptLabel);
+    appendCharacterCardMetric(metrics, "Health", health.textContent);
+    article.append(metrics);
+
+    const actions = document.createElement("div");
+    actions.className = "toolbar character-card-actions";
+    for (const action of ["start", "pause", "stop"]) {
+      const control = card.controls?.[action] ?? { enabled: false, reason: "Unavailable." };
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.characterAction = action;
+      button.dataset.characterId = card.characterId;
+      button.textContent = action[0].toUpperCase() + action.slice(1);
+      button.disabled = !control.enabled;
+      button.title = control.reason ?? "";
+      if (action === "stop") button.classList.add("danger");
+      actions.append(button);
+    }
+    article.append(actions);
+    elements.characterCardsGrid.append(article);
+  }
+
+  elements.characterCardsNote.textContent = cardsState?.message ??
+    "Character Cards use the existing Character session and primary Script controls.";
+}
+
+function renderSlice81LiveTest() {
+  const test = state.slice81LiveTest;
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    blocked: "BLOCKED",
+    failed: "FAILED",
+    unavailable: "Unavailable",
+  };
+  const status = test?.status ?? "idle";
+  elements.slice81LiveTestStatus.textContent = labels[status] ?? status;
+  elements.startSlice81LiveTest.disabled = status === "running";
+  elements.copySlice81LiveTestResult.hidden = !state.slice81LastReport;
+  if (status === "running") {
+    elements.slice81LiveTestNote.textContent =
+      "Verifying primary Card telemetry, one bounded managed Start/Stop, and primary Pause through an isolated probe Script runtime.";
+  } else if (test?.message) {
+    elements.slice81LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  } else {
+    elements.slice81LiveTestNote.textContent =
+      "Requires one connected primary Character, one offline secondary Character, one free session slot, and no running or paused user Script. No gameplay mutation or raw-socket access is used.";
+  }
+}
+
 function renderMovementDebug() {
   const debug = state.movementDebug;
   if (!debug) {
@@ -2593,6 +2728,40 @@ async function refreshSlice74LiveTest() {
       message: "Slice 7.4 Party Templates test status could not be loaded.",
     };
     renderSlice74LiveTest();
+  }
+}
+
+
+async function refreshCharacterCards() {
+  try {
+    const response = await fetch("/api/character-cards", { cache: "no-store" });
+    state.characterCards = response.ok
+      ? await response.json()
+      : { status: "unavailable", cards: [], message: "Character Cards are unavailable." };
+    renderCharacterCards();
+  } catch {
+    state.characterCards = {
+      status: "unavailable",
+      cards: [],
+      message: "Character Cards status could not be loaded.",
+    };
+    renderCharacterCards();
+  }
+}
+
+async function refreshSlice81LiveTest() {
+  try {
+    const response = await fetch("/api/live-test/slice-8-1", { cache: "no-store" });
+    state.slice81LiveTest = response.ok
+      ? await response.json()
+      : { status: "unavailable", message: "Slice 8.1 Character Cards test is unavailable." };
+    renderSlice81LiveTest();
+  } catch {
+    state.slice81LiveTest = {
+      status: "unavailable",
+      message: "Slice 8.1 Character Cards test status could not be loaded.",
+    };
+    renderSlice81LiveTest();
   }
 }
 
@@ -4900,6 +5069,121 @@ elements.copySlice74LiveTestResult.addEventListener("click", async () => {
 });
 
 
+
+async function characterCardAction(action, characterId) {
+  const response = await fetch(`/api/character-cards/${action}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ characterId }),
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error ?? payload.message ?? `HTTP ${response.status}`);
+  }
+  state.characterCards = payload;
+  renderCharacterCards();
+  await refreshCharacterConnection();
+  await refreshCharacterSessions();
+  await refreshScriptRuntime();
+  return payload;
+}
+
+async function startSlice81LiveTest(clipboardWrite) {
+  state.slice81LiveTest = {
+    status: "running",
+    message: "Slice 8.1 Character Cards test is running.",
+  };
+  renderSlice81LiveTest();
+  const response = await fetch("/api/live-test/slice-8-1/start", { method: "POST" });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      payload.error ?? payload.message ??
+        `Slice 8.1 Character Cards test failed with HTTP ${response.status}`,
+    );
+  }
+  if (!payload.reportText || typeof payload.reportText !== "string") {
+    throw new Error("Slice 8.1 Character Cards test returned no copyable report.");
+  }
+  state.slice81LastReport = payload.reportText;
+  state.slice81LiveTest = {
+    status: payload.result?.outcome ?? "failed",
+    message: payload.result?.message ?? "Slice 8.1 Character Cards test finished.",
+    lastResult: payload.result,
+  };
+  const copied = await clipboardWrite.finish(payload.reportText);
+  renderSlice81LiveTest();
+  await refreshCharacterCards();
+  await refreshCharacterConnection();
+  await refreshCharacterSessions();
+  await refreshScriptRuntime();
+  await refreshDiagnostics();
+  return { payload, copied };
+}
+
+elements.characterCardsGrid.addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-character-action]");
+  if (!button || button.disabled) return;
+  const action = button.dataset.characterAction;
+  const characterId = button.dataset.characterId;
+  if (!action || !characterId) return;
+  button.disabled = true;
+  setFeedback(`${action[0].toUpperCase() + action.slice(1)} Character Card action started…`);
+  try {
+    await characterCardAction(action, characterId);
+    setFeedback(
+      `Character Card ${action} completed for ${characterId}.`,
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Character Card ${action} failed: ${error.message}`, "error");
+  } finally {
+    await refreshCharacterCards();
+  }
+});
+
+elements.startSlice81LiveTest.addEventListener("click", async () => {
+  if (state.slice81LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice81LastReport = null;
+  elements.copySlice81LiveTestResult.hidden = true;
+  setFeedback(
+    "Slice 8.1 Character Cards test started. One bounded managed session and one isolated probe Script will be used without interrupting the user Script.",
+  );
+  try {
+    const { payload, copied } = await startSlice81LiveTest(clipboardWrite);
+    const outcome = payload.result?.outcome ?? "failed";
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 8.1 test ${String(outcome).toUpperCase()}. ${copyMessage}`,
+      outcome === "passed" && copied ? "success" : outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    await refreshSlice81LiveTest();
+    setFeedback(`Slice 8.1 Character Cards test could not finish: ${error.message}`, "error");
+  } finally {
+    renderSlice81LiveTest();
+    await refreshCharacterCards();
+    await refreshCharacterSessions();
+    await refreshScriptRuntime();
+  }
+});
+
+elements.copySlice81LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice81LastReport) return;
+  try {
+    await writeClipboard(state.slice81LastReport);
+    setFeedback(
+      "Complete Slice 8.1 Character Cards result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Character Cards result copy failed: ${error.message}`, "error");
+  }
+});
+
 elements.reloadGameData.addEventListener("click", async () => {
   elements.reloadGameData.disabled = true;
   setFeedback("Reloading Adventure Land game data…");
@@ -5032,6 +5316,8 @@ await refreshPartyCoordinator();
 await refreshSlice73LiveTest();
 await refreshPartyTemplates();
 await refreshSlice74LiveTest();
+await refreshCharacterCards();
+await refreshSlice81LiveTest();
 await refreshMovementDebug();
 await refreshGameVersion();
 await refreshGameData();
@@ -5070,6 +5356,8 @@ setInterval(refreshPartyCoordinator, 1500);
 setInterval(refreshSlice73LiveTest, 1500);
 setInterval(refreshPartyTemplates, 1500);
 setInterval(refreshSlice74LiveTest, 1500);
+setInterval(refreshCharacterCards, 1500);
+setInterval(refreshSlice81LiveTest, 1500);
 setInterval(refreshMovementDebug, 1500);
 setInterval(refreshGameVersion, 2000);
 setInterval(refreshGameData, 2000);

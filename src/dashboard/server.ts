@@ -18,6 +18,7 @@ import type { MultiCharacterSessionManager } from "../character/session-manager.
 import type { LocalCharacterMessagingService } from "../character/messaging.ts";
 import type { PartyCoordinatorService } from "../party/coordinator.ts";
 import type { PartyTemplateService } from "../party/templates.ts";
+import type { CharacterCardsService } from "./character-cards.ts";
 import type { CoreRuntime, HealthSnapshot } from "../core/app.ts";
 import type { DiagnosticsService } from "../diagnostics/service.ts";
 import type { AdventureLandGameDataService } from "../game/data-service.ts";
@@ -41,6 +42,7 @@ import type { Slice71LiveTestService } from "../live-test/slice-7-1.ts";
 import type { Slice72LiveTestService } from "../live-test/slice-7-2.ts";
 import type { Slice73LiveTestService } from "../live-test/slice-7-3.ts";
 import type { Slice74LiveTestService } from "../live-test/slice-7-4.ts";
+import type { Slice81LiveTestService } from "../live-test/slice-8-1.ts";
 import type { AdventureLandMapModelService } from "../navigation/map-model.ts";
 import type { MovementDebugService } from "../navigation/movement-debug.ts";
 import type { SimplePathPlannerService } from "../navigation/path-planner.ts";
@@ -62,6 +64,7 @@ export interface DashboardServerOptions {
   readonly localCharacterMessagingService?: LocalCharacterMessagingService;
   readonly partyCoordinatorService?: PartyCoordinatorService;
   readonly partyTemplateService?: PartyTemplateService;
+  readonly characterCardsService?: CharacterCardsService;
   readonly actionGateway?: ActionGateway;
   readonly movementService?: AdventureLandMovementService;
   readonly attackService?: AdventureLandAttackService;
@@ -86,6 +89,7 @@ export interface DashboardServerOptions {
   readonly slice72LiveTestService?: Slice72LiveTestService;
   readonly slice73LiveTestService?: Slice73LiveTestService;
   readonly slice74LiveTestService?: Slice74LiveTestService;
+  readonly slice81LiveTestService?: Slice81LiveTestService;
   readonly mapModelService?: AdventureLandMapModelService;
   readonly movementDebugService?: MovementDebugService;
   readonly pathPlannerService?: SimplePathPlannerService;
@@ -110,6 +114,7 @@ export class DashboardServer {
   readonly #localCharacterMessagingService?: LocalCharacterMessagingService;
   readonly #partyCoordinatorService?: PartyCoordinatorService;
   readonly #partyTemplateService?: PartyTemplateService;
+  readonly #characterCardsService?: CharacterCardsService;
   readonly #actionGateway?: ActionGateway;
   readonly #movementService?: AdventureLandMovementService;
   readonly #attackService?: AdventureLandAttackService;
@@ -134,6 +139,7 @@ export class DashboardServer {
   readonly #slice72LiveTestService?: Slice72LiveTestService;
   readonly #slice73LiveTestService?: Slice73LiveTestService;
   readonly #slice74LiveTestService?: Slice74LiveTestService;
+  readonly #slice81LiveTestService?: Slice81LiveTestService;
   readonly #mapModelService?: AdventureLandMapModelService;
   readonly #movementDebugService?: MovementDebugService;
   readonly #pathPlannerService?: SimplePathPlannerService;
@@ -161,6 +167,7 @@ export class DashboardServer {
     this.#localCharacterMessagingService = options.localCharacterMessagingService;
     this.#partyCoordinatorService = options.partyCoordinatorService;
     this.#partyTemplateService = options.partyTemplateService;
+    this.#characterCardsService = options.characterCardsService;
     this.#actionGateway = options.actionGateway;
     this.#movementService = options.movementService;
     this.#attackService = options.attackService;
@@ -185,6 +192,7 @@ export class DashboardServer {
     this.#slice72LiveTestService = options.slice72LiveTestService;
     this.#slice73LiveTestService = options.slice73LiveTestService;
     this.#slice74LiveTestService = options.slice74LiveTestService;
+    this.#slice81LiveTestService = options.slice81LiveTestService;
     this.#mapModelService = options.mapModelService;
     this.#movementDebugService = options.movementDebugService;
     this.#pathPlannerService = options.pathPlannerService;
@@ -397,6 +405,53 @@ export class DashboardServer {
         response,
         () => this.#multiCharacterSessionManager!.stop(characterId, "dashboard"),
       );
+    }
+
+
+    if (method === "GET" && path === "/api/character-cards") {
+      if (!this.#characterCardsService) {
+        return this.#json(response, {
+          status: "unavailable",
+          cards: [],
+          message: "Character Cards are unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#characterCardsService.state());
+    }
+    if (
+      method === "POST" &&
+      (path === "/api/character-cards/start" ||
+        path === "/api/character-cards/pause" ||
+        path === "/api/character-cards/stop")
+    ) {
+      if (!this.#characterCardsService) {
+        return this.#json(response, { error: "Character Cards are unavailable." }, 503);
+      }
+      let body: Record<string, unknown>;
+      try {
+        body = await this.#readJsonObject(request);
+      } catch (error) {
+        return this.#json(response, {
+          error: error instanceof Error ? error.message : "Invalid request body.",
+        }, 400);
+      }
+      const characterId = typeof body.characterId === "string" ? body.characterId : "";
+      if (!characterId.trim()) {
+        return this.#json(response, { error: "Character selection is required." }, 400);
+      }
+      try {
+        if (path.endsWith("/start")) {
+          return this.#json(response, await this.#characterCardsService.start(characterId));
+        }
+        if (path.endsWith("/pause")) {
+          return this.#json(response, await this.#characterCardsService.pause(characterId));
+        }
+        return this.#json(response, await this.#characterCardsService.stop(characterId));
+      } catch (error) {
+        return this.#json(response, {
+          error: error instanceof Error ? error.message : String(error),
+        }, 400);
+      }
     }
 
     if (method === "GET" && path === "/api/character-messaging") {
@@ -1398,6 +1453,42 @@ export class DashboardServer {
         partyTemplates: this.#partyTemplateService?.state(),
         partyCoordinator: this.#partyCoordinatorService?.state(),
         characterMessaging: this.#localCharacterMessagingService?.state(),
+        characterSessions: this.#multiCharacterSessionManager?.state(),
+        primaryCharacter: this.#characterService?.state(),
+        selection: this.#selectionService?.state(),
+        userScriptRuntime: this.#scriptRuntime?.state(),
+        diagnostic,
+      };
+      return this.#json(response, {
+        result,
+        reportText: JSON.stringify(report, null, 2),
+        clipboardSuggested: true,
+      });
+    }
+
+
+    if (method === "GET" && path === "/api/live-test/slice-8-1") {
+      if (!this.#slice81LiveTestService) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Slice 8.1 Character Cards test service is unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#slice81LiveTestService.state());
+    }
+    if (method === "POST" && path === "/api/live-test/slice-8-1/start") {
+      if (!this.#slice81LiveTestService) {
+        return this.#json(response, {
+          error: "Slice 8.1 Character Cards test service is unavailable.",
+        }, 503);
+      }
+      const result = await this.#slice81LiveTestService.run();
+      const diagnostic = this.#exportPayload();
+      const report = {
+        schemaVersion: 1,
+        kind: "ALRemastered Slice 8.1 one-click Character Cards test",
+        result,
+        characterCards: this.#characterCardsService?.state(),
         characterSessions: this.#multiCharacterSessionManager?.state(),
         primaryCharacter: this.#characterService?.state(),
         selection: this.#selectionService?.state(),
