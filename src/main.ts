@@ -64,6 +64,7 @@ import { MovementDebugService } from "./navigation/movement-debug.ts";
 import { SimplePathPlannerService } from "./navigation/path-planner.ts";
 import { SmartMoveService } from "./navigation/smart-move.ts";
 import { WatchdogService } from "./recovery/watchdog.ts";
+import { RendererBridge } from "./renderer/bridge.ts";
 import {
   dashboardUpdateInstallerArguments,
   scheduleInstallerAfterCurrentProcess,
@@ -164,6 +165,7 @@ if (args.has("--health-check")) {
 
 let shuttingDown = false;
 let dashboard: DashboardServer | undefined;
+let rendererBridge: RendererBridge | undefined;
 let accountService: AdventureLandAccountService | undefined;
 let selectionService: AdventureLandSelectionService | undefined;
 let characterService: AdventureLandCharacterService | undefined;
@@ -223,6 +225,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   process.stdout.write(`Received ${signal}. Stopping ALRemastered.\n`);
   logger.info("Shutdown requested.", { signal });
 
+  rendererBridge?.stop();
   watchdogService?.stop();
   updateService?.stop();
   gameVersionService?.stop();
@@ -900,6 +903,32 @@ diagnostics.registerComponent("script-runtime", () => {
   };
 });
 
+rendererBridge = new RendererBridge({
+  logger,
+  core: () => runtime.health(),
+  character: () => characterService!.state(),
+  sessions: () => multiCharacterSessionManager!.state(),
+  script: () => scriptRuntime!.state(),
+  actionGateway: () => actionGateway!.state(),
+  diagnostics: () => ({
+    sanitized: true,
+    components: diagnostics.componentHealth(),
+    recentErrors: diagnostics.recentErrors(),
+  }),
+});
+rendererBridge.start();
+diagnostics.registerComponent("renderer-bridge", () => {
+  const state = rendererBridge!.state();
+  return {
+    name: "renderer-bridge",
+    status: state.status === "running" ? "healthy" : "degraded",
+    message:
+      state.status === "running"
+        ? `Renderer bridge ready. Sequence ${state.eventSequence}; ${state.subscribers} subscriber(s).`
+        : "Renderer bridge is stopped.",
+  };
+});
+
 dashboard = new DashboardServer({
   logger,
   runtime,
@@ -915,6 +944,7 @@ dashboard = new DashboardServer({
   templateConfigurationService,
   explainabilityService,
   dashboardLayoutStore,
+  rendererBridge,
   actionGateway,
   movementService,
   attackService,
