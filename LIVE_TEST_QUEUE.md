@@ -1891,3 +1891,57 @@ Repository/release evidence:
 
 Phase 9 – Dashboard Editor is complete through Slice 9.5 once this verification documentation is merged and the exact post-merge `main` CI is fully green. Phase 10 / Slice 10.1 – Renderer Bridge must not begin before that closure gate is complete.
 
+---
+
+### Alpha.66 real one-click result: PASSED — Slice 10.1 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.66`
+- release target / tested implementation main: `8db64892c53ff1b9bd83186f598b87f73dbe7950`
+- client: `0.1.0-alpha.66` / Windows
+- platform: `win32`
+- test ID: `live101-247ec65e-21fd-4b1a-bf84-262448bc5559`
+- outcome: `passed`
+- test window: `2026-10-04T12:43:11.325Z → 2026-10-04T12:43:11.394Z`
+- diagnostic export: 11 log lines, `Secrets sanitized: yes`.
+
+The one-click harness completed the full Slice 10.1 Renderer Bridge validation:
+
+- `snapshot-schema: PASSED`;
+- `stream-connect: PASSED`;
+- `sequenced-state-event: PASSED`;
+- `core-continuity: PASSED`;
+- `character-continuity: PASSED`;
+- `script-continuity: PASSED`;
+- `read-only-action-gateway: PASSED`;
+- `subscriber-cleanup: PASSED`;
+- renderer transport: `SSE`;
+- renderer mutation API: `false`;
+- bridge sequence: `15 → 16 → 16`;
+- `coreRestart:false`;
+- `characterRestart:false`;
+- `scriptRestart:false`;
+- `gameplayMutation:false`;
+- Action Gateway requests: `0`;
+- `rawSocketAccess:false`;
+- user Script runtime was not touched;
+- the diagnostic export was sanitized and contained no reported secret exposure.
+
+Repository/release evidence:
+
+- implementation PR #131 final feature head: `d65739616fdcb8476d298458c60771379feece63`;
+- final implementation PR CI run `37202446668` completed on that exact head with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #131 merged with method `merge` into exact implementation main `8db64892c53ff1b9bd83186f598b87f73dbe7950`;
+- exact post-implementation-main CI run `37202594289` completed with all four required jobs successful;
+- release publish run `37202757672` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.66`, tag `v0.1.0-alpha.66`, GitHub release target, publish-run head, and tested implementation `main` were verified commit-identical at `8db64892c53ff1b9bd83186f598b87f73dbe7950`;
+- published assets:
+  - Windows x64 installer SHA-256 `c9c6f7afffdedb75da9a9dedc3ce9005c1f090f729418eed78e649c404b94c85`
+  - Linux x64 installer SHA-256 `ffa078a0fb3402f66d35bdaa1ccafc2d28dfc213264e82416aaba52478c3fc3a`
+  - updater manifest SHA-256 `6b56f9c5e7a0ed7797764d7a72547f82bf0e4f42dfbaeeb7da2bc1e103f18d54`.
+
+**Canonical queue status: Slice 10.1 = VERIFIED.**
+
+Slice 10.2 – Browser View may begin only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
+
