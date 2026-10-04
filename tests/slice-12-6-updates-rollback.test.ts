@@ -190,7 +190,7 @@ test("Slice 12.6 is current verification and UI exposes update and rollback cont
   assert.match(updater, /newPermissionsRequireConfirmation: true/);
   assert.match(updater, /PACKAGE_UPDATE_PERMISSION_CONFIRMATION_REQUIRED/);
   assert.match(updater, /PACKAGE_UPDATE_PREVIEW_STALE/);
-  assert.match(updater, /rollback\(packageId: string\)/);
+  assert.match(updater, /rollback\(packageId\)/);
   assert.match(updater, /updateExecutesPackage: false/);
   assert.match(updater, /rollbackExecutesPackage: false/);
   assert.match(importer, /remoteSource\?: ScriptPackageRemoteSource/);
