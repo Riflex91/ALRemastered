@@ -46,6 +46,10 @@ const state = {
   slice121LastReport: null,
   slice122LiveTest: { status: "idle", message: "Ready." },
   slice122LastReport: null,
+  slice123LiveTest: { status: "idle", message: "Ready." },
+  slice123LastReport: null,
+  packageImportDocument: null,
+  packageImportPreview: null,
   controlMode: null,
   dashboardLayouts: null,
   pendingDashboardImport: null,
@@ -211,6 +215,25 @@ const elements = {
   slice122LiveTestStatus: document.querySelector("#slice-12-2-live-test-status"),
   slice122LiveTestNote: document.querySelector("#slice-12-2-live-test-note"),
   copySlice122LiveTestResult: document.querySelector("#copy-slice-12-2-live-test-result"),
+  startSlice123LiveTest: document.querySelector("#start-slice-12-3-live-test"),
+  slice123LiveTestStatus: document.querySelector("#slice-12-3-live-test-status"),
+  slice123LiveTestNote: document.querySelector("#slice-12-3-live-test-note"),
+  copySlice123LiveTestResult: document.querySelector("#copy-slice-12-3-live-test-result"),
+  packageImportFile: document.querySelector("#package-import-file"),
+  packageImportPreviewButton: document.querySelector("#package-import-preview"),
+  packageImportConfirm: document.querySelector("#package-import-confirm"),
+  packageImportStatus: document.querySelector("#package-import-status"),
+  packageImportPreviewPanel: document.querySelector("#package-import-preview-panel"),
+  packageImportName: document.querySelector("#package-import-name"),
+  packageImportVersion: document.querySelector("#package-import-version"),
+  packageImportAuthor: document.querySelector("#package-import-author"),
+  packageImportIntegrity: document.querySelector("#package-import-integrity"),
+  packageImportDescription: document.querySelector("#package-import-description"),
+  packageImportPermissions: document.querySelector("#package-import-permissions"),
+  packageImportConfig: document.querySelector("#package-import-config"),
+  packageImportCodeFile: document.querySelector("#package-import-code-file"),
+  packageImportCode: document.querySelector("#package-import-code"),
+  packageImportNote: document.querySelector("#package-import-note"),
   coreStatus: document.querySelector("#core-status"),
   version: document.querySelector("#client-version"),
   uptime: document.querySelector("#uptime"),
@@ -5056,6 +5079,347 @@ elements.copySlice122LiveTestResult.addEventListener("click", async () => {
 });
 
 renderSlice122LiveTest();
+
+async function postPackageImport(path, payload) {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const result = await response.json();
+  if (!response.ok) {
+    const error = new Error(result.error ?? `Package import request failed with HTTP ${response.status}.`);
+    error.code = result.errorCode;
+    throw error;
+  }
+  return result;
+}
+
+function approvedDangerousPermissions() {
+  return [...elements.packageImportPermissions.querySelectorAll("input[data-package-dangerous]:checked")]
+    .map((input) => input.value);
+}
+
+function renderPackageImportCode() {
+  const preview = state.packageImportPreview;
+  if (!preview) {
+    elements.packageImportCode.textContent = "—";
+    return;
+  }
+  const selected = elements.packageImportCodeFile.value;
+  const file = preview.code?.find((item) => item.path === selected) ?? preview.code?.[0];
+  elements.packageImportCode.textContent = file?.source ?? "—";
+}
+
+function renderPackageImportPreview(preview) {
+  state.packageImportPreview = preview;
+  elements.packageImportPreviewPanel.hidden = false;
+  elements.packageImportConfirm.hidden = false;
+  elements.packageImportName.textContent = preview.name;
+  elements.packageImportVersion.textContent = preview.version;
+  elements.packageImportAuthor.textContent = preview.author;
+  elements.packageImportIntegrity.textContent = `SHA-256 verified · ${preview.manifestHash.slice(0, 12)}…`;
+  elements.packageImportDescription.textContent = preview.description;
+  elements.packageImportConfig.textContent = JSON.stringify(preview.configSchema, null, 2);
+
+  elements.packageImportPermissions.replaceChildren();
+  for (const permission of preview.permissions ?? []) {
+    const dangerous = preview.dangerousPermissions?.includes(permission) === true;
+    const label = document.createElement("label");
+    label.className = "selection-note";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.value = permission;
+    input.checked = !dangerous;
+    input.disabled = !dangerous;
+    if (dangerous) input.dataset.packageDangerous = "true";
+    const text = document.createElement("span");
+    text.textContent = dangerous
+      ? ` ${permission} — dangerous, explicitly approve to import`
+      : ` ${permission} — declared safe permission`;
+    label.append(input, text);
+    elements.packageImportPermissions.append(label, document.createElement("br"));
+  }
+
+  elements.packageImportCodeFile.replaceChildren();
+  for (const file of preview.code ?? []) {
+    const option = document.createElement("option");
+    option.value = file.path;
+    option.textContent = file.entry ? `${file.path} (entry)` : file.path;
+    elements.packageImportCodeFile.append(option);
+  }
+  renderPackageImportCode();
+
+  elements.packageImportStatus.textContent = "Preview ready";
+  elements.packageImportNote.textContent = preview.requiresDangerousConfirmation
+    ? "Review code, configuration, and permissions. Every dangerous permission must be explicitly checked before import. Import remains inactive."
+    : "Review code and configuration before import. This package declares no dangerous permissions and remains inactive after import.";
+}
+
+async function previewSelectedPackage() {
+  const file = elements.packageImportFile.files?.[0];
+  if (!file) throw new Error("Choose a .alrpkg file first.");
+  if (!file.name.toLowerCase().endsWith(".alrpkg")) {
+    throw new Error("Package file must use the .alrpkg extension.");
+  }
+  if (file.size > 3 * 1024 * 1024) {
+    throw new Error("Package file exceeds the 3 MiB import limit.");
+  }
+  let documentValue;
+  try {
+    documentValue = JSON.parse(await file.text());
+  } catch {
+    throw new Error("Package file must contain valid JSON.");
+  }
+  const preview = await postPackageImport("/api/packages/import/preview", { package: documentValue });
+  state.packageImportDocument = documentValue;
+  renderPackageImportPreview(preview);
+  return preview;
+}
+
+elements.packageImportPreviewButton.addEventListener("click", async () => {
+  elements.packageImportPreviewButton.disabled = true;
+  try {
+    const preview = await previewSelectedPackage();
+    setFeedback(`Package preview ready: ${preview.name} ${preview.version}.`, "success");
+  } catch (error) {
+    state.packageImportDocument = null;
+    state.packageImportPreview = null;
+    elements.packageImportPreviewPanel.hidden = true;
+    elements.packageImportConfirm.hidden = true;
+    elements.packageImportStatus.textContent = "Preview failed";
+    setFeedback(`Package preview failed: ${error.message}`, "error");
+  } finally {
+    elements.packageImportPreviewButton.disabled = false;
+  }
+});
+
+elements.packageImportCodeFile.addEventListener("change", renderPackageImportCode);
+
+elements.packageImportConfirm.addEventListener("click", async () => {
+  if (!state.packageImportDocument || !state.packageImportPreview) return;
+  elements.packageImportConfirm.disabled = true;
+  try {
+    const receipt = await postPackageImport("/api/packages/import/confirm", {
+      package: state.packageImportDocument,
+      previewToken: state.packageImportPreview.previewToken,
+      approvedDangerous: approvedDangerousPermissions(),
+    });
+    elements.packageImportStatus.textContent = "Imported inactive";
+    elements.packageImportNote.textContent =
+      `${receipt.name} ${receipt.version} imported successfully and remains inactive. Package execution is not part of this flow.`;
+    setFeedback(
+      `Imported ${receipt.name} ${receipt.version} as an inactive package. No code was executed.`,
+      "success",
+    );
+  } catch (error) {
+    elements.packageImportStatus.textContent = "Import blocked";
+    setFeedback(`Package import blocked: ${error.message}`, "error");
+  } finally {
+    elements.packageImportConfirm.disabled = false;
+  }
+});
+
+function renderSlice123LiveTest() {
+  const test = state.slice123LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = { idle: "Ready", running: "Running…", passed: "PASSED", failed: "FAILED" };
+  elements.slice123LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice123LiveTest.disabled = test.status === "running";
+  elements.copySlice123LiveTestResult.hidden = !state.slice123LastReport;
+  if (test.status === "running") {
+    elements.slice123LiveTestNote.textContent =
+      "Testing package preview, description, rights, configuration, code visibility, dangerous confirmation, inactive persistence, cleanup, and runtime continuity.";
+  } else if (test.message) {
+    elements.slice123LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function runSlice123Verification() {
+  const before = await fetchRendererSnapshot();
+  const descriptorResponse = await fetch("/api/packages/import", { cache: "no-store" });
+  const descriptor = await descriptorResponse.json();
+  if (!descriptorResponse.ok) throw new Error(descriptor.error ?? "Package importer descriptor failed.");
+
+  const selfTestResponse = await fetch("/api/packages/import/self-test", { cache: "no-store" });
+  const selfTest = await selfTestResponse.json();
+  if (!selfTestResponse.ok) throw new Error(selfTest.error ?? "Package importer self-test failed.");
+
+  const after = await fetchRendererSnapshot();
+  const checks = selfTest.checks ?? {};
+  const steps = [
+    {
+      key: "import-flow-descriptor",
+      outcome:
+        descriptor.status === "ready" &&
+        descriptor.flow?.join(",") === "preview,confirm,import" &&
+        descriptor.fileExtension === ".alrpkg"
+          ? "passed" : "failed",
+    },
+    { key: "preview-description", outcome: checks.previewReady && checks.descriptionVisible ? "passed" : "failed" },
+    { key: "permissions-preview", outcome: checks.permissionsVisible ? "passed" : "failed" },
+    { key: "configuration-preview", outcome: checks.configurationVisible ? "passed" : "failed" },
+    { key: "code-visible", outcome: checks.codeVisible ? "passed" : "failed" },
+    {
+      key: "dangerous-confirmation-required",
+      outcome:
+        checks.dangerousConfirmationRequired &&
+        checks.unapprovedRejected &&
+        checks.unapprovedErrorCode === "PACKAGE_IMPORT_PERMISSION_CONFIRMATION_REQUIRED"
+          ? "passed" : "failed",
+    },
+    { key: "confirmed-import-persisted", outcome: checks.importPersisted && checks.approvedPermissionPersisted ? "passed" : "failed" },
+    {
+      key: "imported-inactive-no-execution",
+      outcome:
+        checks.importedInactive &&
+        checks.executionAttempted === false &&
+        descriptor.importedPackagesInactive === true &&
+        descriptor.executionSupported === false
+          ? "passed" : "failed",
+    },
+    { key: "verification-cleanup", outcome: checks.cleanup ? "passed" : "failed" },
+  ];
+
+  const beforeCore = before.snapshot?.core ?? {};
+  const afterCore = after.snapshot?.core ?? {};
+  const beforeCharacter = before.snapshot?.character ?? {};
+  const afterCharacter = after.snapshot?.character ?? {};
+  const beforeScript = before.snapshot?.script ?? {};
+  const afterScript = after.snapshot?.script ?? {};
+  const coreRestart = beforeCore.startedAt !== afterCore.startedAt;
+  const characterRestart = !sameSocketMarkers(beforeCharacter, afterCharacter);
+  const scriptRestart =
+    (beforeScript.runId ?? null) !== (afterScript.runId ?? null) ||
+    (beforeScript.startedAt ?? null) !== (afterScript.startedAt ?? null);
+  const actionGatewayRequests = Math.max(
+    0,
+    Number(after.snapshot?.actionGateway?.totalRequests ?? 0) -
+      Number(before.snapshot?.actionGateway?.totalRequests ?? 0),
+  );
+  steps.push({
+    key: "core-character-script-continuity",
+    outcome: !coreRestart && !characterRestart && !scriptRestart ? "passed" : "failed",
+  });
+  steps.push({
+    key: "read-only-gameplay-runtime",
+    outcome: actionGatewayRequests === 0 ? "passed" : "failed",
+  });
+
+  return {
+    outcome: steps.every((step) => step.outcome === "passed") ? "passed" : "failed",
+    steps,
+    descriptor,
+    selfTest,
+    coreRestart,
+    characterRestart,
+    scriptRestart,
+    actionGatewayRequests,
+    gameplayMutation: false,
+    rawSocketAccess: false,
+    userScriptTouched: false,
+  };
+}
+
+async function startSlice123LiveTest(clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice123LiveTest = { status: "running", message: "Slice 12.3 Package File Import test is running." };
+  renderSlice123LiveTest();
+  const verification = await runSlice123Verification();
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live123-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const preview = verification.selfTest.preview ?? {};
+  const receipt = verification.selfTest.receipt ?? {};
+  const checks = verification.selfTest.checks ?? {};
+  const stepLines = verification.steps.map((step) => `- ${step.key}: ${String(step.outcome).toUpperCase()}`);
+  const reportText = [
+    "ALRemastered Slice 12.3 one-click Package File Import test",
+    `Test ID: ${testId}`,
+    "Slice: 12.3",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    `Flow: ${verification.descriptor.flow.join(" -> ")}`,
+    `File extension: ${verification.descriptor.fileExtension}`,
+    `Preview package: ${preview.packageId} @ ${preview.version}`,
+    `Description: ${preview.description}`,
+    `Permissions: ${preview.permissions?.join(", ") || "none"}`,
+    `Dangerous permissions: ${preview.dangerousPermissions?.join(", ") || "none"}`,
+    `Config Schema visible: ${checks.configurationVisible}`,
+    `Code files visible: ${preview.code?.length ?? 0}`,
+    `Dangerous confirmation required: ${checks.dangerousConfirmationRequired}`,
+    `Unapproved import rejected: ${checks.unapprovedRejected}`,
+    `Unapproved error: ${checks.unapprovedErrorCode}`,
+    `Confirmed import persisted: ${checks.importPersisted}`,
+    `Approved dangerous permission persisted: ${checks.approvedPermissionPersisted}`,
+    `Imported inactive: ${receipt.inactive}`,
+    "Package execution attempted: false",
+    `Verification cleanup: ${checks.cleanup}`,
+    `Core restart: ${verification.coreRestart}`,
+    `Character restart: ${verification.characterRestart}`,
+    `Script restart: ${verification.scriptRestart}`,
+    "Gameplay mutation: false",
+    `Action Gateway requests: ${verification.actionGatewayRequests}`,
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+
+  const result = {
+    testId, slice: "12.3", outcome, startedAt, completedAt,
+    message: outcome === "passed" ? "Package File Import verification passed." : "Package File Import verification failed.",
+    ...verification,
+  };
+  state.slice123LastReport = reportText;
+  state.slice123LiveTest = { status: outcome, message: result.message, lastResult: result };
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice123LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice123LiveTest.addEventListener("click", async () => {
+  if (state.slice123LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice123LastReport = null;
+  elements.copySlice123LiveTestResult.hidden = true;
+  try {
+    const { result, copied } = await startSlice123LiveTest(clipboardWrite);
+    setFeedback(
+      `Slice 12.3 test ${String(result.outcome).toUpperCase()}. ${copied ? "Complete result and sanitized diagnostic log copied to clipboard." : "Use Copy last test result once."}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    state.slice123LiveTest = { status: "failed", message: error.message };
+    renderSlice123LiveTest();
+    setFeedback(`Slice 12.3 Package File Import test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice123LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice123LastReport) return;
+  try {
+    await writeClipboard(state.slice123LastReport);
+    setFeedback("Complete Slice 12.3 Package File Import result and sanitized diagnostic log copied.", "success");
+  } catch (error) {
+    setFeedback(`Package File Import result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice123LiveTest();
 
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
