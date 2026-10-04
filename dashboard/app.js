@@ -3239,7 +3239,7 @@ function renderSlice111LiveTest() {
 async function runSlice111Verification() {
   const before = await fetchRendererSnapshot();
   const provider = await fetchAlhdAssetProviderState();
-  const knownSource = "images/tiles/characters/jubchan_1.png";
+  const knownSource = "images/tiles/map/doors.png";
   const unknownSource = "images/alremastered/not-in-alhd-manifest.png";
   const known = await resolveAlhdAsset(knownSource);
   const unknown = await resolveAlhdAsset(unknownSource);
