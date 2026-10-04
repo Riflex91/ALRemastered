@@ -35,13 +35,13 @@ test("Slice 11.1 loads the packaged ALHD manifest and exposes read-only original
     assert.equal(state.manifestSchemaVersion, 1);
     assert.equal(state.replacementCount, 2);
     assert.equal(state.activeReplacementCount, 2);
-    assert.equal(state.availableHdFiles, 0);
-    assert.equal(state.missingHdFiles, 2);
+    assert.equal(state.availableHdFiles, 1);
+    assert.equal(state.missingHdFiles, 1);
     assert.equal(state.presentationOnly, true);
     assert.equal(state.originalFallback, true);
     assert.equal(state.gameplaySemanticChanges, false);
 
-    const sourcePath = "images/tiles/characters/jubchan_1.png";
+    const sourcePath = "images/tiles/map/doors.png";
     const known = await (
       await fetch(
         `${url}/api/hd/assets/resolve?sourcePath=${encodeURIComponent(sourcePath)}`,
