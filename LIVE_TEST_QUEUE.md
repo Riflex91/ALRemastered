@@ -1447,3 +1447,67 @@ Repository/release evidence:
 **Canonical queue status: Slice 8.1 = VERIFIED.**
 
 Do not repeat Slice 8.1 merely because implementation planning text remains elsewhere. Slice 8.2 – Setup Wizard may begin only after this verification documentation is merged and the exact post-merge `main` CI is fully green.
+
+
+---
+
+### Alpha.58 real one-click result: PASSED — Slice 8.2 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.58`
+- release target / tested implementation main: `b14379f607029de039075d8f596d08633b003693`
+- client: `0.1.0-alpha.58` / Windows
+- platform: `win32`
+- test ID: `live82-1da77edd-3ef4-426d-8b60-af9605fb24de`
+- primary Character: `My_Merchant`
+- temporary managed Character: `My_Ranger1`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-04T08:21:39.932Z → 2026-10-04T08:21:40.145Z`
+- diagnostic export: 33 log lines, `Secrets sanitized: yes`.
+
+The one-click harness completed the full Slice 8.2 Setup Wizard validation:
+
+- Account stage recognized the already connected Adventure Land account without reconnecting or storing credentials;
+- Character stage selected offline `My_Ranger1` as the bounded probe Character;
+- Server stage reused EU II / `SR_EUII`;
+- Task / Template stage selected `connect-only`, explicitly avoiding task automation and Script runtime startup;
+- Configuration correctly required no additional settings for Connect only;
+- Start created exactly one managed Character session through the existing Character Cards path;
+- the temporary managed Character reached `sessionRole:"managed"` and `connectionStatus:"connected"`;
+- `taskStarted:false`;
+- active local sessions temporarily reached `2` with exactly `1` managed session;
+- `gameplayMutation:false`;
+- `rawSocketAccess:false`;
+- cleanup removed only the temporary managed Character;
+- final `managedSessionCountAfter:0`;
+- primary `My_Merchant` remained `connected`;
+- final user Script state remained `unloaded`;
+- `userScriptInterrupted:false`;
+- all six required visible Wizard stages were present in English:
+  - Account
+  - Character
+  - Server
+  - Task / Template
+  - Configuration
+  - Start.
+
+Repository/release evidence:
+
+- implementation PR #113 final feature head: `511d5741e00537231a8ef6bf22a7f134bb599c78`;
+- final implementation PR CI run `37188104304` completed with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #113 merged with method `merge` into exact implementation main `b14379f607029de039075d8f596d08633b003693`;
+- exact post-implementation-main CI run `37188248936` completed with all four required jobs successful;
+- release publish run `37188397711` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.58`, tag `v0.1.0-alpha.58`, GitHub release target, and tested implementation `main` were verified commit-identical at `b14379f607029de039075d8f596d08633b003693`;
+- published assets:
+  - Windows x64 installer SHA-256 `00377cd384f17265478086f22508c0b2d440014ceb5e2f28596f3765140624fe`
+  - Linux x64 installer SHA-256 `5f14c03eece98031b49e3f649e362e9371cfc411304e5d2bf810ff816e33eb5a`
+  - updater manifest SHA-256 `e217fd029449d43e971bc52bb1b8a3e5faf2cd6280faa56808a2b306ea24f372`.
+
+**Canonical queue status: Slice 8.2 = VERIFIED.**
+
+The earlier BLOCKED precondition attempts remain valid diagnostics and are not treated as failures; the successful real installed Windows run above is the canonical verification result.
+
+Do not repeat Slice 8.2 merely because implementation planning text remains elsewhere. Slice 8.3 – Config UI für Templates may begin only after this verification documentation is merged and the exact post-merge `main` CI is fully green.

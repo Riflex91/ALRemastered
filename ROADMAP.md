@@ -2789,3 +2789,71 @@ Repository/release gate evidence:
 Result: the real installed Windows alpha.57 run proves the complete Slice 8.1 Character Cards scope: Start, Pause, Stop, HP/MP, Map, Target, Script, and Health, while preserving the established primary/managed session model, the single primary Script runtime, user-script isolation, and the no-gameplay-mutation/no-raw-socket safety boundary. **Slice 8.1 is VERIFIED.**
 
 Slice 8.2 – Setup Wizard may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
+
+
+---
+
+## Slice 8.2 Verification Record — Setup Wizard
+
+**Canonical status update: Slice 8.2 = VERIFIED.**
+
+Release/live environment:
+
+- verified release: `v0.1.0-alpha.58`
+- tested implementation main / release target: `b14379f607029de039075d8f596d08633b003693`
+- Windows client: `0.1.0-alpha.58`
+- platform: `win32`
+- one-click test ID: `live82-1da77edd-3ef4-426d-8b60-af9605fb24de`
+- primary Character: `My_Merchant`
+- temporary managed Character: `My_Ranger1`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-04T08:21:39.932Z → 2026-10-04T08:21:40.145Z`
+- diagnostic export: 33 log lines, `Secrets sanitized: yes`.
+
+Setup Wizard evidence:
+
+- Account stage used the already connected Adventure Land account without reconnecting or persisting credentials;
+- Character stage selected offline `My_Ranger1`;
+- Server stage reused EU II / `SR_EUII`;
+- Task / Template selected `connect-only`;
+- Configuration correctly required no additional fields for Connect only;
+- Start reused the existing Character Cards/session-control path;
+- one temporary managed session was created and reached `connected`;
+- `taskStarted:false`, proving no task/template automation was started by the live-test path;
+- all six visible Wizard stages were present in English:
+  - Account
+  - Character
+  - Server
+  - Task / Template
+  - Configuration
+  - Start;
+- cleanup removed only the temporary managed Character and preserved the primary session.
+
+Isolation and safety evidence:
+
+- primary `My_Merchant` remained `connected`;
+- `managedSessionCountAfter:0`;
+- final user Script status remained `unloaded`;
+- `userScriptInterrupted:false`;
+- `gameplayMutation:false`;
+- `rawSocketAccess:false`;
+- the live-test path used Connect only, so it did not execute Simple Farmer or Custom Script automation;
+- earlier BLOCKED runs due missing account/primary preconditions remain historical diagnostics and are not failures.
+
+Repository/release gate evidence:
+
+- implementation PR #113 final feature head: `511d5741e00537231a8ef6bf22a7f134bb599c78`;
+- final implementation PR CI run `37188104304` completed with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #113 merged with method `merge` into exact implementation main `b14379f607029de039075d8f596d08633b003693`;
+- exact post-implementation-main CI run `37188248936` completed with all four required jobs successful;
+- release publish run `37188397711` completed successfully;
+- release branch `release/v0.1.0-alpha.58`, tag `v0.1.0-alpha.58`, GitHub release target, and tested implementation main were verified commit-identical at `b14379f607029de039075d8f596d08633b003693`;
+- published assets:
+  - Windows x64 installer SHA-256 `00377cd384f17265478086f22508c0b2d440014ceb5e2f28596f3765140624fe`
+  - Linux x64 installer SHA-256 `5f14c03eece98031b49e3f649e362e9371cfc411304e5d2bf810ff816e33eb5a`
+  - updater manifest SHA-256 `e217fd029449d43e971bc52bb1b8a3e5faf2cd6280faa56808a2b306ea24f372`.
+
+Result: the real installed Windows alpha.58 run proves the complete Slice 8.2 Setup Wizard scope: Account → Character → Server → Task / Template → Configuration → Start, with all visible Wizard text in English and with the bounded live-test path preserving user-script isolation, primary-session continuity, zero leftover managed sessions, and the no-gameplay-mutation/no-raw-socket safety boundary. **Slice 8.2 is VERIFIED.**
+
+Slice 8.3 – Config UI für Templates may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
