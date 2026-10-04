@@ -857,6 +857,34 @@ h2 {
   min-width: 10rem;
 }
 
+.dashboard-layout-transfer {
+  padding-top: 0.25rem;
+  border-top: 1px solid #2f394c;
+}
+
+.dashboard-layout-import-panel {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.8rem;
+  border: 1px solid #3a4761;
+  border-radius: 10px;
+  background: #0d131d;
+}
+
+.dashboard-layout-import-panel[hidden] {
+  display: none;
+}
+
+.dashboard-layout-role-mappings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.65rem;
+}
+
+.dashboard-layout-role-map select {
+  width: 100%;
+}
+
 .dashboard-page-tabs {
   display: flex;
   flex-wrap: wrap;
