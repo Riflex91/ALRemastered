@@ -2824,15 +2824,21 @@ async function runSlice104Verification(view) {
   const beforeCharacter = before.snapshot?.character ?? {};
   const beforeScript = before.snapshot?.script ?? {};
   const steps = [];
-
-  steps.push({
-    key: "headless-socket-ready",
-    outcome:
-      beforeCharacter.status === "connected" &&
+  const socketBaseline =
+    beforeCharacter.status === "connected" &&
       Boolean(beforeCharacter.characterId) &&
       Boolean(beforeCharacter.connectedAt)
-        ? "passed"
-        : "failed",
+      ? "connected"
+      : beforeCharacter.status === "disconnected" &&
+          !beforeCharacter.characterId &&
+          !beforeCharacter.connectedAt
+      ? "disconnected"
+      : "unstable";
+  const activeSocketPreservationApplicable = socketBaseline === "connected";
+
+  steps.push({
+    key: "headless-socket-baseline",
+    outcome: socketBaseline === "unstable" ? "failed" : "passed",
   });
 
   view.location.replace(`/browser-view?handoffVerification=${Date.now()}`);
@@ -2845,7 +2851,14 @@ async function runSlice104Verification(view) {
   const attached = await waitForRendererHandoffCount(baselineRenderers + 1);
   const duringCharacter = opened.snapshot?.character ?? {};
   const duringScript = opened.snapshot?.script ?? {};
-  const socketPreservedDuring = sameSocketMarkers(beforeCharacter, duringCharacter);
+  const socketMarkersPreservedDuring = sameSocketMarkers(beforeCharacter, duringCharacter);
+  const socketStatePreservedDuring =
+    socketMarkersPreservedDuring &&
+    (activeSocketPreservationApplicable
+      ? duringCharacter.status === "connected"
+      : duringCharacter.status === "disconnected" &&
+          !duringCharacter.characterId &&
+          !duringCharacter.connectedAt);
   const scriptPreservedDuring =
     (beforeScript.runId ?? null) === (duringScript.runId ?? null) &&
     (beforeScript.startedAt ?? null) === (duringScript.startedAt ?? null);
@@ -2862,11 +2875,7 @@ async function runSlice104Verification(view) {
   });
   steps.push({
     key: "socket-continuity-browser",
-    outcome:
-      socketPreservedDuring &&
-      duringCharacter.status === "connected"
-        ? "passed"
-        : "failed",
+    outcome: socketStatePreservedDuring ? "passed" : "failed",
   });
   steps.push({
     key: "script-continuity-browser",
@@ -2890,10 +2899,14 @@ async function runSlice104Verification(view) {
   const scriptRestart =
     (beforeScript.runId ?? null) !== (afterScript.runId ?? null) ||
     (beforeScript.startedAt ?? null) !== (afterScript.startedAt ?? null);
-  const socketPreserved =
+  const socketStatePreserved =
     !characterRestart &&
-    afterCharacter.status === "connected" &&
-    detached.lastSocketContinuity === true;
+    detached.lastSocketContinuity === true &&
+    (activeSocketPreservationApplicable
+      ? afterCharacter.status === "connected"
+      : afterCharacter.status === "disconnected" &&
+          !afterCharacter.characterId &&
+          !afterCharacter.connectedAt);
 
   steps.push({
     key: "renderer-detach",
@@ -2905,8 +2918,8 @@ async function runSlice104Verification(view) {
         : "failed",
   });
   steps.push({
-    key: "socket-preserved",
-    outcome: socketPreserved ? "passed" : "failed",
+    key: "socket-state-preserved",
+    outcome: socketStatePreserved ? "passed" : "failed",
   });
   steps.push({
     key: "core-continuity",
@@ -2963,7 +2976,9 @@ async function runSlice104Verification(view) {
     ],
     socketOwnership: detached.socketOwnership,
     socketStrategy: detached.socketStrategy,
-    socketPreserved,
+    socketBaseline,
+    activeSocketPreservationApplicable,
+    socketStatePreserved,
     reconnectFallback: detached.reconnectFallback,
     softHandoffUsed: false,
     coreRestart,
@@ -3015,7 +3030,9 @@ async function startSlice104LiveTest(view, clipboardWrite) {
     `Attached renderers: ${verification.attachedRenderers.join(" -> ")}`,
     `Socket ownership: ${verification.socketOwnership}`,
     `Socket strategy: ${verification.socketStrategy}`,
-    `Socket preserved: ${verification.socketPreserved}`,
+    `Socket baseline: ${verification.socketBaseline}`,
+    `Active socket preservation applicable: ${verification.activeSocketPreservationApplicable}`,
+    `Socket state preserved: ${verification.socketStatePreserved}`,
     `Reconnect fallback: ${verification.reconnectFallback}`,
     `Soft handoff used: ${verification.softHandoffUsed}`,
     `Core restart: ${verification.coreRestart}`,
