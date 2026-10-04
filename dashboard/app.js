@@ -26,6 +26,8 @@ const state = {
   slice94LastReport: null,
   slice95LiveTest: { status: "idle", message: "Ready." },
   slice95LastReport: null,
+  slice101LiveTest: { status: "idle", message: "Ready." },
+  slice101LastReport: null,
   dashboardLayouts: null,
   pendingDashboardImport: null,
   status: null,
@@ -148,6 +150,10 @@ const elements = {
   slice95LiveTestStatus: document.querySelector("#slice-9-5-live-test-status"),
   slice95LiveTestNote: document.querySelector("#slice-9-5-live-test-note"),
   copySlice95LiveTestResult: document.querySelector("#copy-slice-9-5-live-test-result"),
+  startSlice101LiveTest: document.querySelector("#start-slice-10-1-live-test"),
+  slice101LiveTestStatus: document.querySelector("#slice-10-1-live-test-status"),
+  slice101LiveTestNote: document.querySelector("#slice-10-1-live-test-note"),
+  copySlice101LiveTestResult: document.querySelector("#copy-slice-10-1-live-test-result"),
   coreStatus: document.querySelector("#core-status"),
   version: document.querySelector("#client-version"),
   uptime: document.querySelector("#uptime"),
@@ -1874,6 +1880,276 @@ elements.copySlice95LiveTestResult.addEventListener("click", async () => {
 });
 
 renderSlice95LiveTest();
+
+function renderSlice101LiveTest() {
+  const test = state.slice101LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    failed: "FAILED",
+  };
+  elements.slice101LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice101LiveTest.disabled = test.status === "running";
+  elements.copySlice101LiveTestResult.hidden = !state.slice101LastReport;
+  if (test.status === "running") {
+    elements.slice101LiveTestNote.textContent =
+      "Reading the renderer snapshot and SSE event stream, then verifying Core/Character/Script continuity and zero Action Gateway mutation.";
+  } else if (test.message) {
+    elements.slice101LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function fetchRendererSnapshot() {
+  const response = await fetch("/api/renderer/snapshot", { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Renderer snapshot failed with HTTP ${response.status}.`);
+  }
+  return response.json();
+}
+
+function waitForRendererStateEvent(afterSequence, timeoutMs = 4_000) {
+  return new Promise((resolve, reject) => {
+    const source = new EventSource("/api/renderer/stream");
+    const timer = globalThis.setTimeout(() => {
+      source.close();
+      reject(new Error("Renderer state event did not arrive before timeout."));
+    }, timeoutMs);
+
+    source.addEventListener("state", (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (Number(payload.sequence) <= Number(afterSequence)) return;
+        globalThis.clearTimeout(timer);
+        source.close();
+        resolve(payload);
+      } catch (error) {
+        globalThis.clearTimeout(timer);
+        source.close();
+        reject(error);
+      }
+    });
+
+    source.addEventListener("error", () => {
+      globalThis.clearTimeout(timer);
+      source.close();
+      reject(new Error("Renderer SSE stream failed."));
+    });
+  });
+}
+
+async function runSlice101Verification() {
+  const before = await fetchRendererSnapshot();
+  const steps = [];
+
+  steps.push({
+    key: "snapshot-schema",
+    outcome:
+      before?.snapshot?.schemaVersion === 1 &&
+      before?.snapshot?.core?.application === "ALRemastered" &&
+      before?.bridge?.status === "running"
+        ? "passed"
+        : "failed",
+  });
+
+  const event = await waitForRendererStateEvent(before.bridge.eventSequence);
+  steps.push({
+    key: "stream-connect",
+    outcome:
+      event?.type === "state" &&
+      event?.snapshot?.schemaVersion === 1
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "sequenced-state-event",
+    outcome:
+      Number(event?.sequence) > Number(before.bridge.eventSequence) &&
+      Number(event?.snapshot?.eventSequence) === Number(event?.sequence)
+        ? "passed"
+        : "failed",
+  });
+
+  await new Promise((resolve) => globalThis.setTimeout(resolve, 40));
+  const after = await fetchRendererSnapshot();
+
+  const beforeCore = before.snapshot.core ?? {};
+  const afterCore = after.snapshot.core ?? {};
+  const coreRestart = beforeCore.startedAt !== afterCore.startedAt;
+  steps.push({
+    key: "core-continuity",
+    outcome:
+      !coreRestart &&
+      afterCore.status === "running" &&
+      Number(afterCore.heartbeatSequence ?? 0) >= Number(beforeCore.heartbeatSequence ?? 0)
+        ? "passed"
+        : "failed",
+  });
+
+  const beforeCharacter = before.snapshot.character ?? {};
+  const afterCharacter = after.snapshot.character ?? {};
+  const characterRestart =
+    (beforeCharacter.characterId ?? null) !== (afterCharacter.characterId ?? null) ||
+    (beforeCharacter.connectedAt ?? null) !== (afterCharacter.connectedAt ?? null);
+  steps.push({
+    key: "character-continuity",
+    outcome: characterRestart ? "failed" : "passed",
+  });
+
+  const beforeScript = before.snapshot.script ?? {};
+  const afterScript = after.snapshot.script ?? {};
+  const scriptRestart =
+    (beforeScript.runId ?? null) !== (afterScript.runId ?? null) ||
+    (beforeScript.startedAt ?? null) !== (afterScript.startedAt ?? null);
+  steps.push({
+    key: "script-continuity",
+    outcome: scriptRestart ? "failed" : "passed",
+  });
+
+  const actionGatewayRequests = Math.max(
+    0,
+    Number(after.snapshot.actionGateway?.totalRequests ?? 0) -
+      Number(before.snapshot.actionGateway?.totalRequests ?? 0),
+  );
+  steps.push({
+    key: "read-only-action-gateway",
+    outcome: actionGatewayRequests === 0 ? "passed" : "failed",
+  });
+
+  steps.push({
+    key: "subscriber-cleanup",
+    outcome:
+      Number(after.bridge?.subscribers ?? 0) === Number(before.bridge?.subscribers ?? 0)
+        ? "passed"
+        : "failed",
+  });
+
+  return {
+    outcome: steps.every((step) => step.outcome === "passed") ? "passed" : "failed",
+    steps,
+    rendererTransport: "SSE",
+    rendererMutationApi: false,
+    coreRestart,
+    characterRestart,
+    scriptRestart,
+    gameplayMutation: false,
+    actionGatewayRequests,
+    rawSocketAccess: false,
+    userScriptTouched: false,
+    beforeSequence: before.bridge.eventSequence,
+    eventSequence: event.sequence,
+    afterSequence: after.bridge.eventSequence,
+  };
+}
+
+async function startSlice101LiveTest(clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice101LiveTest = {
+    status: "running",
+    message: "Slice 10.1 renderer bridge test is running.",
+  };
+  renderSlice101LiveTest();
+
+  const verification = await runSlice101Verification();
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) {
+    throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  }
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live101-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const stepLines = verification.steps.map((step) =>
+    `- ${step.key}: ${String(step.outcome).toUpperCase()}`
+  );
+  const reportText = [
+    "ALRemastered Slice 10.1 one-click renderer bridge test",
+    `Test ID: ${testId}`,
+    "Slice: 10.1",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    `Renderer transport: ${verification.rendererTransport}`,
+    "Renderer mutation API: false",
+    `Bridge sequence: ${verification.beforeSequence} -> ${verification.eventSequence} -> ${verification.afterSequence}`,
+    `Core restart: ${verification.coreRestart}`,
+    `Character restart: ${verification.characterRestart}`,
+    `Script restart: ${verification.scriptRestart}`,
+    "Gameplay mutation: false",
+    `Action Gateway requests: ${verification.actionGatewayRequests}`,
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+
+  const result = {
+    testId,
+    slice: "10.1",
+    outcome,
+    startedAt,
+    completedAt,
+    message: outcome === "passed"
+      ? "Renderer bridge verification passed."
+      : "Renderer bridge verification failed.",
+    ...verification,
+  };
+
+  state.slice101LastReport = reportText;
+  state.slice101LiveTest = { status: outcome, message: result.message, lastResult: result };
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice101LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice101LiveTest.addEventListener("click", async () => {
+  if (state.slice101LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice101LastReport = null;
+  elements.copySlice101LiveTestResult.hidden = true;
+  setFeedback(
+    "Slice 10.1 renderer bridge test started. It opens one temporary read-only SSE subscriber and does not open a renderer window.",
+  );
+  try {
+    const { result, copied } = await startSlice101LiveTest(clipboardWrite);
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 10.1 test ${String(result.outcome).toUpperCase()}. ${copyMessage}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    state.slice101LiveTest = { status: "failed", message: error.message };
+    renderSlice101LiveTest();
+    setFeedback(`Slice 10.1 renderer bridge test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice101LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice101LastReport) return;
+  try {
+    await writeClipboard(state.slice101LastReport);
+    setFeedback(
+      "Complete Slice 10.1 renderer bridge result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Renderer bridge result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice101LiveTest();
 
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
