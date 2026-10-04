@@ -34,6 +34,8 @@ const state = {
   slice103LastReport: null,
   slice104LiveTest: { status: "idle", message: "Ready." },
   slice104LastReport: null,
+  slice111LiveTest: { status: "idle", message: "Ready." },
+  slice111LastReport: null,
   controlMode: null,
   dashboardLayouts: null,
   pendingDashboardImport: null,
@@ -175,6 +177,10 @@ const elements = {
   slice104LiveTestStatus: document.querySelector("#slice-10-4-live-test-status"),
   slice104LiveTestNote: document.querySelector("#slice-10-4-live-test-note"),
   copySlice104LiveTestResult: document.querySelector("#copy-slice-10-4-live-test-result"),
+  startSlice111LiveTest: document.querySelector("#start-slice-11-1-live-test"),
+  slice111LiveTestStatus: document.querySelector("#slice-11-1-live-test-status"),
+  slice111LiveTestNote: document.querySelector("#slice-11-1-live-test-note"),
+  copySlice111LiveTestResult: document.querySelector("#copy-slice-11-1-live-test-result"),
   coreStatus: document.querySelector("#core-status"),
   version: document.querySelector("#client-version"),
   uptime: document.querySelector("#uptime"),
@@ -3101,6 +3107,289 @@ elements.copySlice104LiveTestResult.addEventListener("click", async () => {
 });
 
 renderSlice104LiveTest();
+
+async function fetchAlhdAssetProviderState() {
+  const response = await fetch("/api/hd/assets", { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`ALHD asset provider state failed with HTTP ${response.status}.`);
+  }
+  return response.json();
+}
+
+async function resolveAlhdAsset(sourcePath) {
+  const response = await fetch(
+    `/api/hd/assets/resolve?sourcePath=${encodeURIComponent(sourcePath)}`,
+    { cache: "no-store" },
+  );
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error ?? `ALHD asset resolution failed with HTTP ${response.status}.`);
+  }
+  return payload;
+}
+
+function renderSlice111LiveTest() {
+  const test = state.slice111LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    failed: "FAILED",
+  };
+  elements.slice111LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice111LiveTest.disabled = test.status === "running";
+  elements.copySlice111LiveTestResult.hidden = !state.slice111LastReport;
+  if (test.status === "running") {
+    elements.slice111LiveTestNote.textContent =
+      "Reading the packaged ALHD manifest, checking presentation-only metadata and original fallback, then verifying runtime continuity with GET-only requests.";
+  } else if (test.message) {
+    elements.slice111LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function runSlice111Verification() {
+  const before = await fetchRendererSnapshot();
+  const provider = await fetchAlhdAssetProviderState();
+  const knownSource = "images/tiles/characters/jubchan_1.png";
+  const unknownSource = "images/alremastered/not-in-alhd-manifest.png";
+  const known = await resolveAlhdAsset(knownSource);
+  const unknown = await resolveAlhdAsset(unknownSource);
+  const after = await fetchRendererSnapshot();
+  const steps = [];
+
+  steps.push({
+    key: "manifest-loaded",
+    outcome:
+      provider.status === "ready" &&
+      provider.manifestStatus === "loaded" &&
+      provider.manifestSchemaVersion === 1 &&
+      Number(provider.replacementCount ?? 0) >= 1 &&
+      Number(provider.activeReplacementCount ?? 0) >= 1
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "presentation-only",
+    outcome:
+      provider.presentationOnly === true &&
+      provider.originalFallback === true &&
+      provider.gameplaySemanticChanges === false
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "known-original-fallback",
+    outcome:
+      known.sourcePath === knownSource &&
+      known.resolvedPath === knownSource &&
+      known.mode === "original" &&
+      known.reason === "hd-file-missing" &&
+      known.presentationOnly === true &&
+      known.originalFallback === true
+        ? "passed"
+        : "failed",
+  });
+  steps.push({
+    key: "unknown-original-fallback",
+    outcome:
+      unknown.sourcePath === unknownSource &&
+      unknown.resolvedPath === unknownSource &&
+      unknown.mode === "original" &&
+      unknown.reason === "not-in-manifest"
+        ? "passed"
+        : "failed",
+  });
+
+  const beforeCore = before.snapshot?.core ?? {};
+  const afterCore = after.snapshot?.core ?? {};
+  const coreRestart = beforeCore.startedAt !== afterCore.startedAt;
+  steps.push({
+    key: "core-continuity",
+    outcome:
+      !coreRestart &&
+      afterCore.status === "running" &&
+      Number(afterCore.heartbeatSequence ?? 0) >= Number(beforeCore.heartbeatSequence ?? 0)
+        ? "passed"
+        : "failed",
+  });
+
+  const beforeCharacter = before.snapshot?.character ?? {};
+  const afterCharacter = after.snapshot?.character ?? {};
+  const characterRestart = !sameSocketMarkers(beforeCharacter, afterCharacter);
+  steps.push({
+    key: "character-continuity",
+    outcome: characterRestart ? "failed" : "passed",
+  });
+
+  const beforeScript = before.snapshot?.script ?? {};
+  const afterScript = after.snapshot?.script ?? {};
+  const scriptRestart =
+    (beforeScript.runId ?? null) !== (afterScript.runId ?? null) ||
+    (beforeScript.startedAt ?? null) !== (afterScript.startedAt ?? null);
+  steps.push({
+    key: "script-continuity",
+    outcome: scriptRestart ? "failed" : "passed",
+  });
+
+  const actionGatewayRequests = Math.max(
+    0,
+    Number(after.snapshot?.actionGateway?.totalRequests ?? 0) -
+      Number(before.snapshot?.actionGateway?.totalRequests ?? 0),
+  );
+  steps.push({
+    key: "read-only-runtime",
+    outcome: actionGatewayRequests === 0 ? "passed" : "failed",
+  });
+
+  return {
+    outcome: steps.every((step) => step.outcome === "passed") ? "passed" : "failed",
+    steps,
+    providerStatus: provider.status,
+    manifestStatus: provider.manifestStatus,
+    manifestName: provider.manifestName,
+    manifestSchemaVersion: provider.manifestSchemaVersion,
+    manifestPhase: provider.phase ?? null,
+    sourceRef: provider.sourceRef,
+    replacementCount: provider.replacementCount,
+    activeReplacementCount: provider.activeReplacementCount,
+    availableHdFiles: provider.availableHdFiles,
+    missingHdFiles: provider.missingHdFiles,
+    presentationOnly: provider.presentationOnly,
+    originalFallback: provider.originalFallback,
+    gameplaySemanticChanges: provider.gameplaySemanticChanges,
+    knownResolution: known,
+    unknownResolution: unknown,
+    coreRestart,
+    characterRestart,
+    scriptRestart,
+    dashboardGetOnly: true,
+    gameplayMutation: false,
+    actionGatewayRequests,
+    rawSocketAccess: false,
+    userScriptTouched: false,
+  };
+}
+
+async function startSlice111LiveTest(clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice111LiveTest = {
+    status: "running",
+    message: "Slice 11.1 ALHD asset provider test is running.",
+  };
+  renderSlice111LiveTest();
+
+  const verification = await runSlice111Verification();
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) {
+    throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  }
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live111-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const stepLines = verification.steps.map((step) =>
+    `- ${step.key}: ${String(step.outcome).toUpperCase()}`
+  );
+  const reportText = [
+    "ALRemastered Slice 11.1 one-click ALHD asset provider test",
+    `Test ID: ${testId}`,
+    "Slice: 11.1",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    `Provider status: ${verification.providerStatus}`,
+    `Manifest status: ${verification.manifestStatus}`,
+    `Manifest: ${verification.manifestName}`,
+    `Manifest schema: ${verification.manifestSchemaVersion}`,
+    `Manifest phase: ${verification.manifestPhase ?? "none"}`,
+    `Manifest source: ${verification.sourceRef}`,
+    `Replacements: ${verification.replacementCount}`,
+    `Active replacements: ${verification.activeReplacementCount}`,
+    `Packaged HD files available: ${verification.availableHdFiles}`,
+    `Missing packaged HD files: ${verification.missingHdFiles}`,
+    `Presentation only: ${verification.presentationOnly}`,
+    `Original fallback: ${verification.originalFallback}`,
+    `Gameplay semantic changes: ${verification.gameplaySemanticChanges}`,
+    `Known source resolution: ${verification.knownResolution.mode} / ${verification.knownResolution.reason}`,
+    `Unknown source resolution: ${verification.unknownResolution.mode} / ${verification.unknownResolution.reason}`,
+    `Core restart: ${verification.coreRestart}`,
+    `Character restart: ${verification.characterRestart}`,
+    `Script restart: ${verification.scriptRestart}`,
+    "Dashboard GET only: true",
+    "Gameplay mutation: false",
+    `Action Gateway requests: ${verification.actionGatewayRequests}`,
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+
+  const result = {
+    testId,
+    slice: "11.1",
+    outcome,
+    startedAt,
+    completedAt,
+    message: outcome === "passed"
+      ? "ALHD asset provider verification passed."
+      : "ALHD asset provider verification failed.",
+    ...verification,
+  };
+  state.slice111LastReport = reportText;
+  state.slice111LiveTest = { status: outcome, message: result.message, lastResult: result };
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice111LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice111LiveTest.addEventListener("click", async () => {
+  if (state.slice111LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice111LastReport = null;
+  elements.copySlice111LiveTestResult.hidden = true;
+  setFeedback(
+    "Slice 11.1 ALHD asset provider test started. It uses read-only dashboard requests and does not apply HD graphics or dispatch gameplay actions.",
+  );
+  try {
+    const { result, copied } = await startSlice111LiveTest(clipboardWrite);
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 11.1 test ${String(result.outcome).toUpperCase()}. ${copyMessage}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    state.slice111LiveTest = { status: "failed", message: error.message };
+    renderSlice111LiveTest();
+    setFeedback(`Slice 11.1 ALHD asset provider test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice111LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice111LastReport) return;
+  try {
+    await writeClipboard(state.slice111LastReport);
+    setFeedback(
+      "Complete Slice 11.1 ALHD asset provider result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`ALHD asset provider result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice111LiveTest();
 
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
