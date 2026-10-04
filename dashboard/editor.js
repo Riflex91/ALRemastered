@@ -101,6 +101,10 @@ function safeWidgetId(element, index) {
   return base ? `widget-${base}` : `dashboard-widget-${index + 1}`;
 }
 
+function cloneDashboardLayout(layout) {
+  return layout ? JSON.parse(JSON.stringify(layout)) : layout;
+}
+
 export class DashboardEditor {
   constructor({ document, root, onChange } = {}) {
     this.document = document ?? globalThis.document;
@@ -117,6 +121,10 @@ export class DashboardEditor {
     this.activeConfigId = null;
     this.activePage = "overview";
     this.duplicateSequence = 0;
+    this.initialLayout = null;
+    this.undoStack = [];
+    this.redoStack = [];
+    this.historyLimit = 50;
   }
 
   init() {
@@ -151,6 +159,7 @@ export class DashboardEditor {
     this.grid = grid;
     this.document.body.dataset.dashboardEditMode = "false";
     this.document.body.dataset.dashboardPage = this.activePage;
+    this.initialLayout = cloneDashboardLayout(this.layoutState());
     return this;
   }
 
@@ -183,8 +192,9 @@ export class DashboardEditor {
     });
   }
 
-  setActivePage(pageId, { notify = true } = {}) {
+  setActivePage(pageId, { notify = true, history = false } = {}) {
     const page = normalizeDashboardPage(pageId);
+    if (history && page !== this.activePage) this.#recordHistory();
     this.activePage = page;
     if (this.document?.body) this.document.body.dataset.dashboardPage = page;
     for (const id of this.widgets.keys()) this.#syncPageVisibility(id);
@@ -201,6 +211,7 @@ export class DashboardEditor {
       }));
     for (const [id, record] of this.widgets) {
       if (
+        this.characterOptions.length > 0 &&
         record.characterId &&
         !this.characterOptions.some((character) => character.id === record.characterId)
       ) {
@@ -260,15 +271,23 @@ export class DashboardEditor {
     };
   }
 
-  configureWidget(id, configuration = {}, { notify = true } = {}) {
+  configureWidget(
+    id,
+    configuration = {},
+    { notify = true, history = true, allowUnknownCharacter = false } = {},
+  ) {
     const record = this.widgets.get(id);
     if (!record) return false;
+    if (history) this.#recordHistory();
 
     if (configuration.characterId !== undefined) {
       const characterId = String(configuration.characterId || "");
-      record.characterId = this.characterOptions.some((character) => character.id === characterId)
-        ? characterId
-        : "";
+      record.characterId =
+        allowUnknownCharacter ||
+        !characterId ||
+        this.characterOptions.some((character) => character.id === characterId)
+          ? characterId
+          : "";
       if (record.characterId) record.element.dataset.widgetCharacter = record.characterId;
       else delete record.element.dataset.widgetCharacter;
     }
@@ -297,9 +316,14 @@ export class DashboardEditor {
     return true;
   }
 
-  duplicateWidget(id) {
+  duplicateWidget(id, { duplicateId: requestedId, notify = true, history = true } = {}) {
     const source = this.widgets.get(id);
     if (!source || !this.grid) return null;
+    if (history) this.#recordHistory();
+
+    const canonicalSourceId = source.duplicateOf ?? id;
+    const duplicateId = requestedId || `${canonicalSourceId}-copy-${++this.duplicateSequence}`;
+    if (this.widgets.has(duplicateId)) return duplicateId;
 
     const duplicate = source.element.cloneNode(true);
     sanitizeDuplicateContent(duplicate);
@@ -307,9 +331,8 @@ export class DashboardEditor {
       const sourceField = source.fields[index];
       if (sourceField) child.hidden = sourceField.baselineHidden;
     });
-    const duplicateId = `${id}-copy-${++this.duplicateSequence}`;
     duplicate.dataset.dashboardWidget = duplicateId;
-    duplicate.dataset.dashboardDuplicateOf = id;
+    duplicate.dataset.dashboardDuplicateOf = canonicalSourceId;
     duplicate.dataset.widgetColumns = source.element.dataset.widgetColumns || String(DASHBOARD_GRID_COLUMNS);
     duplicate.style.setProperty(
       "--dashboard-widget-columns",
@@ -329,16 +352,16 @@ export class DashboardEditor {
     this.grid.insertBefore(duplicate, source.element.nextSibling);
     this.#registerWidget(duplicateId, duplicate, {
       label: `${source.label} copy`,
-      duplicateOf: id,
+      duplicateOf: canonicalSourceId,
       pages: [...source.pages],
     });
     this.configureWidget(duplicateId, {
       characterId: source.characterId,
       hiddenFields: [...source.hiddenFields],
       displayMode: source.displayMode,
-    }, { notify: false });
+    }, { notify: false, history: false, allowUnknownCharacter: true });
     this.#startDuplicateMirror(duplicateId);
-    this.onChange();
+    if (notify) this.onChange();
     return duplicateId;
   }
 
@@ -381,21 +404,23 @@ export class DashboardEditor {
     return this.enabled;
   }
 
-  moveWidget(sourceId, targetId) {
+  moveWidget(sourceId, targetId, { notify = true, history = true } = {}) {
     if (!this.grid || sourceId === targetId) return false;
     const order = moveWidgetOrder(this.widgetIds(), sourceId, targetId);
     if (order.length === 0) return false;
+    if (history) this.#recordHistory();
     for (const id of order) {
       const widget = this.widgets.get(id)?.element;
       if (widget) this.grid.append(widget);
     }
-    this.onChange();
+    if (notify) this.onChange();
     return true;
   }
 
-  resizeWidget(id, columns, heightPx) {
+  resizeWidget(id, columns, heightPx, { notify = true, history = true } = {}) {
     const widget = this.widgets.get(id)?.element;
     if (!widget) return false;
+    if (history) this.#recordHistory();
     const snappedColumns = clampWidgetColumns(columns);
     const snappedHeight = Math.max(
       DASHBOARD_MIN_HEIGHT_PX,
@@ -405,28 +430,166 @@ export class DashboardEditor {
     widget.dataset.widgetHeight = String(snappedHeight);
     widget.style.setProperty("--dashboard-widget-columns", String(snappedColumns));
     widget.style.setProperty("--dashboard-widget-height", `${snappedHeight}px`);
-    this.onChange();
+    if (notify) this.onChange();
     return true;
   }
 
-  removeWidget(id) {
+  removeWidget(id, { notify = true, history = true } = {}) {
     const widget = this.widgets.get(id)?.element;
     if (!widget || this.removed.has(id)) return false;
+    if (history) this.#recordHistory();
     this.removed.add(id);
     widget.dataset.editorRemoved = "true";
     widget.hidden = true;
     this.#syncPageVisibility(id);
-    this.onChange();
+    if (notify) this.onChange();
     return true;
   }
 
-  addWidget(id) {
+  addWidget(id, { notify = true, history = true } = {}) {
     const widget = this.widgets.get(id)?.element;
     if (!widget || !this.removed.has(id)) return false;
+    if (history) this.#recordHistory();
     this.removed.delete(id);
     delete widget.dataset.editorRemoved;
     widget.hidden = false;
     this.#syncPageVisibility(id);
+    if (notify) this.onChange();
+    return true;
+  }
+
+  layoutState() {
+    const widgets = {};
+    for (const [id, record] of this.widgets) {
+      const { element } = record;
+      widgets[id] = {
+        columns: clampWidgetColumns(Number(element.dataset.widgetColumns || DASHBOARD_GRID_COLUMNS)),
+        height: element.dataset.widgetHeight ? Number(element.dataset.widgetHeight) : null,
+        characterId: record.characterId,
+        hiddenFields: [...record.hiddenFields],
+        displayMode: record.displayMode,
+        duplicateOf: record.duplicateOf,
+      };
+    }
+    return {
+      schemaVersion: 1,
+      activePage: this.activePage,
+      order: this.widgetIds(),
+      removed: [...this.removed],
+      widgets,
+    };
+  }
+
+  applySavedLayout(layout, { notify = true, history = false } = {}) {
+    if (!layout || layout.schemaVersion !== 1 || !this.grid) return false;
+    if (history) this.#recordHistory();
+
+    const targetWidgets = layout.widgets ?? {};
+    const targetIds = new Set(Object.keys(targetWidgets));
+    for (const [id, record] of [...this.widgets]) {
+      if (!record.duplicateOf || targetIds.has(id)) continue;
+      record.mirrorObserver?.disconnect?.();
+      record.element.remove();
+      this.widgets.delete(id);
+      this.removed.delete(id);
+    }
+
+    for (const id of layout.order ?? []) {
+      if (this.widgets.has(id)) continue;
+      const descriptor = targetWidgets[id];
+      const sourceId = descriptor?.duplicateOf;
+      if (!sourceId || !this.widgets.has(sourceId)) continue;
+      this.duplicateWidget(sourceId, {
+        duplicateId: id,
+        notify: false,
+        history: false,
+      });
+    }
+
+    const requestedOrder = (layout.order ?? []).filter((id) => this.widgets.has(id));
+    const remaining = this.widgetIds().filter((id) => !requestedOrder.includes(id));
+    for (const id of [...requestedOrder, ...remaining]) {
+      const widget = this.widgets.get(id)?.element;
+      if (widget) this.grid.append(widget);
+    }
+
+    this.removed = new Set(
+      (layout.removed ?? []).filter((id) => this.widgets.has(id)),
+    );
+
+    for (const [id, record] of this.widgets) {
+      const descriptor = targetWidgets[id];
+      const removed = this.removed.has(id);
+      if (removed) {
+        record.element.dataset.editorRemoved = "true";
+        record.element.hidden = true;
+      } else {
+        delete record.element.dataset.editorRemoved;
+        record.element.hidden = false;
+      }
+
+      if (descriptor) {
+        const columns = clampWidgetColumns(descriptor.columns ?? DASHBOARD_GRID_COLUMNS);
+        record.element.dataset.widgetColumns = String(columns);
+        record.element.style.setProperty("--dashboard-widget-columns", String(columns));
+        if (descriptor.height) {
+          const height = Math.max(
+            DASHBOARD_MIN_HEIGHT_PX,
+            snapToGrid(descriptor.height, DASHBOARD_GRID_ROW_PX),
+          );
+          record.element.dataset.widgetHeight = String(height);
+          record.element.style.setProperty("--dashboard-widget-height", `${height}px`);
+        } else {
+          delete record.element.dataset.widgetHeight;
+          record.element.style.removeProperty("--dashboard-widget-height");
+        }
+        this.configureWidget(id, descriptor, {
+          notify: false,
+          history: false,
+          allowUnknownCharacter: true,
+        });
+      }
+      this.#syncPageVisibility(id);
+    }
+
+    this.setActivePage(layout.activePage, { notify: false, history: false });
+    if (notify) this.onChange();
+    return true;
+  }
+
+  resetLayout({ notify = true, history = true } = {}) {
+    if (!this.initialLayout) return false;
+    return this.applySavedLayout(cloneDashboardLayout(this.initialLayout), { notify, history });
+  }
+
+  clearHistory() {
+    this.undoStack = [];
+    this.redoStack = [];
+    this.onChange();
+  }
+
+  canUndo() {
+    return this.undoStack.length > 0;
+  }
+
+  canRedo() {
+    return this.redoStack.length > 0;
+  }
+
+  undo() {
+    const previous = this.undoStack.pop();
+    if (!previous) return false;
+    this.redoStack.push(cloneDashboardLayout(this.layoutState()));
+    this.applySavedLayout(previous, { notify: false, history: false });
+    this.onChange();
+    return true;
+  }
+
+  redo() {
+    const next = this.redoStack.pop();
+    if (!next) return false;
+    this.undoStack.push(cloneDashboardLayout(this.layoutState()));
+    this.applySavedLayout(next, { notify: false, history: false });
     this.onChange();
     return true;
   }
@@ -452,6 +615,8 @@ export class DashboardEditor {
       characterSnapshots: [...this.characterSnapshots.entries()].map(([id, value]) => [id, { ...value }]),
       activePage: this.activePage,
       duplicateSequence: this.duplicateSequence,
+      undoStack: this.undoStack.map(cloneDashboardLayout),
+      redoStack: this.redoStack.map(cloneDashboardLayout),
     };
   }
 
@@ -474,6 +639,16 @@ export class DashboardEditor {
     this.activePage = normalizeDashboardPage(snapshot.activePage);
     if (this.document?.body) this.document.body.dataset.dashboardPage = this.activePage;
     this.duplicateSequence = Number(snapshot.duplicateSequence ?? this.duplicateSequence);
+    for (const id of snapshot.order ?? []) {
+      if (this.widgets.has(id)) continue;
+      const sourceId = snapshot.configurations?.[id]?.duplicateOf;
+      if (!sourceId || !this.widgets.has(sourceId)) continue;
+      this.duplicateWidget(sourceId, {
+        duplicateId: id,
+        notify: false,
+        history: false,
+      });
+    }
     for (const id of snapshot.order ?? []) {
       const widget = this.widgets.get(id)?.element;
       if (widget) this.grid.append(widget);
@@ -505,13 +680,26 @@ export class DashboardEditor {
         characterId: "",
         hiddenFields: [],
         displayMode: "standard",
-      }, { notify: false });
+      }, { notify: false, history: false, allowUnknownCharacter: true });
       this.#syncPageVisibility(id);
     }
+    this.undoStack = (snapshot.undoStack ?? []).map(cloneDashboardLayout);
+    this.redoStack = (snapshot.redoStack ?? []).map(cloneDashboardLayout);
     if (snapshot.enabled) this.enable();
     else this.disable();
     this.onChange();
     return true;
+  }
+
+  #recordHistory() {
+    if (!this.grid) return;
+    const current = cloneDashboardLayout(this.layoutState());
+    const latest = this.undoStack[this.undoStack.length - 1];
+    if (!latest || JSON.stringify(latest) !== JSON.stringify(current)) {
+      this.undoStack.push(current);
+      if (this.undoStack.length > this.historyLimit) this.undoStack.shift();
+    }
+    this.redoStack = [];
   }
 
   #registerWidget(id, widget, { label, duplicateOf, pages }) {
@@ -838,6 +1026,7 @@ export class DashboardEditor {
     const widget = this.widgets.get(id)?.element;
     if (!widget) return;
     const bounds = widget.getBoundingClientRect();
+    this.#recordHistory();
     this.resizeSession = {
       id,
       pointerId: event.pointerId,
@@ -859,7 +1048,7 @@ export class DashboardEditor {
     const columnWidth = gridWidth / DASHBOARD_GRID_COLUMNS;
     const columns = session.startColumns + Math.round((event.clientX - session.startX) / columnWidth);
     const height = session.startHeight + (event.clientY - session.startY);
-    this.resizeWidget(session.id, columns, height);
+    this.resizeWidget(session.id, columns, height, { history: false });
   };
 
   #handleResizeEnd = () => {

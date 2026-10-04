@@ -6,7 +6,7 @@
   <title>ALRemastered</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body data-current-verification-slice="9.3">
+<body data-current-verification-slice="9.4">
   <main class="shell">
     <header class="topbar">
       <div>
@@ -22,17 +22,38 @@
     </header>
 
     <div class="dashboard-edit-toolbar dashboard-editor-exempt" id="dashboard-edit-toolbar" hidden>
-      <div>
+      <div class="dashboard-edit-summary">
         <p class="eyebrow">Dashboard editor</p>
         <strong id="dashboard-edit-status">Normal mode</strong>
-        <small>Drag, resize, configure, duplicate, remove, or add widgets. Changes apply only to this running dashboard; layout persistence belongs to Slice 9.4.</small>
+        <small id="dashboard-layout-note">Saved layout profiles persist across ALRemastered restarts. Undo and redo are session-local.</small>
       </div>
-      <div class="toolbar">
-        <label>
-          <span class="label">Removed widgets</span>
-          <select id="dashboard-widget-add-select" aria-label="Removed dashboard widgets"></select>
-        </label>
-        <button id="dashboard-add-widget" type="button">Add widget</button>
+      <div class="dashboard-layout-controls">
+        <div class="toolbar">
+          <label>
+            <span class="label">Layout profile</span>
+            <select id="dashboard-layout-profile" aria-label="Dashboard layout profile"></select>
+          </label>
+          <label>
+            <span class="label">New profile</span>
+            <input id="dashboard-layout-profile-name" type="text" maxlength="40" placeholder="Profile name">
+          </label>
+          <button id="dashboard-create-profile" type="button">Create profile</button>
+          <button id="dashboard-delete-profile" type="button" class="danger">Delete profile</button>
+        </div>
+        <div class="toolbar">
+          <span class="status-pill" id="dashboard-layout-viewport">Desktop layout</span>
+          <button id="dashboard-save-layout" type="button">Save layout</button>
+          <button id="dashboard-undo-layout" type="button">Undo</button>
+          <button id="dashboard-redo-layout" type="button">Redo</button>
+          <button id="dashboard-reset-layout" type="button">Reset layout</button>
+        </div>
+        <div class="toolbar">
+          <label>
+            <span class="label">Removed widgets</span>
+            <select id="dashboard-widget-add-select" aria-label="Removed dashboard widgets"></select>
+          </label>
+          <button id="dashboard-add-widget" type="button">Add widget</button>
+        </div>
       </div>
     </div>
 
@@ -150,6 +171,20 @@
         </div>
         <small class="selection-note" id="slice-9-3-live-test-note">
           Exercises Overview, Combat, Party, Merchant, Logs, and Debugging tabs, verifies page filtering, and returns to Overview. Page selection is dashboard-only and is not persisted.
+        </small>
+      </div>
+    </div>
+
+    <div class="selection-content" data-verification-test="9.4" hidden>
+      <div>
+        <h3>Slice 9.4 one-click layout persistence and profiles test</h3>
+        <div class="server-picker">
+          <button id="start-slice-9-4-live-test" type="button">Start layout persistence test</button>
+          <strong id="slice-9-4-live-test-status" aria-live="polite">Ready</strong>
+          <button id="copy-slice-9-4-live-test-result" type="button" hidden>Copy last test result</button>
+        </div>
+        <small class="selection-note" id="slice-9-4-live-test-note">
+          Exercises server-backed save/reload, multiple profiles, Desktop and Small-screen layouts, Undo/Redo, Reset, profile switching, and cleanup. The test does not dispatch gameplay actions.
         </small>
       </div>
     </div>

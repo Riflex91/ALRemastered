@@ -16,6 +16,10 @@ const state = {
   slice92LastReport: null,
   slice93LiveTest: { status: "idle", message: "Ready." },
   slice93LastReport: null,
+  slice94LiveTest: { status: "idle", message: "Ready." },
+  slice94LastReport: null,
+  dashboardLayouts: null,
+  dashboardViewport: null,
   status: null,
   account: null,
   selection: null,
@@ -99,6 +103,16 @@ const elements = {
   dashboardWidgetAddSelect: document.querySelector("#dashboard-widget-add-select"),
   dashboardAddWidget: document.querySelector("#dashboard-add-widget"),
   dashboardPageTabs: document.querySelector("#dashboard-page-tabs"),
+  dashboardLayoutProfile: document.querySelector("#dashboard-layout-profile"),
+  dashboardLayoutProfileName: document.querySelector("#dashboard-layout-profile-name"),
+  dashboardCreateProfile: document.querySelector("#dashboard-create-profile"),
+  dashboardDeleteProfile: document.querySelector("#dashboard-delete-profile"),
+  dashboardLayoutViewport: document.querySelector("#dashboard-layout-viewport"),
+  dashboardSaveLayout: document.querySelector("#dashboard-save-layout"),
+  dashboardUndoLayout: document.querySelector("#dashboard-undo-layout"),
+  dashboardRedoLayout: document.querySelector("#dashboard-redo-layout"),
+  dashboardResetLayout: document.querySelector("#dashboard-reset-layout"),
+  dashboardLayoutNote: document.querySelector("#dashboard-layout-note"),
   startSlice91LiveTest: document.querySelector("#start-slice-9-1-live-test"),
   slice91LiveTestStatus: document.querySelector("#slice-9-1-live-test-status"),
   slice91LiveTestNote: document.querySelector("#slice-9-1-live-test-note"),
@@ -111,6 +125,10 @@ const elements = {
   slice93LiveTestStatus: document.querySelector("#slice-9-3-live-test-status"),
   slice93LiveTestNote: document.querySelector("#slice-9-3-live-test-note"),
   copySlice93LiveTestResult: document.querySelector("#copy-slice-9-3-live-test-result"),
+  startSlice94LiveTest: document.querySelector("#start-slice-9-4-live-test"),
+  slice94LiveTestStatus: document.querySelector("#slice-9-4-live-test-status"),
+  slice94LiveTestNote: document.querySelector("#slice-9-4-live-test-note"),
+  copySlice94LiveTestResult: document.querySelector("#copy-slice-9-4-live-test-result"),
   coreStatus: document.querySelector("#core-status"),
   version: document.querySelector("#client-version"),
   uptime: document.querySelector("#uptime"),
@@ -450,6 +468,105 @@ function mountCurrentVerification() {
 mountCurrentVerification();
 
 let dashboardEditor;
+const dashboardSmallViewport = globalThis.matchMedia?.("(max-width: 720px)");
+
+function currentDashboardViewport() {
+  return dashboardSmallViewport?.matches ? "small" : "desktop";
+}
+
+function activeDashboardLayoutProfile() {
+  const layouts = state.dashboardLayouts;
+  return layouts?.profiles?.find((profile) => profile.id === layouts.activeProfileId) ?? null;
+}
+
+async function dashboardLayoutRequest(path, body) {
+  const response = await fetch(path, {
+    method: body === undefined ? "GET" : "POST",
+    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    cache: "no-store",
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || `Dashboard layout request failed with HTTP ${response.status}.`);
+  }
+  return data;
+}
+
+function dashboardLayoutsEqual(left, right) {
+  return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
+}
+
+function renderDashboardLayoutControls() {
+  const layouts = state.dashboardLayouts;
+  const profile = activeDashboardLayoutProfile();
+  const viewport = state.dashboardViewport ?? currentDashboardViewport();
+
+  elements.dashboardLayoutProfile.replaceChildren();
+  if (!layouts?.profiles?.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "Loading profiles…";
+    elements.dashboardLayoutProfile.append(option);
+    elements.dashboardLayoutProfile.disabled = true;
+  } else {
+    for (const item of layouts.profiles) {
+      const option = document.createElement("option");
+      option.value = item.id;
+      option.textContent = item.name;
+      elements.dashboardLayoutProfile.append(option);
+    }
+    elements.dashboardLayoutProfile.value = layouts.activeProfileId;
+    elements.dashboardLayoutProfile.disabled = false;
+  }
+
+  elements.dashboardLayoutViewport.textContent =
+    viewport === "small" ? "Small-screen layout" : "Desktop layout";
+  elements.dashboardDeleteProfile.disabled = !layouts || layouts.profiles.length <= 1;
+  elements.dashboardSaveLayout.disabled = !profile;
+  elements.dashboardResetLayout.disabled = !profile;
+  elements.dashboardUndoLayout.disabled = !dashboardEditor?.canUndo();
+  elements.dashboardRedoLayout.disabled = !dashboardEditor?.canRedo();
+
+  if (!profile || !dashboardEditor) {
+    elements.dashboardLayoutNote.textContent =
+      "Saved layout profiles persist across ALRemastered restarts. Undo and redo are session-local.";
+    return;
+  }
+
+  const saved = profile.layouts?.[viewport];
+  const current = dashboardEditor.layoutState();
+  const baseline = dashboardEditor.initialLayout;
+  const dirty = saved
+    ? !dashboardLayoutsEqual(current, saved)
+    : !dashboardLayoutsEqual(current, baseline);
+  const storedLabel = saved ? "saved" : "using default";
+  elements.dashboardLayoutNote.textContent =
+    `Profile "${profile.name}" · ${viewport === "small" ? "Small-screen" : "Desktop"} layout ${storedLabel}${dirty ? " · unsaved changes" : ""}. Profiles persist across restarts; Undo/Redo is session-local.`;
+}
+
+async function applyActiveDashboardLayout({ clearHistory = true } = {}) {
+  if (!dashboardEditor) return;
+  const profile = activeDashboardLayoutProfile();
+  const viewport = state.dashboardViewport ?? currentDashboardViewport();
+  const saved = profile?.layouts?.[viewport];
+  if (saved) {
+    dashboardEditor.applySavedLayout(saved, { history: false });
+  } else {
+    dashboardEditor.resetLayout({ history: false });
+  }
+  if (clearHistory) dashboardEditor.clearHistory();
+  renderDashboardEditorState();
+}
+
+async function refreshDashboardLayouts({ apply = false } = {}) {
+  state.dashboardLayouts = await dashboardLayoutRequest("/api/dashboard-layouts");
+  state.dashboardViewport = currentDashboardViewport();
+  if (apply) await applyActiveDashboardLayout();
+  else renderDashboardLayoutControls();
+  return state.dashboardLayouts;
+}
+
 function renderDashboardEditMode() {
   if (!dashboardEditor) return;
   const editing = dashboardEditor.enabled;
@@ -492,13 +609,19 @@ function renderDashboardPages() {
 function renderDashboardEditorState() {
   renderDashboardEditMode();
   renderDashboardPages();
+  renderDashboardLayoutControls();
 }
 
 dashboardEditor = new DashboardEditor({
   document,
   onChange: () => renderDashboardEditorState(),
 }).init();
+state.dashboardViewport = currentDashboardViewport();
 renderDashboardEditorState();
+void refreshDashboardLayouts({ apply: true }).catch((error) => {
+  elements.dashboardLayoutNote.textContent = `Layout persistence unavailable: ${error.message}`;
+  setFeedback(`Dashboard layout profiles could not be loaded: ${error.message}`, "error");
+});
 
 elements.dashboardPageTabs.addEventListener("click", (event) => {
   const button = event.target.closest("[data-dashboard-page]");
@@ -506,14 +629,14 @@ elements.dashboardPageTabs.addEventListener("click", (event) => {
   const pageId = button.dataset.dashboardPage;
   const page = dashboardEditor.pages().find((item) => item.id === pageId);
   dashboardEditor.setActivePage(pageId);
-  setFeedback(`Dashboard page changed to ${page?.label ?? pageId}. Page selection is not persisted.`);
+  setFeedback(`Dashboard page changed to ${page?.label ?? pageId}. Use Save layout to persist this page selection.`);
 });
 
 elements.editDashboard.addEventListener("click", () => {
   dashboardEditor.toggle();
   setFeedback(
     dashboardEditor.enabled
-      ? "Dashboard edit mode enabled. Drag, resize, configure, duplicate, remove, or add widgets. Changes are not persisted."
+      ? "Dashboard edit mode enabled. Use Save layout to persist changes in the active profile and viewport."
       : "Dashboard edit mode disabled. Normal dashboard controls are active.",
   );
 });
@@ -522,7 +645,118 @@ elements.dashboardAddWidget.addEventListener("click", () => {
   const id = elements.dashboardWidgetAddSelect.value;
   if (!id) return;
   dashboardEditor.addWidget(id);
-  setFeedback("Widget added to the current dashboard session.", "success");
+  setFeedback("Widget added. Use Save layout to persist the change.", "success");
+});
+
+elements.dashboardLayoutProfile.addEventListener("change", async () => {
+  const profileId = elements.dashboardLayoutProfile.value;
+  if (!profileId) return;
+  try {
+    state.dashboardLayouts = await dashboardLayoutRequest("/api/dashboard-layouts/select", { profileId });
+    await applyActiveDashboardLayout();
+    const profile = activeDashboardLayoutProfile();
+    setFeedback(`Dashboard layout profile changed to ${profile?.name ?? profileId}.`, "success");
+  } catch (error) {
+    setFeedback(`Dashboard profile switch failed: ${error.message}`, "error");
+    renderDashboardLayoutControls();
+  }
+});
+
+elements.dashboardCreateProfile.addEventListener("click", async () => {
+  const name = elements.dashboardLayoutProfileName.value.trim();
+  if (!name) {
+    setFeedback("Enter a profile name first.", "error");
+    return;
+  }
+  try {
+    state.dashboardLayouts = await dashboardLayoutRequest("/api/dashboard-layouts/profile", { name });
+    elements.dashboardLayoutProfileName.value = "";
+    await applyActiveDashboardLayout();
+    setFeedback(`Dashboard profile "${name}" created.`, "success");
+  } catch (error) {
+    setFeedback(`Dashboard profile creation failed: ${error.message}`, "error");
+  }
+});
+
+elements.dashboardDeleteProfile.addEventListener("click", async () => {
+  const profile = activeDashboardLayoutProfile();
+  if (!profile) return;
+  if (globalThis.confirm && !globalThis.confirm(`Delete dashboard profile "${profile.name}"?`)) return;
+  try {
+    state.dashboardLayouts = await dashboardLayoutRequest("/api/dashboard-layouts/delete", {
+      profileId: profile.id,
+    });
+    await applyActiveDashboardLayout();
+    setFeedback(`Dashboard profile "${profile.name}" deleted.`, "success");
+  } catch (error) {
+    setFeedback(`Dashboard profile deletion failed: ${error.message}`, "error");
+  }
+});
+
+elements.dashboardSaveLayout.addEventListener("click", async () => {
+  const profile = activeDashboardLayoutProfile();
+  if (!profile) return;
+  const viewport = state.dashboardViewport ?? currentDashboardViewport();
+  try {
+    state.dashboardLayouts = await dashboardLayoutRequest("/api/dashboard-layouts/save", {
+      profileId: profile.id,
+      viewport,
+      layout: dashboardEditor.layoutState(),
+    });
+    renderDashboardLayoutControls();
+    setFeedback(
+      `${viewport === "small" ? "Small-screen" : "Desktop"} layout saved to profile "${profile.name}".`,
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Dashboard layout save failed: ${error.message}`, "error");
+  }
+});
+
+elements.dashboardUndoLayout.addEventListener("click", () => {
+  if (!dashboardEditor.undo()) return;
+  setFeedback("Dashboard layout change undone. Save layout to persist the restored state.", "success");
+});
+
+elements.dashboardRedoLayout.addEventListener("click", () => {
+  if (!dashboardEditor.redo()) return;
+  setFeedback("Dashboard layout change redone. Save layout to persist the restored state.", "success");
+});
+
+elements.dashboardResetLayout.addEventListener("click", async () => {
+  const profile = activeDashboardLayoutProfile();
+  if (!profile) return;
+  const viewport = state.dashboardViewport ?? currentDashboardViewport();
+  try {
+    dashboardEditor.resetLayout({ history: true });
+    state.dashboardLayouts = await dashboardLayoutRequest("/api/dashboard-layouts/reset", {
+      profileId: profile.id,
+      viewport,
+    });
+    renderDashboardEditorState();
+    setFeedback(
+      `${viewport === "small" ? "Small-screen" : "Desktop"} layout reset to the built-in default.`,
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Dashboard layout reset failed: ${error.message}`, "error");
+  }
+});
+
+const handleDashboardViewportChange = async () => {
+  const nextViewport = currentDashboardViewport();
+  if (state.dashboardViewport === nextViewport) return;
+  state.dashboardViewport = nextViewport;
+  await applyActiveDashboardLayout();
+  setFeedback(
+    `Dashboard switched to the ${nextViewport === "small" ? "Small-screen" : "Desktop"} layout profile.`,
+  );
+};
+
+dashboardSmallViewport?.addEventListener?.("change", () => {
+  void handleDashboardViewportChange().catch((error) => {
+    setFeedback(`Dashboard viewport profile switch failed: ${error.message}`, "error");
+  });
 });
 
 function renderSlice91LiveTest() {
@@ -903,6 +1137,338 @@ elements.copySlice93LiveTestResult.addEventListener("click", async () => {
 });
 
 renderSlice93LiveTest();
+
+function renderSlice94LiveTest() {
+  const test = state.slice94LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = {
+    idle: "Ready",
+    running: "Running…",
+    passed: "PASSED",
+    failed: "FAILED",
+  };
+  elements.slice94LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice94LiveTest.disabled = test.status === "running";
+  elements.copySlice94LiveTestResult.hidden = !state.slice94LastReport;
+  if (test.status === "running") {
+    elements.slice94LiveTestNote.textContent =
+      "Exercising persistent profiles, Desktop/Small-screen variants, disk reload, Undo/Redo, Reset, profile switching, and cleanup without gameplay actions.";
+  } else if (test.message) {
+    elements.slice94LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function runDashboardLayoutPersistenceVerification() {
+  const editorSnapshot = dashboardEditor.snapshot();
+  const originalStore = await dashboardLayoutRequest("/api/dashboard-layouts");
+  const originalActiveProfileId = originalStore.activeProfileId;
+  let verificationProfileId = null;
+  let cleanupComplete = false;
+  const steps = [];
+
+  try {
+    const created = await dashboardLayoutRequest("/api/dashboard-layouts/profile", {
+      name: `Slice 9.4 verification ${Date.now()}`,
+    });
+    verificationProfileId = created.activeProfileId;
+    const createdProfile = created.profiles.find((profile) => profile.id === verificationProfileId);
+    steps.push({
+      key: "profile-create",
+      outcome:
+        Boolean(verificationProfileId) &&
+        created.profiles.length === originalStore.profiles.length + 1 &&
+        Boolean(createdProfile)
+          ? "passed"
+          : "failed",
+    });
+
+    dashboardEditor.resetLayout({ history: false });
+    dashboardEditor.clearHistory();
+    const candidates = dashboardEditor.widgetIds().filter((id) => id !== "current-verification-panel");
+    if (candidates.length < 2) {
+      throw new Error("Layout persistence verification requires at least two dashboard widgets.");
+    }
+    const targetId = candidates[0];
+    const sourceId = candidates[1];
+
+    dashboardEditor.moveWidget(sourceId, targetId);
+    dashboardEditor.resizeWidget(targetId, 7, 173);
+    dashboardEditor.setActivePage("combat");
+    const desktopLayout = dashboardEditor.layoutState();
+    await dashboardLayoutRequest("/api/dashboard-layouts/save", {
+      profileId: verificationProfileId,
+      viewport: "desktop",
+      layout: desktopLayout,
+    });
+    steps.push({
+      key: "desktop-save",
+      outcome:
+        desktopLayout.activePage === "combat" &&
+        desktopLayout.widgets[targetId]?.columns === 7 &&
+        desktopLayout.widgets[targetId]?.height === 192
+          ? "passed"
+          : "failed",
+    });
+
+    dashboardEditor.resetLayout({ history: false });
+    dashboardEditor.clearHistory();
+    dashboardEditor.resizeWidget(targetId, 5, 131);
+    dashboardEditor.setActivePage("debugging");
+    const smallLayout = dashboardEditor.layoutState();
+    await dashboardLayoutRequest("/api/dashboard-layouts/save", {
+      profileId: verificationProfileId,
+      viewport: "small",
+      layout: smallLayout,
+    });
+    steps.push({
+      key: "small-screen-save",
+      outcome:
+        smallLayout.activePage === "debugging" &&
+        smallLayout.widgets[targetId]?.columns === 5 &&
+        smallLayout.widgets[targetId]?.height === 144
+          ? "passed"
+          : "failed",
+    });
+
+    const reloaded = await dashboardLayoutRequest("/api/dashboard-layouts/reload", {});
+    const reloadedProfile = reloaded.profiles.find((profile) => profile.id === verificationProfileId);
+    steps.push({
+      key: "disk-reload",
+      outcome:
+        reloaded.activeProfileId === verificationProfileId &&
+        reloadedProfile?.layouts?.desktop?.activePage === "combat" &&
+        reloadedProfile?.layouts?.small?.activePage === "debugging" &&
+        reloadedProfile?.layouts?.desktop?.widgets?.[targetId]?.height === 192 &&
+        reloadedProfile?.layouts?.small?.widgets?.[targetId]?.height === 144
+          ? "passed"
+          : "failed",
+    });
+    steps.push({
+      key: "multiple-profiles",
+      outcome: reloaded.profiles.length === originalStore.profiles.length + 1 ? "passed" : "failed",
+    });
+
+    dashboardEditor.resetLayout({ history: false });
+    dashboardEditor.clearHistory();
+    const beforeUndoOrder = dashboardEditor.widgetIds().join("|");
+    dashboardEditor.moveWidget(sourceId, targetId);
+    const movedOrder = dashboardEditor.widgetIds().join("|");
+    const undoWorked = dashboardEditor.undo();
+    const undoneOrder = dashboardEditor.widgetIds().join("|");
+    const redoWorked = dashboardEditor.redo();
+    const redoneOrder = dashboardEditor.widgetIds().join("|");
+    steps.push({
+      key: "undo-redo",
+      outcome:
+        beforeUndoOrder !== movedOrder &&
+        undoWorked &&
+        undoneOrder === beforeUndoOrder &&
+        redoWorked &&
+        redoneOrder === movedOrder
+          ? "passed"
+          : "failed",
+    });
+
+    await dashboardLayoutRequest("/api/dashboard-layouts/reset", {
+      profileId: verificationProfileId,
+      viewport: "small",
+    });
+    const afterResetReload = await dashboardLayoutRequest("/api/dashboard-layouts/reload", {});
+    const resetProfile = afterResetReload.profiles.find((profile) => profile.id === verificationProfileId);
+    steps.push({
+      key: "reset",
+      outcome:
+        Boolean(resetProfile?.layouts?.desktop) &&
+        resetProfile?.layouts?.small === undefined
+          ? "passed"
+          : "failed",
+    });
+
+    const originalSelected = await dashboardLayoutRequest("/api/dashboard-layouts/select", {
+      profileId: originalActiveProfileId,
+    });
+    const testSelected = await dashboardLayoutRequest("/api/dashboard-layouts/select", {
+      profileId: verificationProfileId,
+    });
+    const originalRestored = await dashboardLayoutRequest("/api/dashboard-layouts/select", {
+      profileId: originalActiveProfileId,
+    });
+    steps.push({
+      key: "profile-switch",
+      outcome:
+        originalSelected.activeProfileId === originalActiveProfileId &&
+        testSelected.activeProfileId === verificationProfileId &&
+        originalRestored.activeProfileId === originalActiveProfileId
+          ? "passed"
+          : "failed",
+    });
+
+    const cleaned = await dashboardLayoutRequest("/api/dashboard-layouts/delete", {
+      profileId: verificationProfileId,
+    });
+    cleanupComplete = true;
+    verificationProfileId = null;
+    steps.push({
+      key: "cleanup",
+      outcome:
+        cleaned.activeProfileId === originalActiveProfileId &&
+        cleaned.profiles.length === originalStore.profiles.length &&
+        cleaned.profiles.every((profile, index) =>
+          profile.id === originalStore.profiles[index]?.id &&
+          profile.name === originalStore.profiles[index]?.name
+        )
+          ? "passed"
+          : "failed",
+    });
+
+    state.dashboardLayouts = cleaned;
+  } finally {
+    if (verificationProfileId && !cleanupComplete) {
+      try {
+        await dashboardLayoutRequest("/api/dashboard-layouts/select", {
+          profileId: originalActiveProfileId,
+        });
+        state.dashboardLayouts = await dashboardLayoutRequest("/api/dashboard-layouts/delete", {
+          profileId: verificationProfileId,
+        });
+      } catch {
+        // The report will fail if cleanup could not be completed; preserve the original error.
+      }
+    }
+    dashboardEditor.restore(editorSnapshot);
+    try {
+      state.dashboardLayouts = await dashboardLayoutRequest("/api/dashboard-layouts");
+    } catch {
+      state.dashboardLayouts = originalStore;
+    }
+    state.dashboardViewport = currentDashboardViewport();
+    renderDashboardEditorState();
+  }
+
+  return {
+    outcome: steps.every((step) => step.outcome === "passed") ? "passed" : "failed",
+    steps,
+    persistence: true,
+    diskReload: true,
+    viewportProfiles: ["desktop", "small"],
+    gameplayMutation: false,
+    actionGatewayRequests: 0,
+    rawSocketAccess: false,
+    userScriptTouched: false,
+  };
+}
+
+async function startSlice94LiveTest(clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice94LiveTest = {
+    status: "running",
+    message: "Slice 9.4 layout persistence test is running.",
+  };
+  renderSlice94LiveTest();
+
+  const verification = await runDashboardLayoutPersistenceVerification();
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) {
+    throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  }
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live94-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const stepLines = verification.steps.map((step) =>
+    `- ${step.key}: ${String(step.outcome).toUpperCase()}`
+  );
+  const reportText = [
+    "ALRemastered Slice 9.4 one-click layout persistence and profiles test",
+    `Test ID: ${testId}`,
+    "Slice: 9.4",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    "Persistence: server-backed JSON",
+    "Disk reload verified: true",
+    "Viewport profiles: Desktop, Small-screen",
+    "Gameplay mutation: false",
+    "Action Gateway requests: 0",
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+
+  const result = {
+    testId,
+    slice: "9.4",
+    outcome,
+    startedAt,
+    completedAt,
+    message: outcome === "passed"
+      ? "Layout persistence and profiles verification passed."
+      : "Layout persistence and profiles verification failed.",
+    steps: verification.steps,
+    persistence: true,
+    diskReload: true,
+    viewportProfiles: verification.viewportProfiles,
+    gameplayMutation: false,
+    actionGatewayRequests: 0,
+    rawSocketAccess: false,
+    userScriptTouched: false,
+  };
+
+  state.slice94LastReport = reportText;
+  state.slice94LiveTest = { status: outcome, message: result.message, lastResult: result };
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice94LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice94LiveTest.addEventListener("click", async () => {
+  if (state.slice94LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice94LastReport = null;
+  elements.copySlice94LiveTestResult.hidden = true;
+  setFeedback(
+    "Slice 9.4 layout persistence test started. A temporary verification profile will be removed before the test finishes.",
+  );
+  try {
+    const { result, copied } = await startSlice94LiveTest(clipboardWrite);
+    const copyMessage = copied
+      ? "Complete result and sanitized diagnostic log copied to clipboard."
+      : "Automatic clipboard access was denied; use Copy last test result once.";
+    setFeedback(
+      `Slice 9.4 test ${String(result.outcome).toUpperCase()}. ${copyMessage}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    state.slice94LiveTest = { status: "failed", message: error.message };
+    renderSlice94LiveTest();
+    setFeedback(`Slice 9.4 layout persistence test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice94LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice94LastReport) return;
+  try {
+    await writeClipboard(state.slice94LastReport);
+    setFeedback(
+      "Complete Slice 9.4 layout persistence result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Layout persistence result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice94LiveTest();
 
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));

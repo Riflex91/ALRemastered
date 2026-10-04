@@ -22,6 +22,7 @@ import type { CharacterCardsService } from "./character-cards.ts";
 import type { SetupWizardService, SetupWizardStartInput } from "./setup-wizard.ts";
 import type { TemplateConfigurationService } from "./template-config.ts";
 import type { ExplainabilityService } from "./explainability.ts";
+import type { DashboardLayoutStore } from "./layout-store.ts";
 import type { CoreRuntime, HealthSnapshot } from "../core/app.ts";
 import type { DiagnosticsService } from "../diagnostics/service.ts";
 import type { AdventureLandGameDataService } from "../game/data-service.ts";
@@ -74,6 +75,7 @@ export interface DashboardServerOptions {
   readonly setupWizardService?: SetupWizardService;
   readonly templateConfigurationService?: TemplateConfigurationService;
   readonly explainabilityService?: ExplainabilityService;
+  readonly dashboardLayoutStore?: DashboardLayoutStore;
   readonly actionGateway?: ActionGateway;
   readonly movementService?: AdventureLandMovementService;
   readonly attackService?: AdventureLandAttackService;
@@ -130,6 +132,7 @@ export class DashboardServer {
   readonly #setupWizardService?: SetupWizardService;
   readonly #templateConfigurationService?: TemplateConfigurationService;
   readonly #explainabilityService?: ExplainabilityService;
+  readonly #dashboardLayoutStore?: DashboardLayoutStore;
   readonly #actionGateway?: ActionGateway;
   readonly #movementService?: AdventureLandMovementService;
   readonly #attackService?: AdventureLandAttackService;
@@ -189,6 +192,7 @@ export class DashboardServer {
     this.#setupWizardService = options.setupWizardService;
     this.#templateConfigurationService = options.templateConfigurationService;
     this.#explainabilityService = options.explainabilityService;
+    this.#dashboardLayoutStore = options.dashboardLayoutStore;
     this.#actionGateway = options.actionGateway;
     this.#movementService = options.movementService;
     this.#attackService = options.attackService;
@@ -287,6 +291,124 @@ export class DashboardServer {
     const pathWithQuery = request.url ?? "/";
     const method = request.method ?? "GET";
     const path = pathWithQuery.split("?", 1)[0];
+
+    if (method === "GET" && path === "/api/dashboard-layouts") {
+      if (!this.#dashboardLayoutStore) {
+        return this.#json(response, { status: "unavailable" }, 503);
+      }
+      return this.#json(response, this.#dashboardLayoutStore.state());
+    }
+    if (method === "POST" && path === "/api/dashboard-layouts/reload") {
+      if (!this.#dashboardLayoutStore) {
+        return this.#json(response, { error: "Dashboard layout store is unavailable." }, 503);
+      }
+      return this.#runDashboardLayoutAction(
+        response,
+        () => this.#dashboardLayoutStore!.reload(),
+      );
+    }
+    if (method === "POST" && path === "/api/dashboard-layouts/profile") {
+      if (!this.#dashboardLayoutStore) {
+        return this.#json(response, { error: "Dashboard layout store is unavailable." }, 503);
+      }
+      let body: Record<string, unknown>;
+      try {
+        body = await this.#readJsonObject(request);
+      } catch (error) {
+        return this.#json(response, {
+          error: error instanceof Error ? error.message : "Invalid request body.",
+        }, 400);
+      }
+      const name = typeof body.name === "string" ? body.name : "";
+      return this.#runDashboardLayoutAction(
+        response,
+        () => this.#dashboardLayoutStore!.createProfile(name),
+      );
+    }
+    if (method === "POST" && path === "/api/dashboard-layouts/select") {
+      if (!this.#dashboardLayoutStore) {
+        return this.#json(response, { error: "Dashboard layout store is unavailable." }, 503);
+      }
+      let body: Record<string, unknown>;
+      try {
+        body = await this.#readJsonObject(request);
+      } catch (error) {
+        return this.#json(response, {
+          error: error instanceof Error ? error.message : "Invalid request body.",
+        }, 400);
+      }
+      const profileId = typeof body.profileId === "string" ? body.profileId : "";
+      return this.#runDashboardLayoutAction(
+        response,
+        () => this.#dashboardLayoutStore!.selectProfile(profileId),
+      );
+    }
+    if (method === "POST" && path === "/api/dashboard-layouts/delete") {
+      if (!this.#dashboardLayoutStore) {
+        return this.#json(response, { error: "Dashboard layout store is unavailable." }, 503);
+      }
+      let body: Record<string, unknown>;
+      try {
+        body = await this.#readJsonObject(request);
+      } catch (error) {
+        return this.#json(response, {
+          error: error instanceof Error ? error.message : "Invalid request body.",
+        }, 400);
+      }
+      const profileId = typeof body.profileId === "string" ? body.profileId : "";
+      return this.#runDashboardLayoutAction(
+        response,
+        () => this.#dashboardLayoutStore!.deleteProfile(profileId),
+      );
+    }
+    if (method === "POST" && path === "/api/dashboard-layouts/save") {
+      if (!this.#dashboardLayoutStore) {
+        return this.#json(response, { error: "Dashboard layout store is unavailable." }, 503);
+      }
+      let body: Record<string, unknown>;
+      try {
+        body = await this.#readJsonObject(request);
+      } catch (error) {
+        return this.#json(response, {
+          error: error instanceof Error ? error.message : "Invalid request body.",
+        }, 400);
+      }
+      const profileId = typeof body.profileId === "string" ? body.profileId : "";
+      const viewport = body.viewport === "desktop" || body.viewport === "small"
+        ? body.viewport
+        : "";
+      if (!viewport) {
+        return this.#json(response, { error: "Dashboard viewport must be desktop or small." }, 400);
+      }
+      return this.#runDashboardLayoutAction(
+        response,
+        () => this.#dashboardLayoutStore!.saveLayout(profileId, viewport, body.layout),
+      );
+    }
+    if (method === "POST" && path === "/api/dashboard-layouts/reset") {
+      if (!this.#dashboardLayoutStore) {
+        return this.#json(response, { error: "Dashboard layout store is unavailable." }, 503);
+      }
+      let body: Record<string, unknown>;
+      try {
+        body = await this.#readJsonObject(request);
+      } catch (error) {
+        return this.#json(response, {
+          error: error instanceof Error ? error.message : "Invalid request body.",
+        }, 400);
+      }
+      const profileId = typeof body.profileId === "string" ? body.profileId : "";
+      const viewport = body.viewport === "desktop" || body.viewport === "small"
+        ? body.viewport
+        : "";
+      if (!viewport) {
+        return this.#json(response, { error: "Dashboard viewport must be desktop or small." }, 400);
+      }
+      return this.#runDashboardLayoutAction(
+        response,
+        () => this.#dashboardLayoutStore!.resetLayout(profileId, viewport),
+      );
+    }
 
     if (method === "GET" && path === "/api/account") {
       if (!this.#accountService) return this.#json(response, { status: "unavailable" }, 503);
@@ -1960,6 +2082,18 @@ export class DashboardServer {
       "Referrer-Policy": "no-referrer",
     });
     createReadStream(filePath).pipe(response);
+  }
+
+  async #runDashboardLayoutAction(
+    response: ServerResponse,
+    action: () => unknown | Promise<unknown>,
+  ): Promise<void> {
+    try {
+      this.#json(response, await action());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.#json(response, { error: message }, 400);
+    }
   }
 
   async #runSelectionAction(response: ServerResponse, action: () => unknown | Promise<unknown>): Promise<void> {
