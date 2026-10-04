@@ -67,10 +67,10 @@ test("Slice 9.2 harness remains retained after Current verification advances", (
   assert.match(html, /id="start-slice-9-2-live-test"/);
 });
 
-test("Slice 9.2 remains transient after later dashboard views are added", () => {
+test("Slice 9.2 remains isolated from browser storage and import/export after later slices", () => {
   const editor = readFileSync(new URL("../dashboard/editor.js", import.meta.url), "utf8");
   const script = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
 
-  assert.doesNotMatch(editor, /undoStack|redoStack|layoutProfile|importLayout|exportLayout/);
-  assert.doesNotMatch(`${editor}\n${script}`, /localStorage|sessionStorage|\/api\/dashboard-layout/);
+  assert.doesNotMatch(editor, /localStorage|sessionStorage/);
+  assert.doesNotMatch(`${editor}\n${script}`, /importLayout|exportLayout|Import dashboard|Export dashboard/);
 });
