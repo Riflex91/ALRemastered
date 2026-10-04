@@ -2498,3 +2498,88 @@ Repository/release gate evidence:
 Result: the real Windows alpha.53 run proves that ALRemastered can keep the existing primary Character session alive while adding a second isolated managed Character session, share static game data across sessions, enforce duplicate/Character-limit guards, isolate lifecycle cleanup, and return to the original single-session state without gameplay mutation, raw socket bypass, or user Script interruption. **Slice 7.1 is VERIFIED.**
 
 Slice 7.2 – Local Character Messaging may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
+
+
+---
+
+## Append-only verification record — Slice 7.2 Local Character Messaging — 2026-10-04
+
+**Canonical status update: Slice 7.2 = VERIFIED.**
+
+Release/live environment:
+
+- verified release: `v0.1.0-alpha.54`
+- tested implementation main / release target: `6c8fc1d548341413695ff5facd597c588c863afd`
+- Windows client: `0.1.0-alpha.54`
+- platform: `win32`
+- one-click test ID: `live72-992e8382-2e17-4987-885b-b9ea8cb7f77a`
+- primary Character: `My_Merchant`
+- managed test Character: `My_Ranger1`
+- server: EU II / `SR_EUII`
+- outcome: `passed`
+- test window: `2026-10-04T00:00:33.309Z → 2026-10-04T00:00:33.696Z`
+- diagnostic export: 61 log lines, `Secrets sanitized: yes`.
+
+Local messaging evidence:
+
+- preflight began with one active primary Character session and three free managed-session slots;
+- messaging service reported `localOnly:true` and `rawSocketAccess:false`;
+- the test started exactly one temporary managed Character, `My_Ranger1`, producing two concurrent active Character sessions;
+- the primary isolated probe worker called `send_cm()` with `My_Ranger1` plus one intentionally missing recipient;
+- the primary-to-managed message was delivered locally as sequence `1`;
+- compatible `send_cm()` result was exactly `receivers:["My_Ranger1"]`, `locals:["My_Ranger1"]`;
+- the unavailable local recipient was omitted from those arrays and counted exactly once in telemetry;
+- the managed Character sent one local reply back to `My_Merchant` as sequence `2`;
+- the reply was dispatched into the primary worker as Adventure Land event `cm`;
+- the worker received it through compatible `character.on("cm")` payload shape `{name, message}`;
+- no global/server CM route was used.
+
+Worker/runtime evidence:
+
+- the messaging probe ran in a separate isolated `slice72-local-cm-probe` worker;
+- the existing user Script runtime was never replaced or interrupted;
+- user Script runtime stayed `unloaded → unloaded`;
+- the probe worker logged the successful `send_cm()` result;
+- runtime diagnostics logged event dispatch with `eventName:"cm"`;
+- the probe logged the matching receive marker from `character.on("cm")`;
+- the isolated probe then stopped cleanly with zero active timers.
+
+Messaging telemetry evidence:
+
+- final `requestCount:2`;
+- final `localDeliveryCount:2`;
+- final `unavailableRecipientCount:1`;
+- final `listenerCount:0`;
+- final deltas were exactly two requests, two local deliveries, and one unavailable recipient;
+- last delivery was `My_Ranger1 → My_Merchant`;
+- messaging remained `localOnly:true`;
+- `rawSocketAccess:false`.
+
+Cleanup and safety evidence:
+
+- only the temporary managed `My_Ranger1` session was disconnected;
+- managed disconnect reason was controlled: `slice72_live_test`;
+- final session state returned to `activeSessionCount:1`, `managedSessionCount:0`, `availableSlots:3`;
+- primary `My_Merchant` remained connected;
+- `userScriptInterrupted:false`;
+- `gameplayMutation:false`;
+- `rawSocketAccess:false`;
+- `serverRoutingUsed:false`;
+- no Action Gateway bypass or hidden gameplay action was used.
+
+Repository/release gate evidence:
+
+- implementation PR #105 final feature head: `64605f34d3ddddf1c4a915534c3f387d638bc910`;
+- final implementation PR CI run `37162978790` completed with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #105 merged with method `merge` into exact implementation main `6c8fc1d548341413695ff5facd597c588c863afd`;
+- exact post-implementation-main CI run `37163145066` completed with all four required jobs successful;
+- release publish run `37163273306` completed successfully for Linux, Windows, and release;
+- release branch `release/v0.1.0-alpha.54`, tag `v0.1.0-alpha.54`, release target, and tested implementation main were verified commit-identical;
+- published assets:
+  - Windows x64 installer SHA-256 `b820dee62c979a6db12aaaf0bdda447c5ae87b263f138e25fc8bb96a84a03c97`
+  - Linux x64 installer SHA-256 `d089027ff36818198332c4db45a350c78560fbbc2e3ab91b1298e560492e31cd`
+  - updater manifest SHA-256 `30966331837085610a6c304138886b673bc343db3461559b36457d5098189761`.
+
+Result: the real Windows alpha.54 run proves fast local Character-to-Character messaging through the new in-process path, Adventure Land-compatible `send_cm()` return semantics, compatible `character.on("cm")` receive events, unavailable-target omission, complete local-only telemetry, and bounded cleanup without gameplay mutation, raw socket/server routing, or user Script interruption. **Slice 7.2 is VERIFIED.**
+
+Slice 7.3 – Party Coordinator may begin only after this append-only verification record is merged and the resulting exact post-merge `main` CI is fully green.
