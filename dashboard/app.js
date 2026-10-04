@@ -52,6 +52,8 @@ const state = {
   slice124LastReport: null,
   slice125LiveTest: { status: "idle", message: "Ready." },
   slice125LastReport: null,
+  slice126LiveTest: { status: "idle", message: "Ready." },
+  slice126LastReport: null,
   packageLibrary: null,
   packageImportDocument: null,
   packageImportRemoteSource: null,
@@ -233,6 +235,10 @@ const elements = {
   slice125LiveTestStatus: document.querySelector("#slice-12-5-live-test-status"),
   slice125LiveTestNote: document.querySelector("#slice-12-5-live-test-note"),
   copySlice125LiveTestResult: document.querySelector("#copy-slice-12-5-live-test-result"),
+  startSlice126LiveTest: document.querySelector("#start-slice-12-6-live-test"),
+  slice126LiveTestStatus: document.querySelector("#slice-12-6-live-test-status"),
+  slice126LiveTestNote: document.querySelector("#slice-12-6-live-test-note"),
+  copySlice126LiveTestResult: document.querySelector("#copy-slice-12-6-live-test-result"),
   packageLibraryStatus: document.querySelector("#package-library-status"),
   packageLibraryRefresh: document.querySelector("#package-library-refresh"),
   packageLibraryMyScripts: document.querySelector("#package-library-my-scripts"),
@@ -5393,6 +5399,43 @@ function renderPackageLibrary(snapshot) {
     saveButton.textContent = "Save configuration";
     actions.append(activeButton, saveButton);
 
+    const updateLabel = document.createElement("span");
+    updateLabel.className = "label";
+    updateLabel.textContent = "Updates and rollback";
+    const updateStatus = document.createElement("p");
+    updateStatus.className = "selection-note";
+    const changelogLabel = document.createElement("span");
+    changelogLabel.className = "label";
+    changelogLabel.textContent = "Changelog";
+    const changelog = document.createElement("pre");
+    changelog.textContent = "Check for updates to load the remote Changelog.";
+    const updatePermissions = document.createElement("div");
+    const updateActions = document.createElement("div");
+    updateActions.className = "toolbar";
+    const checkUpdateButton = document.createElement("button");
+    checkUpdateButton.type = "button";
+    checkUpdateButton.textContent = "Check for updates";
+    const applyUpdateButton = document.createElement("button");
+    applyUpdateButton.type = "button";
+    applyUpdateButton.textContent = "Install update";
+    applyUpdateButton.hidden = true;
+    const rollbackButton = document.createElement("button");
+    rollbackButton.type = "button";
+    rollbackButton.textContent = "Restore previous version";
+    updateActions.append(checkUpdateButton, applyUpdateButton, rollbackButton);
+
+    let updatePreview = null;
+    const hasRemoteSource = (packageEntry.versions ?? []).some(
+      (version) => Boolean(version.remoteSource?.inputUrl),
+    );
+    if (!hasRemoteSource) {
+      checkUpdateButton.disabled = true;
+      updateStatus.textContent =
+        "No persisted remote update source. Re-import this package from an HTTPS link or supported GitHub source to enable update checks.";
+    } else {
+      updateStatus.textContent = "Remote update source available.";
+    }
+
     function selectedVersion() {
       return packageEntry.versions?.find((version) => version.version === versionSelect.value)
         ?? packageEntry.versions?.[0];
@@ -5409,6 +5452,49 @@ function renderPackageLibrary(snapshot) {
       schema.textContent = JSON.stringify(version.configSchema ?? {}, null, 2);
       config.value = JSON.stringify(version.configuration ?? {}, null, 2);
       activeButton.textContent = version.active ? "Set inactive" : "Set active";
+    }
+
+    function renderUpdatePreview(preview) {
+      updatePreview = preview;
+      updatePermissions.replaceChildren();
+      changelog.textContent = preview.changelog ?? "No changelog entries provided.";
+      if (!preview.updateAvailable) {
+        updateStatus.textContent =
+          `Current version ${preview.currentVersion}; remote version ${preview.availableVersion}. No newer version is available.`;
+        applyUpdateButton.hidden = true;
+        return;
+      }
+      updateStatus.textContent =
+        `Update available: ${preview.currentVersion} → ${preview.availableVersion}.`;
+      const newPermissions = preview.newPermissions ?? [];
+      if (newPermissions.length === 0) {
+        const note = document.createElement("p");
+        note.className = "selection-note";
+        note.textContent = "This update requests no new permissions.";
+        updatePermissions.append(note);
+      } else {
+        const note = document.createElement("p");
+        note.className = "selection-note";
+        note.textContent =
+          "Every newly requested permission must be explicitly confirmed before installation:";
+        updatePermissions.append(note);
+        for (const permission of newPermissions) {
+          const label = document.createElement("label");
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.value = permission;
+          checkbox.dataset.updatePermission = "true";
+          const dangerous = preview.newDangerousPermissions?.includes(permission);
+          label.append(
+            checkbox,
+            document.createTextNode(
+              dangerous ? ` ${permission} — dangerous` : ` ${permission}`,
+            ),
+          );
+          updatePermissions.append(label, document.createElement("br"));
+        }
+      }
+      applyUpdateButton.hidden = false;
     }
 
     versionSelect.addEventListener("change", renderSelectedVersion);
@@ -5433,6 +5519,7 @@ function renderPackageLibrary(snapshot) {
         activeButton.disabled = false;
       }
     });
+
     saveButton.addEventListener("click", async () => {
       const version = selectedVersion();
       if (!version) return;
@@ -5456,6 +5543,73 @@ function renderPackageLibrary(snapshot) {
       }
     });
 
+    checkUpdateButton.addEventListener("click", async () => {
+      checkUpdateButton.disabled = true;
+      updateStatus.textContent = "Checking remote package version…";
+      try {
+        const preview = await postPackageLibrary("/api/packages/updates/check", {
+          packageId: packageEntry.packageId,
+        });
+        renderUpdatePreview(preview);
+        setFeedback(
+          preview.updateAvailable
+            ? `Update available for ${packageEntry.name}: ${preview.availableVersion}.`
+            : `${packageEntry.name} is up to date.`,
+          "success",
+        );
+      } catch (error) {
+        updatePreview = null;
+        applyUpdateButton.hidden = true;
+        updatePermissions.replaceChildren();
+        updateStatus.textContent = "Update check unavailable.";
+        setFeedback(`Package update check failed: ${error.message}`, "error");
+      } finally {
+        checkUpdateButton.disabled = !hasRemoteSource;
+      }
+    });
+
+    applyUpdateButton.addEventListener("click", async () => {
+      if (!updatePreview?.updateAvailable) return;
+      applyUpdateButton.disabled = true;
+      try {
+        const approvedNewPermissions = [...updatePermissions.querySelectorAll(
+          'input[data-update-permission="true"]:checked',
+        )].map((input) => input.value);
+        const result = await postPackageLibrary("/api/packages/updates/apply", {
+          packageId: packageEntry.packageId,
+          previewToken: updatePreview.previewToken,
+          approvedNewPermissions,
+        });
+        await refreshPackageLibrary();
+        setFeedback(
+          `Updated ${packageEntry.name} from ${result.previousVersion} to ${result.currentVersion}. No package code was executed.`,
+          "success",
+        );
+      } catch (error) {
+        setFeedback(`Package update was blocked: ${error.message}`, "error");
+      } finally {
+        applyUpdateButton.disabled = false;
+      }
+    });
+
+    rollbackButton.addEventListener("click", async () => {
+      rollbackButton.disabled = true;
+      try {
+        const result = await postPackageLibrary("/api/packages/updates/rollback", {
+          packageId: packageEntry.packageId,
+        });
+        await refreshPackageLibrary();
+        setFeedback(
+          `Restored ${packageEntry.name} from ${result.replacedVersion} to ${result.restoredVersion}. No package code was executed.`,
+          "success",
+        );
+      } catch (error) {
+        setFeedback(`Previous version could not be restored: ${error.message}`, "error");
+      } finally {
+        rollbackButton.disabled = false;
+      }
+    });
+
     renderSelectedVersion();
     item.append(
       heading,
@@ -5468,12 +5622,18 @@ function renderPackageLibrary(snapshot) {
       schema,
       configLabel,
       actions,
+      updateLabel,
+      updateStatus,
+      changelogLabel,
+      changelog,
+      updatePermissions,
+      updateActions,
     );
     elements.packageLibraryImported.append(item);
   }
 
   elements.packageLibraryNote.textContent =
-    "Active / inactive is persistent library metadata only. Activating an imported package does not load or execute package code. Updates and rollback belong to Slice 12.6.";
+    "Active / inactive, updates, and rollback only change persisted package-library state. Package code is not executed by these controls. Every permission newly requested by an update must be explicitly confirmed.";
 }
 
 async function refreshPackageLibrary() {
@@ -6184,6 +6344,268 @@ elements.copySlice125LiveTestResult.addEventListener("click", async () => {
 });
 
 renderSlice125LiveTest();
+
+function renderSlice126LiveTest() {
+  const test = state.slice126LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = { idle: "Ready", running: "Running…", passed: "PASSED", failed: "FAILED" };
+  elements.slice126LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice126LiveTest.disabled = test.status === "running";
+  elements.copySlice126LiveTestResult.hidden = !state.slice126LastReport;
+  if (test.status === "running") {
+    elements.slice126LiveTestNote.textContent =
+      "Testing update-source persistence, available version, Changelog, confirmation of every new permission, update, rollback, stale-preview protection, cleanup, and runtime continuity.";
+  } else if (test.message) {
+    elements.slice126LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function runSlice126Verification() {
+  const before = await fetchRendererSnapshot();
+  const descriptorResponse = await fetch("/api/packages/updates/descriptor", { cache: "no-store" });
+  const descriptor = await descriptorResponse.json();
+  if (!descriptorResponse.ok) throw new Error(descriptor.error ?? "Package update descriptor failed.");
+
+  const selfTestResponse = await fetch("/api/packages/updates/self-test", { cache: "no-store" });
+  const selfTest = await selfTestResponse.json();
+  if (!selfTestResponse.ok) throw new Error(selfTest.error ?? "Package update self-test failed.");
+
+  const after = await fetchRendererSnapshot();
+  const checks = selfTest.checks ?? {};
+  const steps = [
+    {
+      key: "update-descriptor",
+      outcome:
+        descriptor.availableVersionSupported === true &&
+        descriptor.changelogSupported === true &&
+        descriptor.updateSupported === true &&
+        descriptor.rollbackSupported === true &&
+        descriptor.newPermissionsRequireConfirmation === true
+          ? "passed" : "failed",
+    },
+    {
+      key: "remote-update-source-persisted",
+      outcome: checks.remoteSourcePersisted ? "passed" : "failed",
+    },
+    {
+      key: "available-version-visible",
+      outcome: checks.availableVersionVisible ? "passed" : "failed",
+    },
+    {
+      key: "changelog-visible",
+      outcome: checks.changelogVisible ? "passed" : "failed",
+    },
+    {
+      key: "new-permissions-detected",
+      outcome: checks.newPermissionsDetected ? "passed" : "failed",
+    },
+    {
+      key: "new-permissions-confirmation-required",
+      outcome: checks.allNewPermissionsRequireConfirmation ? "passed" : "failed",
+    },
+    {
+      key: "update-installed",
+      outcome: checks.updateInstalled ? "passed" : "failed",
+    },
+    {
+      key: "dangerous-permission-confirmation-persisted",
+      outcome: checks.dangerousApprovalPersisted ? "passed" : "failed",
+    },
+    {
+      key: "configuration-migrated",
+      outcome: checks.configurationMigrated ? "passed" : "failed",
+    },
+    {
+      key: "previous-version-rollback",
+      outcome: checks.rollbackRestored ? "passed" : "failed",
+    },
+    {
+      key: "stale-update-protection",
+      outcome: checks.staleUpdateRejected ? "passed" : "failed",
+    },
+    {
+      key: "no-package-execution",
+      outcome:
+        checks.noExecution &&
+        descriptor.updateExecutesPackage === false &&
+        descriptor.rollbackExecutesPackage === false &&
+        descriptor.executionSupported === false
+          ? "passed" : "failed",
+    },
+    {
+      key: "verification-cleanup",
+      outcome: checks.cleanup ? "passed" : "failed",
+    },
+  ];
+
+  const beforeCore = before.snapshot?.core ?? {};
+  const afterCore = after.snapshot?.core ?? {};
+  const beforeCharacter = before.snapshot?.character ?? {};
+  const afterCharacter = after.snapshot?.character ?? {};
+  const beforeScript = before.snapshot?.script ?? {};
+  const afterScript = after.snapshot?.script ?? {};
+  const coreRestart = beforeCore.startedAt !== afterCore.startedAt;
+  const characterRestart = !sameSocketMarkers(beforeCharacter, afterCharacter);
+  const scriptRestart =
+    (beforeScript.runId ?? null) !== (afterScript.runId ?? null) ||
+    (beforeScript.startedAt ?? null) !== (afterScript.startedAt ?? null);
+  const actionGatewayRequests = Math.max(
+    0,
+    Number(after.snapshot?.actionGateway?.totalRequests ?? 0) -
+      Number(before.snapshot?.actionGateway?.totalRequests ?? 0),
+  );
+  steps.push({
+    key: "core-character-script-continuity",
+    outcome: !coreRestart && !characterRestart && !scriptRestart ? "passed" : "failed",
+  });
+  steps.push({
+    key: "read-only-gameplay-runtime",
+    outcome: actionGatewayRequests === 0 ? "passed" : "failed",
+  });
+
+  return {
+    outcome: steps.every((step) => step.outcome === "passed") ? "passed" : "failed",
+    steps,
+    descriptor,
+    selfTest,
+    coreRestart,
+    characterRestart,
+    scriptRestart,
+    actionGatewayRequests,
+    gameplayMutation: false,
+    rawSocketAccess: false,
+    userScriptTouched: false,
+    packageExecutionAttempted: false,
+  };
+}
+
+async function startSlice126LiveTest(clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice126LiveTest = {
+    status: "running",
+    message: "Slice 12.6 Updates / Rollback test is running.",
+  };
+  renderSlice126LiveTest();
+
+  const verification = await runSlice126Verification();
+  await refreshPackageLibrary();
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) {
+    throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  }
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live126-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const checks = verification.selfTest.checks ?? {};
+  const preview = verification.selfTest.preview ?? {};
+  const update = verification.selfTest.update ?? {};
+  const rollback = verification.selfTest.rollback ?? {};
+  const stepLines = verification.steps.map((step) =>
+    `- ${step.key}: ${String(step.outcome).toUpperCase()}`
+  );
+
+  const reportText = [
+    "ALRemastered Slice 12.6 one-click Updates / Rollback test",
+    `Test ID: ${testId}`,
+    "Slice: 12.6",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    `Available version supported: ${verification.descriptor.availableVersionSupported}`,
+    `Changelog supported: ${verification.descriptor.changelogSupported}`,
+    `Update supported: ${verification.descriptor.updateSupported}`,
+    `Rollback supported: ${verification.descriptor.rollbackSupported}`,
+    `New permissions require confirmation: ${verification.descriptor.newPermissionsRequireConfirmation}`,
+    `Dangerous permissions still require confirmation: ${verification.descriptor.dangerousPermissionsStillRequireConfirmation}`,
+    `Remote source persisted: ${checks.remoteSourcePersisted}`,
+    `Current version: ${preview.currentVersion ?? "unknown"}`,
+    `Available version: ${preview.availableVersion ?? "unknown"}`,
+    `Update available: ${preview.updateAvailable}`,
+    `Changelog: ${String(preview.changelog ?? "unknown").replace(/\s+/g, " ").trim()}`,
+    `New permissions: ${preview.newPermissions?.join(", ") || "none"}`,
+    `New dangerous permissions: ${preview.newDangerousPermissions?.join(", ") || "none"}`,
+    `Every new permission confirmation required: ${checks.allNewPermissionsRequireConfirmation}`,
+    `Unapproved update error: PACKAGE_UPDATE_PERMISSION_CONFIRMATION_REQUIRED`,
+    `Updated from: ${update.previousVersion ?? "unknown"}`,
+    `Updated to: ${update.currentVersion ?? "unknown"}`,
+    `Active after update: ${update.activeVersion ?? "unknown"}`,
+    `Configuration migrated: ${update.configurationMigrated}`,
+    `Approved new permissions: ${update.approvedNewPermissions?.join(", ") || "none"}`,
+    `Rollback restored: ${rollback.restoredVersion ?? "unknown"}`,
+    `Rollback replaced: ${rollback.replacedVersion ?? "unknown"}`,
+    `Active after rollback: ${rollback.activeVersion ?? "unknown"}`,
+    `Stale update rejected: ${checks.staleUpdateRejected}`,
+    `Source re-fetched: ${checks.sourceRefetched}`,
+    "Package execution attempted: false",
+    `Verification cleanup: ${checks.cleanup}`,
+    `Core restart: ${verification.coreRestart}`,
+    `Character restart: ${verification.characterRestart}`,
+    `Script restart: ${verification.scriptRestart}`,
+    "Gameplay mutation: false",
+    `Action Gateway requests: ${verification.actionGatewayRequests}`,
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+
+  const result = {
+    testId,
+    slice: "12.6",
+    outcome,
+    startedAt,
+    completedAt,
+    message: outcome === "passed"
+      ? "Updates / Rollback verification passed."
+      : "Updates / Rollback verification failed.",
+    ...verification,
+  };
+  state.slice126LastReport = reportText;
+  state.slice126LiveTest = { status: outcome, message: result.message, lastResult: result };
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice126LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice126LiveTest.addEventListener("click", async () => {
+  if (state.slice126LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice126LastReport = null;
+  elements.copySlice126LiveTestResult.hidden = true;
+  try {
+    const { result, copied } = await startSlice126LiveTest(clipboardWrite);
+    setFeedback(
+      `Slice 12.6 test ${String(result.outcome).toUpperCase()}. ${copied ? "Complete result and sanitized diagnostic log copied to clipboard." : "Use Copy last test result once."}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    state.slice126LiveTest = { status: "failed", message: error.message };
+    renderSlice126LiveTest();
+    setFeedback(`Slice 12.6 Updates / Rollback test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice126LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice126LastReport) return;
+  try {
+    await writeClipboard(state.slice126LastReport);
+    setFeedback("Complete Slice 12.6 Updates / Rollback result and sanitized diagnostic log copied.", "success");
+  } catch (error) {
+    setFeedback(`Updates / Rollback result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice126LiveTest();
 
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));

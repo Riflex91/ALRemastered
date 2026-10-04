@@ -32,6 +32,7 @@ import {
 } from "../packages/permissions.ts";
 import type { ScriptPackageImporter } from "../packages/importer.ts";
 import type { ScriptPackageLibrary } from "../packages/library.ts";
+import type { ScriptPackageUpdateService } from "../packages/updater.ts";
 import type { CharacterCardsService } from "./character-cards.ts";
 import type { SetupWizardService, SetupWizardStartInput } from "./setup-wizard.ts";
 import type { TemplateConfigurationService } from "./template-config.ts";
@@ -103,6 +104,7 @@ export interface DashboardServerOptions {
   readonly dashboardLayoutStore?: DashboardLayoutStore;
   readonly scriptPackageImporter?: ScriptPackageImporter;
   readonly scriptPackageLibrary?: ScriptPackageLibrary;
+  readonly scriptPackageUpdateService?: ScriptPackageUpdateService;
   readonly rendererBridge?: RendererBridge;
   readonly rendererHandoffService?: RendererHandoffService;
   readonly alhdAssetProvider?: AlhdAssetProvider;
@@ -166,6 +168,7 @@ export class DashboardServer {
   readonly #dashboardLayoutStore?: DashboardLayoutStore;
   readonly #scriptPackageImporter?: ScriptPackageImporter;
   readonly #scriptPackageLibrary?: ScriptPackageLibrary;
+  readonly #scriptPackageUpdateService?: ScriptPackageUpdateService;
   readonly #rendererBridge?: RendererBridge;
   readonly #rendererHandoffService?: RendererHandoffService;
   readonly #alhdAssetProvider?: AlhdAssetProvider;
@@ -233,6 +236,7 @@ export class DashboardServer {
     this.#dashboardLayoutStore = options.dashboardLayoutStore;
     this.#scriptPackageImporter = options.scriptPackageImporter;
     this.#scriptPackageLibrary = options.scriptPackageLibrary;
+    this.#scriptPackageUpdateService = options.scriptPackageUpdateService;
     this.#rendererBridge = options.rendererBridge;
     this.#rendererHandoffService = options.rendererHandoffService;
     this.#alhdAssetProvider = options.alhdAssetProvider;
@@ -350,6 +354,75 @@ export class DashboardServer {
     if (method === "GET" && path === "/api/packages/permissions/self-test") {
       return this.#json(response, runScriptPackagePermissionSelfTest());
     }
+    if (method === "GET" && path === "/api/packages/updates/descriptor") {
+      if (!this.#scriptPackageUpdateService) {
+        return this.#json(response, { status: "unavailable" }, 503);
+      }
+      return this.#json(response, this.#scriptPackageUpdateService.descriptor());
+    }
+    if (method === "GET" && path === "/api/packages/updates/self-test") {
+      if (!this.#scriptPackageUpdateService) {
+        return this.#json(response, { error: "Package update service is unavailable." }, 503);
+      }
+      return this.#runPackageImportAction(
+        response,
+        () => this.#scriptPackageUpdateService!.runSelfTest(),
+      );
+    }
+    if (method === "POST" && path === "/api/packages/updates/check") {
+      if (!this.#scriptPackageUpdateService) {
+        return this.#json(response, { error: "Package update service is unavailable." }, 503);
+      }
+      return this.#runPackageImportAction(response, async () => {
+        const body = await this.#readJsonObject(request);
+        if (typeof body.packageId !== "string" || !body.packageId.trim()) {
+          throw new Error("packageId is required.");
+        }
+        return this.#scriptPackageUpdateService!.check(body.packageId);
+      });
+    }
+    if (method === "POST" && path === "/api/packages/updates/apply") {
+      if (!this.#scriptPackageUpdateService) {
+        return this.#json(response, { error: "Package update service is unavailable." }, 503);
+      }
+      return this.#runPackageImportAction(response, async () => {
+        const body = await this.#readJsonObject(request);
+        if (
+          typeof body.packageId !== "string" ||
+          !body.packageId.trim() ||
+          typeof body.previewToken !== "string" ||
+          !body.previewToken
+        ) {
+          throw new Error("packageId and previewToken are required.");
+        }
+        if (
+          body.approvedNewPermissions !== undefined &&
+          (!Array.isArray(body.approvedNewPermissions) ||
+            body.approvedNewPermissions.some((value) => typeof value !== "string"))
+        ) {
+          throw new Error("approvedNewPermissions must be an array of permission strings.");
+        }
+        return this.#scriptPackageUpdateService!.applyUpdate({
+          packageId: body.packageId,
+          previewToken: body.previewToken,
+          approvedNewPermissions:
+            body.approvedNewPermissions as readonly string[] | undefined,
+        });
+      });
+    }
+    if (method === "POST" && path === "/api/packages/updates/rollback") {
+      if (!this.#scriptPackageUpdateService) {
+        return this.#json(response, { error: "Package update service is unavailable." }, 503);
+      }
+      return this.#runPackageImportAction(response, async () => {
+        const body = await this.#readJsonObject(request);
+        if (typeof body.packageId !== "string" || !body.packageId.trim()) {
+          throw new Error("packageId is required.");
+        }
+        return this.#scriptPackageUpdateService!.rollback(body.packageId);
+      });
+    }
+
     if (method === "GET" && path === "/api/packages/library") {
       if (!this.#scriptPackageLibrary) {
         return this.#json(response, { status: "unavailable" }, 503);

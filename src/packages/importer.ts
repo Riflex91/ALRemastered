@@ -96,6 +96,7 @@ export interface ScriptPackageImportReceipt {
   readonly inactive: true;
   readonly executionAttempted: false;
   readonly gameplayMutation: false;
+  readonly remoteSource?: ScriptPackageRemoteSource;
 }
 
 interface StoredImportReceipt {
@@ -109,6 +110,7 @@ interface StoredImportReceipt {
   readonly importedAt: string;
   readonly inactive: true;
   readonly executionAttempted: false;
+  readonly remoteSource?: ScriptPackageRemoteSource;
 }
 
 export class ScriptPackageImportError extends Error {
@@ -214,6 +216,7 @@ export class ScriptPackageImporter {
     readonly packageDocument: unknown;
     readonly previewToken: string;
     readonly approvedDangerous?: readonly string[];
+    readonly remoteSource?: ScriptPackageRemoteSource;
   }): ScriptPackageImportReceipt {
     const preview = this.preview(input.packageDocument);
     if (input.previewToken !== preview.previewToken) {
@@ -274,6 +277,7 @@ export class ScriptPackageImporter {
       importedAt,
       inactive: true,
       executionAttempted: false,
+      ...(input.remoteSource ? { remoteSource: structuredClone(input.remoteSource) } : {}),
     });
 
     mkdirSync(packageDir, { recursive: true });
@@ -303,6 +307,7 @@ export class ScriptPackageImporter {
       inactive: true,
       executionAttempted: false,
       gameplayMutation: false,
+      ...(input.remoteSource ? { remoteSource: structuredClone(input.remoteSource) } : {}),
     });
   }
 
@@ -325,6 +330,7 @@ export class ScriptPackageImporter {
       packageDocument: loaded.document,
       previewToken: input.previewToken,
       approvedDangerous: input.approvedDangerous,
+      remoteSource: loaded.remoteSource,
     });
     this.#logger?.info("Remote script package imported inactive.", {
       sourceKind: loaded.remoteSource.kind,

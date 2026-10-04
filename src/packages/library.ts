@@ -16,7 +16,10 @@ import {
   validateScriptPackage,
   type ScriptPackageDocument,
 } from "./format.ts";
-import { ScriptPackageImporter } from "./importer.ts";
+import {
+  ScriptPackageImporter,
+  type ScriptPackageRemoteSource,
+} from "./importer.ts";
 import {
   isDangerousScriptPackagePermission,
   type ScriptPackagePermission,
@@ -47,6 +50,7 @@ export interface ScriptLibraryVersion {
   readonly configuration: Readonly<Record<string, unknown>>;
   readonly active: boolean;
   readonly executionAttempted: false;
+  readonly remoteSource?: ScriptPackageRemoteSource;
 }
 
 export interface ScriptLibraryPackage {
@@ -391,6 +395,9 @@ export class ScriptPackageLibrary {
       configuration: state.configuration,
       active: state.active,
       executionAttempted: false,
+      ...(isRemoteSource(receipt.remoteSource)
+        ? { remoteSource: Object.freeze(structuredClone(receipt.remoteSource)) }
+        : {}),
     });
   }
 
@@ -713,4 +720,11 @@ function sha256Text(value: string): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+
+function isRemoteSource(value: unknown): value is ScriptPackageRemoteSource {
+  if (!isRecord(value)) return false;
+  if (value.kind !== "link" && value.kind !== "github") return false;
+  return typeof value.inputUrl === "string" && typeof value.resolvedUrl === "string";
 }

@@ -272,13 +272,13 @@ test("Slice 12.5 dashboard API exposes library state and persistent metadata cha
   }
 });
 
-test("Slice 12.5 is current verification and defers execution, updates and rollback", () => {
+test("Slice 12.5 remains retained while Slice 12.6 owns Updates / Rollback verification", () => {
   const html = readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
   const app = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
   const server = readFileSync(new URL("../src/dashboard/server.js", import.meta.url), "utf8");
   const library = readFileSync(new URL("../src/packages/library.js", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="12\.5"/);
+  assert.match(html, /data-current-verification-slice="12\.6"/);
   assert.match(html, /id="package-library-panel"/);
   assert.match(html, /id="package-library-my-scripts"/);
   assert.match(html, /id="package-library-imported"/);
