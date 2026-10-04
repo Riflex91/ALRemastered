@@ -48,7 +48,10 @@ const state = {
   slice122LastReport: null,
   slice123LiveTest: { status: "idle", message: "Ready." },
   slice123LastReport: null,
+  slice124LiveTest: { status: "idle", message: "Ready." },
+  slice124LastReport: null,
   packageImportDocument: null,
+  packageImportRemoteSource: null,
   packageImportPreview: null,
   controlMode: null,
   dashboardLayouts: null,
@@ -219,8 +222,14 @@ const elements = {
   slice123LiveTestStatus: document.querySelector("#slice-12-3-live-test-status"),
   slice123LiveTestNote: document.querySelector("#slice-12-3-live-test-note"),
   copySlice123LiveTestResult: document.querySelector("#copy-slice-12-3-live-test-result"),
+  startSlice124LiveTest: document.querySelector("#start-slice-12-4-live-test"),
+  slice124LiveTestStatus: document.querySelector("#slice-12-4-live-test-status"),
+  slice124LiveTestNote: document.querySelector("#slice-12-4-live-test-note"),
+  copySlice124LiveTestResult: document.querySelector("#copy-slice-12-4-live-test-result"),
   packageImportFile: document.querySelector("#package-import-file"),
   packageImportPreviewButton: document.querySelector("#package-import-preview"),
+  packageImportSource: document.querySelector("#package-import-source"),
+  packageImportRemotePreviewButton: document.querySelector("#package-import-remote-preview"),
   packageImportConfirm: document.querySelector("#package-import-confirm"),
   packageImportStatus: document.querySelector("#package-import-status"),
   packageImportPreviewPanel: document.querySelector("#package-import-preview-panel"),
@@ -5173,6 +5182,7 @@ async function previewSelectedPackage() {
   }
   const preview = await postPackageImport("/api/packages/import/preview", { package: documentValue });
   state.packageImportDocument = documentValue;
+  state.packageImportRemoteSource = null;
   renderPackageImportPreview(preview);
   return preview;
 }
@@ -5184,6 +5194,7 @@ elements.packageImportPreviewButton.addEventListener("click", async () => {
     setFeedback(`Package preview ready: ${preview.name} ${preview.version}.`, "success");
   } catch (error) {
     state.packageImportDocument = null;
+    state.packageImportRemoteSource = null;
     state.packageImportPreview = null;
     elements.packageImportPreviewPanel.hidden = true;
     elements.packageImportConfirm.hidden = true;
@@ -5196,15 +5207,49 @@ elements.packageImportPreviewButton.addEventListener("click", async () => {
 
 elements.packageImportCodeFile.addEventListener("change", renderPackageImportCode);
 
+elements.packageImportRemotePreviewButton.addEventListener("click", async () => {
+  elements.packageImportRemotePreviewButton.disabled = true;
+  try {
+    const source = elements.packageImportSource.value.trim();
+    if (!source) throw new Error("Enter an HTTPS .alrpkg link or supported GitHub blob URL first.");
+    const preview = await postPackageImport("/api/packages/import/remote/preview", { source });
+    state.packageImportDocument = null;
+    state.packageImportRemoteSource = source;
+    renderPackageImportPreview(preview);
+    const sourceLabel = preview.remoteSource?.kind === "github" ? "GitHub source" : "package link";
+    elements.packageImportNote.textContent =
+      `Previewed ${sourceLabel}. Review code, configuration, and permissions. The source is fetched again when you confirm, and the package remains inactive after import.`;
+    setFeedback(`Remote package preview ready: ${preview.name} ${preview.version}.`, "success");
+  } catch (error) {
+    state.packageImportDocument = null;
+    state.packageImportRemoteSource = null;
+    state.packageImportPreview = null;
+    elements.packageImportPreviewPanel.hidden = true;
+    elements.packageImportConfirm.hidden = true;
+    elements.packageImportStatus.textContent = "Preview failed";
+    setFeedback(`Remote package preview failed: ${error.message}`, "error");
+  } finally {
+    elements.packageImportRemotePreviewButton.disabled = false;
+  }
+});
+
 elements.packageImportConfirm.addEventListener("click", async () => {
-  if (!state.packageImportDocument || !state.packageImportPreview) return;
+  if (!state.packageImportPreview) return;
+  const remote = Boolean(state.packageImportRemoteSource);
+  if (!remote && !state.packageImportDocument) return;
   elements.packageImportConfirm.disabled = true;
   try {
-    const receipt = await postPackageImport("/api/packages/import/confirm", {
-      package: state.packageImportDocument,
-      previewToken: state.packageImportPreview.previewToken,
-      approvedDangerous: approvedDangerousPermissions(),
-    });
+    const receipt = remote
+      ? await postPackageImport("/api/packages/import/remote/confirm", {
+        source: state.packageImportRemoteSource,
+        previewToken: state.packageImportPreview.previewToken,
+        approvedDangerous: approvedDangerousPermissions(),
+      })
+      : await postPackageImport("/api/packages/import/confirm", {
+        package: state.packageImportDocument,
+        previewToken: state.packageImportPreview.previewToken,
+        approvedDangerous: approvedDangerousPermissions(),
+      });
     elements.packageImportStatus.textContent = "Imported inactive";
     elements.packageImportNote.textContent =
       `${receipt.name} ${receipt.version} imported successfully and remains inactive. Package execution is not part of this flow.`;
