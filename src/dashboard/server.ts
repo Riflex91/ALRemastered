@@ -16,6 +16,7 @@ import type { AdventureLandSelectionService } from "../account/selection-service
 import type { AdventureLandCharacterService } from "../character/service.ts";
 import type { MultiCharacterSessionManager } from "../character/session-manager.ts";
 import type { LocalCharacterMessagingService } from "../character/messaging.ts";
+import type { PartyCoordinatorService } from "../party/coordinator.ts";
 import type { CoreRuntime, HealthSnapshot } from "../core/app.ts";
 import type { DiagnosticsService } from "../diagnostics/service.ts";
 import type { AdventureLandGameDataService } from "../game/data-service.ts";
@@ -37,6 +38,7 @@ import type { Slice63LiveTestService } from "../live-test/slice-6-3.ts";
 import type { Slice64LiveTestService } from "../live-test/slice-6-4.ts";
 import type { Slice71LiveTestService } from "../live-test/slice-7-1.ts";
 import type { Slice72LiveTestService } from "../live-test/slice-7-2.ts";
+import type { Slice73LiveTestService } from "../live-test/slice-7-3.ts";
 import type { AdventureLandMapModelService } from "../navigation/map-model.ts";
 import type { MovementDebugService } from "../navigation/movement-debug.ts";
 import type { SimplePathPlannerService } from "../navigation/path-planner.ts";
@@ -56,6 +58,7 @@ export interface DashboardServerOptions {
   readonly characterService?: AdventureLandCharacterService;
   readonly multiCharacterSessionManager?: MultiCharacterSessionManager;
   readonly localCharacterMessagingService?: LocalCharacterMessagingService;
+  readonly partyCoordinatorService?: PartyCoordinatorService;
   readonly actionGateway?: ActionGateway;
   readonly movementService?: AdventureLandMovementService;
   readonly attackService?: AdventureLandAttackService;
@@ -78,6 +81,7 @@ export interface DashboardServerOptions {
   readonly slice64LiveTestService?: Slice64LiveTestService;
   readonly slice71LiveTestService?: Slice71LiveTestService;
   readonly slice72LiveTestService?: Slice72LiveTestService;
+  readonly slice73LiveTestService?: Slice73LiveTestService;
   readonly mapModelService?: AdventureLandMapModelService;
   readonly movementDebugService?: MovementDebugService;
   readonly pathPlannerService?: SimplePathPlannerService;
@@ -100,6 +104,7 @@ export class DashboardServer {
   readonly #characterService?: AdventureLandCharacterService;
   readonly #multiCharacterSessionManager?: MultiCharacterSessionManager;
   readonly #localCharacterMessagingService?: LocalCharacterMessagingService;
+  readonly #partyCoordinatorService?: PartyCoordinatorService;
   readonly #actionGateway?: ActionGateway;
   readonly #movementService?: AdventureLandMovementService;
   readonly #attackService?: AdventureLandAttackService;
@@ -122,6 +127,7 @@ export class DashboardServer {
   readonly #slice64LiveTestService?: Slice64LiveTestService;
   readonly #slice71LiveTestService?: Slice71LiveTestService;
   readonly #slice72LiveTestService?: Slice72LiveTestService;
+  readonly #slice73LiveTestService?: Slice73LiveTestService;
   readonly #mapModelService?: AdventureLandMapModelService;
   readonly #movementDebugService?: MovementDebugService;
   readonly #pathPlannerService?: SimplePathPlannerService;
@@ -147,6 +153,7 @@ export class DashboardServer {
     this.#characterService = options.characterService;
     this.#multiCharacterSessionManager = options.multiCharacterSessionManager;
     this.#localCharacterMessagingService = options.localCharacterMessagingService;
+    this.#partyCoordinatorService = options.partyCoordinatorService;
     this.#actionGateway = options.actionGateway;
     this.#movementService = options.movementService;
     this.#attackService = options.attackService;
@@ -169,6 +176,7 @@ export class DashboardServer {
     this.#slice64LiveTestService = options.slice64LiveTestService;
     this.#slice71LiveTestService = options.slice71LiveTestService;
     this.#slice72LiveTestService = options.slice72LiveTestService;
+    this.#slice73LiveTestService = options.slice73LiveTestService;
     this.#mapModelService = options.mapModelService;
     this.#movementDebugService = options.movementDebugService;
     this.#pathPlannerService = options.pathPlannerService;
@@ -391,6 +399,16 @@ export class DashboardServer {
         }, 503);
       }
       return this.#json(response, this.#localCharacterMessagingService.state());
+    }
+
+    if (method === "GET" && path === "/api/party-coordinator") {
+      if (!this.#partyCoordinatorService) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Party Coordinator is unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#partyCoordinatorService.state());
     }
 
     if (method === "GET" && path === "/api/action-gateway") {
@@ -1216,6 +1234,42 @@ export class DashboardServer {
         schemaVersion: 1,
         kind: "ALRemastered Slice 7.2 one-click local Character messaging test",
         result,
+        characterMessaging: this.#localCharacterMessagingService?.state(),
+        characterSessions: this.#multiCharacterSessionManager?.state(),
+        primaryCharacter: this.#characterService?.state(),
+        selection: this.#selectionService?.state(),
+        userScriptRuntime: this.#scriptRuntime?.state(),
+        diagnostic,
+      };
+      return this.#json(response, {
+        result,
+        reportText: JSON.stringify(report, null, 2),
+        clipboardSuggested: true,
+      });
+    }
+
+    if (method === "GET" && path === "/api/live-test/slice-7-3") {
+      if (!this.#slice73LiveTestService) {
+        return this.#json(response, {
+          status: "unavailable",
+          message: "Slice 7.3 Party Coordinator test service is unavailable.",
+        }, 503);
+      }
+      return this.#json(response, this.#slice73LiveTestService.state());
+    }
+    if (method === "POST" && path === "/api/live-test/slice-7-3/start") {
+      if (!this.#slice73LiveTestService) {
+        return this.#json(response, {
+          error: "Slice 7.3 Party Coordinator test service is unavailable.",
+        }, 503);
+      }
+      const result = await this.#slice73LiveTestService.run();
+      const diagnostic = this.#exportPayload();
+      const report = {
+        schemaVersion: 1,
+        kind: "ALRemastered Slice 7.3 one-click Party Coordinator test",
+        result,
+        partyCoordinator: this.#partyCoordinatorService?.state(),
         characterMessaging: this.#localCharacterMessagingService?.state(),
         characterSessions: this.#multiCharacterSessionManager?.state(),
         primaryCharacter: this.#characterService?.state(),

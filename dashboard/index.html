@@ -814,6 +814,51 @@
         </div>
       </div>
 
+      <div class="selection-content">
+        <div>
+          <h3>Party coordinator</h3>
+          <div class="status-grid" aria-label="Party coordinator status">
+            <article class="card">
+              <span class="label">Coordinator</span>
+              <strong id="party-coordinator-status">Waiting</strong>
+            </article>
+            <article class="card">
+              <span class="label">Local members</span>
+              <strong id="party-coordinator-members">0</strong>
+            </article>
+            <article class="card">
+              <span class="label">Shared target</span>
+              <strong id="party-coordinator-target">None</strong>
+            </article>
+            <article class="card">
+              <span class="label">Role status</span>
+              <strong id="party-coordinator-roles">Waiting</strong>
+            </article>
+          </div>
+          <label>
+            <span class="label">Coordinator members</span>
+            <textarea id="party-coordinator-list" rows="5" readonly spellcheck="false">No local Coordinator members.</textarea>
+          </label>
+          <small class="selection-note" id="party-coordinator-note">
+            Slice 7.3 provides technical coordination state only: local role assignments, one shared logical target, and Tank / Healer / DPS status. It does not execute combat or movement and does not activate Party Templates.
+          </small>
+        </div>
+      </div>
+
+      <div class="selection-content">
+        <div>
+          <h3>Slice 7.3 one-click Party Coordinator test</h3>
+          <div class="server-picker">
+            <button id="start-slice-7-3-live-test" type="button">Start Party Coordinator test</button>
+            <strong id="slice-7-3-live-test-status" aria-live="polite">Ready</strong>
+            <button id="copy-slice-7-3-live-test-result" type="button" hidden>Copy last test result</button>
+          </div>
+          <small class="selection-note" id="slice-7-3-live-test-note">
+            Requires one connected primary Character, one additional offline Character, and no running or paused user script. The test assigns local roles, sets and clears one logical shared target, verifies role changes and managed-member removal, then restores the pre-test Coordinator configuration. It performs no gameplay mutation, raw-socket access, Party Template automation, or Coordinator messaging traffic.
+          </small>
+        </div>
+      </div>
+
       <details id="script-runtime-developer-controls">
         <summary>Script runtime developer controls</summary>
         <div class="selection-content">

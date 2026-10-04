@@ -24,6 +24,12 @@ export interface MultiCharacterSessionSnapshot {
   readonly message: string;
 }
 
+export interface MultiCharacterSessionRuntimeState {
+  readonly role: MultiCharacterSessionRole;
+  readonly characterId: string;
+  readonly state: AdventureLandCharacterConnectionState;
+}
+
 export interface MultiCharacterSessionManagerErrorState {
   readonly code: string;
   readonly message: string;
@@ -130,6 +136,36 @@ export class MultiCharacterSessionManager {
         ? `Character session limit reached (${activeSessionCount}/${this.#sessionLimit}).`
         : `Multi-character session manager ready. ${activeSessionCount}/${this.#sessionLimit} active sessions.`,
     }));
+  }
+
+  characterStates(): readonly MultiCharacterSessionRuntimeState[] {
+    const states: MultiCharacterSessionRuntimeState[] = [];
+    const primary = this.#primary.state();
+    if (primary.characterId) {
+      states.push(Object.freeze({
+        role: "primary" as const,
+        characterId: primary.characterId,
+        state: structuredClone(primary),
+      }));
+    }
+    for (const record of this.#managed.values()) {
+      const state = record.service.state();
+      const normalized = {
+        ...state,
+        characterId: state.characterId ?? record.characterId,
+        serverKey: state.serverKey ?? record.serverKey,
+      };
+      states.push(Object.freeze({
+        role: "managed" as const,
+        characterId: normalized.characterId,
+        state: structuredClone(normalized),
+      }));
+    }
+    states.sort((left, right) => {
+      if (left.role !== right.role) return left.role === "primary" ? -1 : 1;
+      return left.characterId.localeCompare(right.characterId);
+    });
+    return structuredClone(Object.freeze(states));
   }
 
   async start(
