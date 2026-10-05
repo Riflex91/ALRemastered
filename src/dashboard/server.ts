@@ -39,6 +39,7 @@ import type {
   CombinedPackAssetInput,
   CombinedPackScriptInput,
 } from "../packages/combined.ts";
+import type { PartyPackWizardService } from "../packages/party-wizard.ts";
 import type { CharacterCardsService } from "./character-cards.ts";
 import type { SetupWizardService, SetupWizardStartInput } from "./setup-wizard.ts";
 import type { TemplateConfigurationService } from "./template-config.ts";
@@ -113,6 +114,7 @@ export interface DashboardServerOptions {
   readonly scriptPackageUpdateService?: ScriptPackageUpdateService;
   readonly dashboardPackageService?: DashboardPackageService;
   readonly combinedPackageService?: CombinedPackageService;
+  readonly partyPackWizardService?: PartyPackWizardService;
   readonly rendererBridge?: RendererBridge;
   readonly rendererHandoffService?: RendererHandoffService;
   readonly alhdAssetProvider?: AlhdAssetProvider;
@@ -179,6 +181,7 @@ export class DashboardServer {
   readonly #scriptPackageUpdateService?: ScriptPackageUpdateService;
   readonly #dashboardPackageService?: DashboardPackageService;
   readonly #combinedPackageService?: CombinedPackageService;
+  readonly #partyPackWizardService?: PartyPackWizardService;
   readonly #rendererBridge?: RendererBridge;
   readonly #rendererHandoffService?: RendererHandoffService;
   readonly #alhdAssetProvider?: AlhdAssetProvider;
@@ -249,6 +252,7 @@ export class DashboardServer {
     this.#scriptPackageUpdateService = options.scriptPackageUpdateService;
     this.#dashboardPackageService = options.dashboardPackageService;
     this.#combinedPackageService = options.combinedPackageService;
+    this.#partyPackWizardService = options.partyPackWizardService;
     this.#rendererBridge = options.rendererBridge;
     this.#rendererHandoffService = options.rendererHandoffService;
     this.#alhdAssetProvider = options.alhdAssetProvider;
@@ -432,6 +436,64 @@ export class DashboardServer {
           throw new Error("packageId is required.");
         }
         return this.#scriptPackageUpdateService!.rollback(body.packageId);
+      });
+    }
+
+    if (method === "GET" && path === "/api/packages/party-wizard") {
+      if (!this.#partyPackWizardService) {
+        return this.#json(response, { status: "unavailable" }, 503);
+      }
+      return this.#json(response, this.#partyPackWizardService.state());
+    }
+    if (method === "GET" && path === "/api/packages/party-wizard/self-test") {
+      if (!this.#partyPackWizardService) {
+        return this.#json(response, { error: "Party Pack Wizard is unavailable." }, 503);
+      }
+      return this.#runPackageImportAction(
+        response,
+        () => this.#partyPackWizardService!.runSelfTest(),
+      );
+    }
+    if (method === "POST" && path === "/api/packages/party-wizard/preview") {
+      if (!this.#partyPackWizardService) {
+        return this.#json(response, { error: "Party Pack Wizard is unavailable." }, 503);
+      }
+      return this.#runPackageImportAction(response, async () => {
+        const body = await this.#readJsonObject(request);
+        if (
+          typeof body.packageId !== "string" ||
+          !body.packageId.trim() ||
+          typeof body.version !== "string" ||
+          !body.version.trim()
+        ) {
+          throw new Error("packageId and version are required.");
+        }
+        return this.#partyPackWizardService!.preview(body.packageId, body.version);
+      });
+    }
+    if (method === "POST" && path === "/api/packages/party-wizard/setup") {
+      if (!this.#partyPackWizardService) {
+        return this.#json(response, { error: "Party Pack Wizard is unavailable." }, 503);
+      }
+      return this.#runPackageImportAction(response, async () => {
+        const body = await this.#readJsonObject(request);
+        if (
+          typeof body.packageId !== "string" ||
+          !body.packageId.trim() ||
+          typeof body.version !== "string" ||
+          !body.version.trim() ||
+          typeof body.roleMapping !== "object" ||
+          body.roleMapping === null ||
+          Array.isArray(body.roleMapping) ||
+          Object.values(body.roleMapping).some((value) => typeof value !== "string")
+        ) {
+          throw new Error("packageId, version, and roleMapping are required.");
+        }
+        return this.#partyPackWizardService!.setup({
+          packageId: body.packageId,
+          version: body.version,
+          roleMapping: body.roleMapping as Readonly<Record<string, string>>,
+        });
       });
     }
 
