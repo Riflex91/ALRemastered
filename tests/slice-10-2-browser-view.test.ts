@@ -93,7 +93,7 @@ test("Slice 10.2 is the single current one-click verification and preserves 10.1
   const browser = readFileSync(new URL("../dashboard/browser-view.js", import.meta.url), "utf8");
   const server = readFileSync(new URL("../src/dashboard/server.js", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="14\.1"/);
+  assert.match(html, /data-current-verification-slice="14\.2"/);
   assert.match(html, /data-verification-test="10\.1" hidden/);
   assert.match(html, /data-verification-test="10\.2" hidden/);
   assert.match(html, /id="open-browser-view"/);
