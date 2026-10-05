@@ -41,6 +41,7 @@ import type {
 } from "../packages/combined.ts";
 import type { PartyPackWizardService } from "../packages/party-wizard.ts";
 import type { MerchantInventoryPreviewService } from "../merchant/inventory-preview.ts";
+import type { MerchantGoldBudgetService } from "../merchant/gold-budget.ts";
 import type { MerchantWorkspaceCapacityService } from "../merchant/workspace-capacity.ts";
 import type { CharacterCardsService } from "./character-cards.ts";
 import type { SetupWizardService, SetupWizardStartInput } from "./setup-wizard.ts";
@@ -119,6 +120,7 @@ export interface DashboardServerOptions {
   readonly partyPackWizardService?: PartyPackWizardService;
   readonly merchantInventoryPreviewService?: MerchantInventoryPreviewService;
   readonly merchantWorkspaceCapacityService?: MerchantWorkspaceCapacityService;
+  readonly merchantGoldBudgetService?: MerchantGoldBudgetService;
   readonly rendererBridge?: RendererBridge;
   readonly rendererHandoffService?: RendererHandoffService;
   readonly alhdAssetProvider?: AlhdAssetProvider;
@@ -188,6 +190,7 @@ export class DashboardServer {
   readonly #partyPackWizardService?: PartyPackWizardService;
   readonly #merchantInventoryPreviewService?: MerchantInventoryPreviewService;
   readonly #merchantWorkspaceCapacityService?: MerchantWorkspaceCapacityService;
+  readonly #merchantGoldBudgetService?: MerchantGoldBudgetService;
   readonly #rendererBridge?: RendererBridge;
   readonly #rendererHandoffService?: RendererHandoffService;
   readonly #alhdAssetProvider?: AlhdAssetProvider;
@@ -261,6 +264,7 @@ export class DashboardServer {
     this.#partyPackWizardService = options.partyPackWizardService;
     this.#merchantInventoryPreviewService = options.merchantInventoryPreviewService;
     this.#merchantWorkspaceCapacityService = options.merchantWorkspaceCapacityService;
+    this.#merchantGoldBudgetService = options.merchantGoldBudgetService;
     this.#rendererBridge = options.rendererBridge;
     this.#rendererHandoffService = options.rendererHandoffService;
     this.#alhdAssetProvider = options.alhdAssetProvider;
@@ -542,6 +546,26 @@ export class DashboardServer {
       return this.#json(
         response,
         this.#merchantWorkspaceCapacityService.runSelfTest(),
+      );
+    }
+
+    if (method === "GET" && path === "/api/merchant/gold-budget") {
+      if (!this.#merchantGoldBudgetService) {
+        return this.#json(response, { status: "unavailable" }, 503);
+      }
+      return this.#json(response, this.#merchantGoldBudgetService.state());
+    }
+    if (method === "GET" && path === "/api/merchant/gold-budget/self-test") {
+      if (!this.#merchantGoldBudgetService) {
+        return this.#json(
+          response,
+          { error: "Merchant Gold & Budget Preview is unavailable." },
+          503,
+        );
+      }
+      return this.#json(
+        response,
+        this.#merchantGoldBudgetService.runSelfTest(),
       );
     }
 
