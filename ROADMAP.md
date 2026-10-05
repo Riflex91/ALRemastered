@@ -4573,3 +4573,79 @@ Scope/safety evidence:
 
 Phase 13 is complete only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green. Phase 14 must not begin before that gate is satisfied.
 
+
+---
+
+## Verification Evidence — Slice 14.1 Merchant Inventory & Disposition Preview
+
+**Status: VERIFIED**
+
+> 2026-10-05: VERIFIED on Windows with `0.1.0-alpha.83`. Real installed one-click test `live141-47f523a4-891b-4602-b714-d486059bfe1c` passed Merchant inventory descriptor, live Merchant connection/class validation, live inventory observation, physical slot identity modeling, conservative `HOLD` disposition, dangerous/default-denied Merchant permission policy, isolated self-test, Core/Character/Script continuity, and read-only gameplay-runtime verification.
+
+Live verification evidence:
+
+- client: `0.1.0-alpha.83`;
+- platform: `win32`;
+- test ID: `live141-47f523a4-891b-4602-b714-d486059bfe1c`;
+- outcome: `PASSED`;
+- test window: `2026-10-05T17:02:16.956Z → 2026-10-05T17:02:16.978Z`;
+- `merchant-inventory-descriptor: PASSED`;
+- `merchant-connected: PASSED`;
+- `merchant-class: PASSED`;
+- `live-inventory-observed: PASSED`;
+- `physical-slot-identities: PASSED`;
+- `default-hold-disposition: PASSED`;
+- `merchant-permission-default-denied: PASSED`;
+- `isolated-self-test: PASSED`;
+- `core-character-script-continuity: PASSED`;
+- `read-only-gameplay-runtime: PASSED`;
+- Character type: `merchant`;
+- Character level: `58`;
+- inventory capacity: `42`;
+- inventory used: `33`;
+- inventory free: `9`;
+- physical identities: `33`;
+- default disposition: `hold`;
+- mutation authority: `false`;
+- bank mutation: `false`;
+- trade mutation: `false`;
+- transfer mutation: `false`;
+- upgrade mutation: `false`;
+- compound mutation: `false`;
+- Merchant package permission dangerous/default-denied: `true`;
+- `Core restart: false`;
+- `Character restart: false`;
+- `Script restart: false`;
+- `Gameplay mutation: false`;
+- Action Gateway requests: `0`;
+- `Raw socket access: false`;
+- `User Script touched: false`;
+- diagnostic export: 30 log lines covering `2026-10-05T17:01:38.232Z → 2026-10-05T17:02:16.917Z`, `Secrets sanitized: yes`.
+
+Repository/release evidence:
+
+- implementation PR #166 final feature head: `c42971758140eda09e824b45a9939660a820e9fd`;
+- final implementation PR CI run `37343336742` completed on that exact head with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #166 merged with method `merge` into implementation `main` `cea6c9914610ab7b9c4757ae8d654593ab6c7f10`;
+- exact post-implementation-main CI run `37343674861` completed on `cea6c9914610ab7b9c4757ae8d654593ab6c7f10` with all four required jobs successful;
+- release publish run `37344073866` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.83`, tag `v0.1.0-alpha.83`, GitHub Release target, publish-run head, and tested implementation `main` are commit-identical at `cea6c9914610ab7b9c4757ae8d654593ab6c7f10`;
+- published assets:
+  - Windows x64 installer SHA-256 `4df64ef8896a184fbad0ea9c5f38e0d9ac9ecaa5ff87957b458770b5f8559bcb`;
+  - Linux x64 installer SHA-256 `7e0ad28481524dcb193e56d5bd4f959344ef11b9e5e8349831f3906d5bcf6e7b`;
+  - updater manifest SHA-256 `252124a3397c6b9720089b4d53c45e816477a170180d2aab413cfdfc0d287f9a`.
+
+Scope/safety evidence:
+
+- the real installed Windows client observed a connected Merchant's live inventory without creating gameplay mutation authority;
+- every occupied inventory slot was represented by a physical identity bound to Character, slot, and observed item fingerprint, with 33 occupied slots producing 33 physical identities;
+- all observed item dispositions remained conservatively `HOLD`;
+- Merchant package permission remained dangerous and default-denied;
+- Bank, Buy/Sell, Trade, Item/Gold Transfer, Upgrade, Compound, Craft, Dismantle, Fishing, Mining, Event, and Boss mutations remained unavailable in Slice 14.1;
+- mutation authority and all reported economic mutation flags remained false;
+- Core, Character, and Script remained continuous;
+- no gameplay mutation, Action Gateway request, raw socket access, or User Script replacement occurred.
+
+**Canonical roadmap status: Slice 14.1 = VERIFIED.**
+
+Slice 14.1 is complete only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green. Slice 14.2 must not begin before that gate is satisfied.
