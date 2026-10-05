@@ -4454,3 +4454,97 @@ Scope/safety evidence:
 
 Slice 13.2 is complete only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green. Slice 13.3 must not begin before that gate is satisfied.
 
+---
+
+## Verification Evidence — Slice 13.3 Party Pack Wizard
+
+**Status: VERIFIED**
+
+> 2026-10-05: VERIFIED on Windows with `0.1.0-alpha.82`. Real installed one-click test `live133-45f44519-deca-466d-9974-5f7a86520339` passed guided Combined Party Pack discovery, all-account Character visibility, class-based recommendations, unique role mapping, Dashboard application, explicit package activation, cleanup, runtime continuity, and read-only gameplay safety without starting Characters or executing package code.
+
+Live verification evidence:
+
+- client: `0.1.0-alpha.82`;
+- platform: `win32`;
+- test ID: `live133-45f44519-deca-466d-9974-5f7a86520339`;
+- outcome: `PASSED`;
+- test window: `2026-10-05T16:07:16.198Z → 2026-10-05T16:07:16.222Z`;
+- `party-pack-wizard-descriptor: PASSED`;
+- `combined-pack-visible: PASSED`;
+- `all-account-characters-visible: PASSED`;
+- `four-roles-visible: PASSED`;
+- `class-recommendations: PASSED`;
+- `unique-characters-required: PASSED`;
+- `explicit-role-mapping: PASSED`;
+- `dashboard-applied: PASSED`;
+- `package-activated-explicitly: PASSED`;
+- `no-character-start: PASSED`;
+- `no-package-execution: PASSED`;
+- `verification-cleanup: PASSED`;
+- `core-character-script-continuity: PASSED`;
+- `read-only-gameplay-runtime: PASSED`;
+- package kind: `combined`;
+- guided role mapping: `true`;
+- Character recommendations: `true`;
+- unique Character per role required: `true`;
+- setup applies Dashboard: `true`;
+- setup activates package metadata: `true`;
+- setup starts Characters: `false`;
+- setup executes package: `false`;
+- combined pack visible: `true`;
+- all account Characters visible: `true`;
+- roles: `Tank`, `Healer`, `DPS`, `Merchant`;
+- recommendations:
+  - `Tank → Warrior (warrior)`;
+  - `Healer → Priest (priest)`;
+  - `DPS → Ranger (ranger)`;
+  - `Merchant → Merchant (merchant)`;
+- unique mapping enforced: `true`;
+- role mapping:
+  - `tank → CH_WARRIOR`;
+  - `healer → CH_PRIEST`;
+  - `dps → CH_RANGER`;
+  - `merchant → CH_MERCHANT`;
+- applied profile: `4-Man Boss Party Pack`;
+- layout variants: `desktop`;
+- package active after setup: `true`;
+- Characters started: `false`;
+- package execution attempted: `false`;
+- verification cleanup: `true`;
+- `Core restart: false`;
+- `Character restart: false`;
+- `Script restart: false`;
+- `Gameplay mutation: false`;
+- Action Gateway requests: `0`;
+- `Raw socket access: false`;
+- `User Script touched: false`;
+- diagnostic export: 11 log lines covering `2026-10-05T16:07:13.746Z → 2026-10-05T16:07:14.018Z`, `Secrets sanitized: yes`.
+
+Repository/release evidence:
+
+- implementation PR #164 final feature head: `78f2240a8c8e5cb1095ff065a992234690248a30`;
+- final implementation PR CI run `37336800835` completed on that exact head with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #164 merged with method `merge` into implementation `main` `7c11c3cdad2ff92ed44da449346ce0827273832b`;
+- exact post-implementation-main CI run `37337193290` completed successfully on attempt 2 on `7c11c3cdad2ff92ed44da449346ce0827273832b`, with all four required jobs successful;
+- release publish run `37337831659` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.82`, tag `v0.1.0-alpha.82`, GitHub Release target, publish-run head, and tested implementation `main` are commit-identical at `7c11c3cdad2ff92ed44da449346ce0827273832b`;
+- published assets:
+  - Windows x64 installer SHA-256 `717a92fe62964f54924e40ab06e2a52455ec62e2607e601701794405ee62b6b1`;
+  - Linux x64 installer SHA-256 `19dc1a28b69ebb65b528a179b8d569211932be6bf06599e230d41e2c0c13e229`;
+  - updater manifest SHA-256 `1a7b9e76a3ca90c1ea274f90ea571aebd599caeda5d9a3e87a840cf122ffcadf`.
+
+Scope/safety evidence:
+
+- the Wizard operates only on imported Combined Party Packs and existing account Characters;
+- every Party Pack role is mapped explicitly to a unique available Character;
+- class-based Character recommendations are advisory and preselected when possible;
+- setup applies the portable Dashboard profile through the existing role-mapping path and then explicitly activates the package metadata;
+- setup does not start Character sessions and does not execute package code;
+- no gameplay mutation, Action Gateway request, raw socket access, or User Script replacement occurred;
+- Core, Character, and Script remained continuous throughout verification;
+- isolated verification data was cleaned up successfully.
+
+**Canonical roadmap status: Slice 13.3 = VERIFIED.**
+
+Phase 13 is complete only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green. Phase 14 must not begin before that gate is satisfied.
+
