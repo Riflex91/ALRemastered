@@ -2979,3 +2979,89 @@ Scope and safety:
 
 Phase 12 may be considered complete only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green. Phase 13 must remain blocked until then.
 
+---
+
+### Alpha.80 real one-click result: PASSED — Slice 13.1 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.80`
+- release target / tested implementation main: `57df7212d5d4446914d898ff5f81e39a035bf406`
+- client: `0.1.0-alpha.80` / Windows
+- platform: `win32`
+- test ID: `live131-06f98c0d-d404-41d5-a1c7-b3ccf7569495`
+- outcome: `passed`
+- test window: `2026-10-05T14:39:56.435Z → 2026-10-05T14:39:56.462Z`
+- diagnostic export: 11 log lines, `Secrets sanitized: yes`.
+
+The one-click harness completed the full Slice 13.1 validation:
+
+- `dashboard-package-descriptor: PASSED`;
+- `same-package-format: PASSED`;
+- `dashboard-kind: PASSED`;
+- `portable-profile-validated: PASSED`;
+- `no-script-payload: PASSED`;
+- `imported-inactive: PASSED`;
+- `explicit-role-mapping: PASSED`;
+- `source-character-ids-absent: PASSED`;
+- `layout-persisted: PASSED`;
+- `combined-pack-deferred: PASSED`;
+- `no-package-execution: PASSED`;
+- `verification-cleanup: PASSED`;
+- `core-character-script-continuity: PASSED`;
+- `read-only-gameplay-runtime: PASSED`;
+- package extension: `.alrpkg`;
+- package kind: `dashboard`;
+- portable profile kind: `ALRemasteredDashboardProfile`;
+- Dashboard export supported: `true`;
+- role mapping required: `true`;
+- same package format: `true`;
+- Dashboard kind validated: `true`;
+- portable profile validated: `true`;
+- no script payload: `true`;
+- imported inactive: `true`;
+- explicit role mapping: `true`;
+- applied profile: `Slice 13.1 packaged layout`;
+- applied profile ID: `pkg-87907bc3949d24d2fb7c6983`;
+- layout variants: `desktop`;
+- source Character IDs absent: `true`;
+- layout persisted: `true`;
+- combined Script + Dashboard deferred: `true`;
+- combined rejection error: `PACKAGE_COMBINED_KIND_UNSUPPORTED`;
+- package execution attempted: `false`;
+- verification cleanup: `true`;
+- `Core restart: false`;
+- `Character restart: false`;
+- `Script restart: false`;
+- `Gameplay mutation: false`;
+- Action Gateway requests: `0`;
+- `Raw socket access: false`;
+- `User Script touched: false`.
+
+Repository/release evidence:
+
+- implementation PR #160 final feature head: `fcad0e3c6758af241e4366d9df485b29f5cc373e`;
+- implementation PR CI run `37232118864`: all four required jobs successful;
+- implementation main: `57df7212d5d4446914d898ff5f81e39a035bf406`;
+- exact post-implementation-main CI run `37232298357`: all four required jobs successful;
+- release publish run `37232508726`: Linux, Windows, and GitHub Release successful;
+- release branch, tag, release target, publish head, and tested implementation main are commit-identical at `57df7212d5d4446914d898ff5f81e39a035bf406`;
+- Windows x64 installer SHA-256: `96692294fe590d62c546a9773c4e83dc6ba6b58203515f847d214e0e0878bd9e`;
+- Linux x64 installer SHA-256: `8af03471762fe335ebcb40cb152e2adf3952169a343b4ecce0a9293d7bf51f7a`;
+- updater manifest SHA-256: `dd2f74832383527d9f9a26696317a8d9243cad5ec9ac57ab05ddec98a274f3c0`.
+
+Scope and safety:
+
+- Dashboard-only packages share layouts through the existing `.alrpkg` system;
+- the portable profile removes source Character IDs and requires explicit Character-role mapping on apply;
+- the package contains no executable Script payload and requests no Script permissions;
+- import remains inactive and application only changes local Dashboard layout persistence;
+- combined Script + Dashboard packs remain rejected and deferred to Slice 13.2;
+- verification cleanup completed successfully;
+- Core, Character, and Script remained continuous;
+- no gameplay mutation, Action Gateway requests, raw socket access, package execution, or User Script replacement occurred.
+
+**Canonical queue status: Slice 13.1 = VERIFIED.**
+
+Slice 13.1 may be considered complete only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green. Slice 13.2 must remain blocked until then.
+
