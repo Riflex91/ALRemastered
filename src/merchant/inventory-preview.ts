@@ -72,12 +72,13 @@ export class MerchantInventoryPreviewService {
     if (
       state.status !== "connected" ||
       !state.character ||
+      state.character.type !== "merchant" ||
       !Array.isArray(state.character.inventory)
     ) {
       return Object.freeze({
         schemaVersion: 1 as const,
         status: "unavailable" as const,
-        message: "Connect a Character and wait for its live inventory before using Merchant preview.",
+        message: "Connect a Merchant Character and wait for its live inventory before using Merchant preview.",
         observedAt,
         descriptor: merchantInventoryPreviewDescriptor(),
         inventory: Object.freeze({

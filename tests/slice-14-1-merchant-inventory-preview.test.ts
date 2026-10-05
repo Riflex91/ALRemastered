@@ -83,6 +83,29 @@ test("Slice 14.1 fails closed when no live inventory is available", () => {
   assert.equal(snapshot.descriptor.rawSocketAccess, false);
 });
 
+test("Slice 14.1 fails closed for a connected non-Merchant Character", () => {
+  const service = new MerchantInventoryPreviewService({
+    character: {
+      state: () => ({
+        status: "connected",
+        characterId: "CH_WARRIOR",
+        character: {
+          id: "CH_WARRIOR",
+          name: "Warrior",
+          type: "warrior",
+          level: 90,
+          dead: false,
+          inventory: [{ name: "blade", level: 2 }],
+        },
+      }),
+    } as any,
+  });
+  const snapshot = service.state();
+  assert.equal(snapshot.status, "unavailable");
+  assert.equal(snapshot.inventory.used, 0);
+  assert.equal(snapshot.disposition.mutationAuthority, false);
+});
+
 test("Slice 14.1 self-test proves the preview-only safety contract", () => {
   const service = new MerchantInventoryPreviewService({
     character: { state: () => connectedMerchant() } as any,

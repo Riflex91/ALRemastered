@@ -1217,6 +1217,31 @@ Diese Bereiche werden jeweils wieder in kleine Merge/Test-Slices zerlegt:
 
 Für irreversible oder wirtschaftlich riskante Aktionen gelten besonders strenge Berechtigungen, Dry-Run-/Preview-Optionen und Logs.
 
+## Slice 14.1 – Merchant Inventory & Disposition Preview
+
+Erster Phase-14-Slice als bewusst read-only Foundation für spätere wirtschaftliche Aktionen:
+
+- Live-Inventar des verbundenen Merchant-Characters lesen;
+- belegte Inventarslots als physische Identitäten aus Character-ID, Slot und Beobachtungsfingerprint modellieren;
+- identische Items in verschiedenen Slots als getrennte physische Objekte behandeln;
+- Änderungen am beobachteten Itemzustand durch einen neuen SHA-256-Fingerprint sichtbar machen;
+- leere Slots explizit von belegten physischen Items trennen;
+- jede beobachtete Item-Disposition zunächst konservativ auf `HOLD` setzen;
+- Nicht-Merchant-Characters und fehlende Live-Inventare fail-closed als `unavailable` behandeln;
+- Merchant-Package-Permission bleibt gefährlich, default-denied und für spätere Mutationen explizit bestätigungspflichtig;
+- Dashboard zeigt ausschließlich Preview-/Ledger-Daten.
+
+Explizit **nicht** Bestandteil von Slice 14.1:
+
+- keine Bankmutation;
+- kein Buy/Sell oder Trade;
+- kein Item- oder Gold-Transfer;
+- kein Upgrade oder Compound;
+- kein Craft, Dismantle, Fishing, Mining, Event- oder Boss-Write;
+- keine neue Action-Gateway- oder Raw-Socket-Autorität.
+
+Der reale Verification-Gate verlangt einen installierten Windows-Client mit verbundenem Merchant-Character und muss insbesondere `Action Gateway requests: 0`, keine Gameplay-Mutation, keine Raw-Socket-Nutzung und unveränderte Core-/Character-/Script-Laufzeit nachweisen.
+
 ---
 
 # Phase 15 – Distribution, Update-Härtung und zusätzliche Paketformate
