@@ -41,6 +41,7 @@ import type {
 } from "../packages/combined.ts";
 import type { PartyPackWizardService } from "../packages/party-wizard.ts";
 import type { MerchantInventoryPreviewService } from "../merchant/inventory-preview.ts";
+import type { MerchantWorkspaceCapacityService } from "../merchant/workspace-capacity.ts";
 import type { CharacterCardsService } from "./character-cards.ts";
 import type { SetupWizardService, SetupWizardStartInput } from "./setup-wizard.ts";
 import type { TemplateConfigurationService } from "./template-config.ts";
@@ -117,6 +118,7 @@ export interface DashboardServerOptions {
   readonly combinedPackageService?: CombinedPackageService;
   readonly partyPackWizardService?: PartyPackWizardService;
   readonly merchantInventoryPreviewService?: MerchantInventoryPreviewService;
+  readonly merchantWorkspaceCapacityService?: MerchantWorkspaceCapacityService;
   readonly rendererBridge?: RendererBridge;
   readonly rendererHandoffService?: RendererHandoffService;
   readonly alhdAssetProvider?: AlhdAssetProvider;
@@ -185,6 +187,7 @@ export class DashboardServer {
   readonly #combinedPackageService?: CombinedPackageService;
   readonly #partyPackWizardService?: PartyPackWizardService;
   readonly #merchantInventoryPreviewService?: MerchantInventoryPreviewService;
+  readonly #merchantWorkspaceCapacityService?: MerchantWorkspaceCapacityService;
   readonly #rendererBridge?: RendererBridge;
   readonly #rendererHandoffService?: RendererHandoffService;
   readonly #alhdAssetProvider?: AlhdAssetProvider;
@@ -257,6 +260,7 @@ export class DashboardServer {
     this.#combinedPackageService = options.combinedPackageService;
     this.#partyPackWizardService = options.partyPackWizardService;
     this.#merchantInventoryPreviewService = options.merchantInventoryPreviewService;
+    this.#merchantWorkspaceCapacityService = options.merchantWorkspaceCapacityService;
     this.#rendererBridge = options.rendererBridge;
     this.#rendererHandoffService = options.rendererHandoffService;
     this.#alhdAssetProvider = options.alhdAssetProvider;
@@ -518,6 +522,26 @@ export class DashboardServer {
       return this.#json(
         response,
         this.#merchantInventoryPreviewService.runSelfTest(),
+      );
+    }
+
+    if (method === "GET" && path === "/api/merchant/workspace-capacity") {
+      if (!this.#merchantWorkspaceCapacityService) {
+        return this.#json(response, { status: "unavailable" }, 503);
+      }
+      return this.#json(response, this.#merchantWorkspaceCapacityService.state());
+    }
+    if (method === "GET" && path === "/api/merchant/workspace-capacity/self-test") {
+      if (!this.#merchantWorkspaceCapacityService) {
+        return this.#json(
+          response,
+          { error: "Merchant Workspace & Capacity Preview is unavailable." },
+          503,
+        );
+      }
+      return this.#json(
+        response,
+        this.#merchantWorkspaceCapacityService.runSelfTest(),
       );
     }
 
