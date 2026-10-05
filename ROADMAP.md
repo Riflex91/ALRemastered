@@ -4786,3 +4786,83 @@ Scope/safety evidence:
 **Canonical roadmap status: Slice 14.2 = VERIFIED.**
 
 Slice 14.2 is complete only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green. Slice 14.3 must not begin before that gate is satisfied.
+
+
+---
+
+## Verification Evidence — Slice 14.3 Merchant Gold & Budget Preview
+
+**Status: VERIFIED**
+
+> 2026-10-05: VERIFIED on Windows with `0.1.0-alpha.85`. Real installed one-click test `live143-6b372c69-9f9b-4d95-9e25-727dc0f75e71` passed the Gold/Budget descriptor, live Merchant gold observation, Safety Reserve accounting, planning-reservation accounting, parallel-overbooking protection, isolated self-test, Core/Character/Script continuity, and read-only gameplay-runtime checks.
+
+Live verification evidence:
+
+- client: `0.1.0-alpha.85`;
+- platform: `win32`;
+- test ID: `live143-6b372c69-9f9b-4d95-9e25-727dc0f75e71`;
+- outcome: `PASSED`;
+- test window: `2026-10-05T18:46:33.637Z → 2026-10-05T18:46:33.650Z`;
+- `gold-budget-descriptor: PASSED`;
+- `merchant-gold-live: PASSED`;
+- `safety-reserve-accounting: PASSED`;
+- `reservation-accounting: PASSED`;
+- `parallel-overbooking-blocked: PASSED`;
+- `isolated-self-test: PASSED`;
+- `core-character-script-continuity: PASSED`;
+- `read-only-gameplay-runtime: PASSED`;
+- observed gold: `15141206`;
+- Safety Reserve gold: `1000`;
+- Safety Reserve deficit: `0`;
+- spendable before reservations: `15140206`;
+- planned reserved gold: `0`;
+- available after reservations: `15140206`;
+- reservation deficit: `0`;
+- reservation count: `0`;
+- budget pressure: `ready`;
+- reservation planning only: `true`;
+- parallel overbooking blocked: `true`;
+- mutation authority: `false`;
+- bank mutation: `false`;
+- trade mutation: `false`;
+- transfer mutation: `false`;
+- gold transfer mutation: `false`;
+- Buy/Sell mutation: `false`;
+- `Core restart: false`;
+- `Character restart: false`;
+- `Script restart: false`;
+- `Gameplay mutation: false`;
+- Action Gateway requests: `0`;
+- `Raw socket access: false`;
+- `User Script touched: false`;
+- diagnostic export: 22 log lines covering `2026-10-05T18:46:06.524Z → 2026-10-05T18:46:33.246Z`, `Secrets sanitized: yes`.
+
+Repository/release evidence:
+
+- implementation PR #170 final feature head: `9c1ad473177999282175112cb3961f38feba6f48`;
+- final implementation PR CI run `37353597878` completed on that exact head with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #170 merged into implementation `main` `397fcb57b87c7356047828a38e554cb7763c5db3`;
+- exact post-implementation-main CI run `37353983270` completed on `397fcb57b87c7356047828a38e554cb7763c5db3` with all four required jobs successful;
+- release publish run `37357982033` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.85`, tag `v0.1.0-alpha.85`, GitHub Release target, publish-run head, and tested implementation `main` are commit-identical at `397fcb57b87c7356047828a38e554cb7763c5db3`;
+- published assets:
+  - Windows x64 installer SHA-256 `f5d949602a2c263e74fa714423da058f482d519bea9b29fd43e69af58ed6316b`;
+  - Linux x64 installer SHA-256 `9052cd3940758e276ad242ea64c204fadfb6762e33e97393e756edb0b94e108e`;
+  - updater manifest SHA-256 `a6449deff1a64990ec5a726121710b32c14c54f94328bf2a36ea2a7851efb3d1`.
+
+Scope/safety evidence:
+
+- the live Merchant Gold Budget observed `15141206` gold and protected the configured `1000` Safety Reserve;
+- spendable gold matched the contract exactly: `15141206 - 1000 = 15140206`;
+- the live preview contained no planning reservations, therefore planned reserved gold was `0`, reservation deficit was `0`, and available-after-reservations remained `15140206`;
+- Budget Pressure was `ready`;
+- the isolated self-test proved deterministic reservation accounting, exact-allocation constraint behavior, parallel-overbooking rejection, and Safety-Reserve protection;
+- all reservations remained planning-only and performed no real economic mutation;
+- Bank, Buy/Sell, Trade, Item Transfer, Gold Transfer, Upgrade, Compound, Craft, Dismantle, Fishing, Mining, Event, and Boss writes remained unavailable in Slice 14.3;
+- mutation authority and every reported economic mutation flag remained false;
+- Core, Character, and Script remained continuous;
+- no gameplay mutation, Action Gateway request, raw socket access, or User Script replacement occurred.
+
+**Canonical roadmap status: Slice 14.3 = VERIFIED.**
+
+Slice 14.3 is complete only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green. The next Phase-14 slice must not begin before that gate is satisfied.
