@@ -62,7 +62,10 @@ const state = {
   slice133LastReport: null,
   slice141LiveTest: { status: "idle", message: "Ready." },
   slice141LastReport: null,
+  slice142LiveTest: { status: "idle", message: "Ready." },
+  slice142LastReport: null,
   merchantInventoryPreview: null,
+  merchantWorkspaceCapacity: null,
   partyPackWizard: null,
   partyPackWizardPreview: null,
   packageLibrary: null,
@@ -281,9 +284,16 @@ const elements = {
   slice141LiveTestStatus: document.querySelector("#slice-14-1-live-test-status"),
   slice141LiveTestNote: document.querySelector("#slice-14-1-live-test-note"),
   copySlice141LiveTestResult: document.querySelector("#copy-slice-14-1-live-test-result"),
+  startSlice142LiveTest: document.querySelector("#start-slice-14-2-live-test"),
+  slice142LiveTestStatus: document.querySelector("#slice-14-2-live-test-status"),
+  slice142LiveTestNote: document.querySelector("#slice-14-2-live-test-note"),
+  copySlice142LiveTestResult: document.querySelector("#copy-slice-14-2-live-test-result"),
   merchantInventoryPreviewStatus: document.querySelector("#merchant-inventory-preview-status"),
   merchantInventoryPreviewRefresh: document.querySelector("#merchant-inventory-preview-refresh"),
   merchantInventoryPreviewSummary: document.querySelector("#merchant-inventory-preview-summary"),
+  merchantWorkspaceCapacityStatus: document.querySelector("#merchant-workspace-capacity-status"),
+  merchantWorkspaceCapacityRefresh: document.querySelector("#merchant-workspace-capacity-refresh"),
+  merchantWorkspaceCapacitySummary: document.querySelector("#merchant-workspace-capacity-summary"),
   partyPackWizardStatus: document.querySelector("#party-pack-wizard-status"),
   partyPackWizardPackage: document.querySelector("#party-pack-wizard-package"),
   partyPackWizardRefresh: document.querySelector("#party-pack-wizard-refresh"),
@@ -6139,6 +6149,55 @@ elements.merchantInventoryPreviewRefresh.addEventListener("click", () => {
 });
 void refreshMerchantInventoryPreview();
 
+function renderMerchantWorkspaceCapacity(snapshot) {
+  state.merchantWorkspaceCapacity = snapshot;
+  if (!snapshot || snapshot.status !== "ready") {
+    elements.merchantWorkspaceCapacityStatus.textContent = "Unavailable";
+    elements.merchantWorkspaceCapacitySummary.textContent =
+      snapshot?.message ?? "Connect the Merchant Character to calculate workspace and pickup reserves.";
+    return;
+  }
+  const inventory = snapshot.inventory ?? {};
+  const capacity = snapshot.capacity ?? {};
+  const pressure = String(capacity.pressure ?? "unknown");
+  elements.merchantWorkspaceCapacityStatus.textContent =
+    pressure === "ready" ? "Ready" : pressure === "constrained" ? "Constrained" : "Blocked";
+  elements.merchantWorkspaceCapacitySummary.textContent = [
+    `Inventory ${inventory.used ?? 0}/${inventory.capacity ?? 0}`,
+    `Free ${inventory.free ?? 0}`,
+    `Workspace reserve ${capacity.workspaceSlots ?? 0}`,
+    `Pickup reserve ${capacity.pickupReserveSlots ?? 0}`,
+    `General free ${capacity.generalFreeSlots ?? 0}`,
+    `Deficit ${capacity.deficit ?? 0}`,
+    `Multi-step planning: ${capacity.multiStepWorkflowAllowed ? "allowed" : "blocked"}`,
+    "Mutation authority: false",
+  ].join(" · ");
+}
+
+async function refreshMerchantWorkspaceCapacity() {
+  elements.merchantWorkspaceCapacityRefresh.disabled = true;
+  try {
+    const response = await fetch("/api/merchant/workspace-capacity", { cache: "no-store" });
+    const snapshot = await response.json();
+    if (!response.ok && response.status !== 503) {
+      throw new Error(snapshot.error ?? `Merchant Workspace & Capacity request failed with HTTP ${response.status}.`);
+    }
+    renderMerchantWorkspaceCapacity(snapshot);
+  } catch (error) {
+    state.merchantWorkspaceCapacity = null;
+    elements.merchantWorkspaceCapacityStatus.textContent = "Unavailable";
+    elements.merchantWorkspaceCapacitySummary.textContent = error.message;
+    setFeedback(`Merchant Workspace & Capacity refresh failed: ${error.message}`, "error");
+  } finally {
+    elements.merchantWorkspaceCapacityRefresh.disabled = false;
+  }
+}
+
+elements.merchantWorkspaceCapacityRefresh.addEventListener("click", () => {
+  void refreshMerchantWorkspaceCapacity();
+});
+void refreshMerchantWorkspaceCapacity();
+
 elements.packageLibraryRefresh.addEventListener("click", () => void refreshPackageLibrary());
 void refreshPackageLibrary();
 
@@ -7969,6 +8028,231 @@ elements.copySlice141LiveTestResult.addEventListener("click", async () => {
 
 renderSlice141LiveTest();
 
+function renderSlice142LiveTest() {
+  const test = state.slice142LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = { idle: "Ready", running: "Running…", passed: "PASSED", failed: "FAILED" };
+  elements.slice142LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice142LiveTest.disabled = test.status === "running";
+  elements.copySlice142LiveTestResult.hidden = !state.slice142LastReport;
+  if (test.status === "running") {
+    elements.slice142LiveTestNote.textContent =
+      "Reading live Merchant capacity, validating workspace/pickup reserves and fail-closed preflight, then checking runtime continuity and Action Gateway isolation.";
+  } else if (test.message) {
+    elements.slice142LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function runSlice142Verification() {
+  const before = await fetchRendererSnapshot();
+  const [previewResponse, selfTestResponse] = await Promise.all([
+    fetch("/api/merchant/workspace-capacity", { cache: "no-store" }),
+    fetch("/api/merchant/workspace-capacity/self-test", { cache: "no-store" }),
+  ]);
+  const preview = await previewResponse.json();
+  const selfTest = await selfTestResponse.json();
+  if (!selfTestResponse.ok) {
+    throw new Error(selfTest.error ?? "Merchant Workspace & Capacity self-test failed.");
+  }
+  const after = await fetchRendererSnapshot();
+  const descriptor = selfTest.descriptor ?? {};
+  const inventory = preview.inventory ?? {};
+  const capacity = preview.capacity ?? {};
+  const pressureValid = ["ready", "constrained", "blocked"].includes(capacity.pressure);
+  const steps = [
+    { key: "workspace-capacity-descriptor", outcome:
+      descriptor.slice === "14.2" &&
+      descriptor.domain === "merchant" &&
+      descriptor.mode === "read-only" &&
+      descriptor.sourceSlice === "14.1" &&
+      descriptor.capacityPreflight === true &&
+      descriptor.reservationPlanningOnly === true &&
+      descriptor.mutationAuthority === false &&
+      descriptor.actionGatewayUsed === false &&
+      descriptor.rawSocketAccess === false ? "passed" : "failed" },
+    { key: "merchant-capacity-live", outcome:
+      previewResponse.ok && preview.status === "ready" ? "passed" : "failed" },
+    { key: "live-capacity-accounting", outcome:
+      Number.isInteger(inventory.capacity) &&
+      Number.isInteger(inventory.used) &&
+      Number.isInteger(inventory.free) &&
+      inventory.capacity >= inventory.used &&
+      inventory.free === inventory.capacity - inventory.used ? "passed" : "failed" },
+    { key: "capacity-reserve-accounting", outcome:
+      Number.isInteger(capacity.workspaceSlots) &&
+      Number.isInteger(capacity.pickupReserveSlots) &&
+      capacity.workspaceSlots === 3 &&
+      capacity.pickupReserveSlots === 1 &&
+      capacity.totalReservedSlots === capacity.workspaceSlots + capacity.pickupReserveSlots &&
+      capacity.generalFreeSlots === Math.max(0, inventory.free - capacity.totalReservedSlots)
+        ? "passed" : "failed" },
+    { key: "capacity-pressure-fail-closed", outcome:
+      pressureValid &&
+      capacity.deficit === Math.max(0, capacity.totalReservedSlots - inventory.free) &&
+      capacity.multiStepWorkflowAllowed === (capacity.deficit === 0) &&
+      capacity.mutationAuthority === false ? "passed" : "failed" },
+    { key: "isolated-self-test", outcome:
+      selfTest.status === "ready" &&
+      Object.values(selfTest.checks ?? {}).every(Boolean) &&
+      selfTest.gameplayMutation === false &&
+      selfTest.actionGatewayRequests === 0 &&
+      selfTest.rawSocketAccess === false &&
+      selfTest.userScriptTouched === false ? "passed" : "failed" },
+  ];
+
+  const beforeCore = before.snapshot?.core ?? {};
+  const afterCore = after.snapshot?.core ?? {};
+  const beforeCharacter = before.snapshot?.character ?? {};
+  const afterCharacter = after.snapshot?.character ?? {};
+  const beforeScript = before.snapshot?.script ?? {};
+  const afterScript = after.snapshot?.script ?? {};
+  const coreRestart = beforeCore.startedAt !== afterCore.startedAt;
+  const characterRestart = !sameSocketMarkers(beforeCharacter, afterCharacter);
+  const scriptRestart =
+    (beforeScript.runId ?? null) !== (afterScript.runId ?? null) ||
+    (beforeScript.startedAt ?? null) !== (afterScript.startedAt ?? null);
+  const actionGatewayRequests = Math.max(
+    0,
+    Number(after.snapshot?.actionGateway?.totalRequests ?? 0) -
+      Number(before.snapshot?.actionGateway?.totalRequests ?? 0),
+  );
+  steps.push({ key: "core-character-script-continuity", outcome:
+    !coreRestart && !characterRestart && !scriptRestart ? "passed" : "failed" });
+  steps.push({ key: "read-only-gameplay-runtime", outcome:
+    actionGatewayRequests === 0 &&
+    descriptor.mutationAuthority === false &&
+    descriptor.bankMutation === false &&
+    descriptor.tradeMutation === false &&
+    descriptor.transferMutation === false &&
+    descriptor.buySellMutation === false &&
+    descriptor.actionGatewayUsed === false &&
+    descriptor.rawSocketAccess === false ? "passed" : "failed" });
+
+  return {
+    outcome: steps.every((step) => step.outcome === "passed") ? "passed" : "failed",
+    steps, preview, selfTest,
+    coreRestart, characterRestart, scriptRestart, actionGatewayRequests,
+    gameplayMutation: false, rawSocketAccess: false, userScriptTouched: false,
+  };
+}
+
+async function startSlice142LiveTest(clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice142LiveTest = {
+    status: "running",
+    message: "Slice 14.2 Merchant Workspace & Capacity test is running.",
+  };
+  renderSlice142LiveTest();
+  const verification = await runSlice142Verification();
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) {
+    throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  }
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live142-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const preview = verification.preview ?? {};
+  const inventory = preview.inventory ?? {};
+  const capacity = preview.capacity ?? {};
+  const descriptor = verification.selfTest?.descriptor ?? {};
+  const stepLines = verification.steps.map((step) =>
+    `- ${step.key}: ${String(step.outcome).toUpperCase()}`
+  );
+  const reportText = [
+    "ALRemastered Slice 14.2 one-click Merchant Workspace & Capacity test",
+    `Test ID: ${testId}`,
+    "Slice: 14.2",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    `Inventory capacity: ${inventory.capacity ?? "unavailable"}`,
+    `Inventory used: ${inventory.used ?? "unavailable"}`,
+    `Inventory free: ${inventory.free ?? "unavailable"}`,
+    `Workspace reserve slots: ${capacity.workspaceSlots ?? "unavailable"}`,
+    `Pickup reserve slots: ${capacity.pickupReserveSlots ?? "unavailable"}`,
+    `Total reserved slots: ${capacity.totalReservedSlots ?? "unavailable"}`,
+    `General free slots: ${capacity.generalFreeSlots ?? "unavailable"}`,
+    `Capacity deficit: ${capacity.deficit ?? "unavailable"}`,
+    `Capacity pressure: ${capacity.pressure ?? "unavailable"}`,
+    `Multi-step workflow allowed: ${capacity.multiStepWorkflowAllowed}`,
+    `Reservation planning only: ${descriptor.reservationPlanningOnly}`,
+    `Mutation authority: ${descriptor.mutationAuthority}`,
+    `Bank mutation: ${descriptor.bankMutation}`,
+    `Trade mutation: ${descriptor.tradeMutation}`,
+    `Transfer mutation: ${descriptor.transferMutation}`,
+    `Buy/Sell mutation: ${descriptor.buySellMutation}`,
+    `Core restart: ${verification.coreRestart}`,
+    `Character restart: ${verification.characterRestart}`,
+    `Script restart: ${verification.scriptRestart}`,
+    "Gameplay mutation: false",
+    `Action Gateway requests: ${verification.actionGatewayRequests}`,
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+
+  const result = {
+    testId,
+    slice: "14.2",
+    outcome,
+    startedAt,
+    completedAt,
+    message: outcome === "passed"
+      ? "Merchant Workspace & Capacity verification passed."
+      : "Merchant Workspace & Capacity verification failed. Connect a Merchant Character and retry if live capacity is unavailable.",
+    ...verification,
+  };
+  state.slice142LastReport = reportText;
+  state.slice142LiveTest = { status: outcome, message: result.message, lastResult: result };
+  renderMerchantWorkspaceCapacity(preview);
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice142LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice142LiveTest.addEventListener("click", async () => {
+  if (state.slice142LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice142LastReport = null;
+  elements.copySlice142LiveTestResult.hidden = true;
+  try {
+    const { result, copied } = await startSlice142LiveTest(clipboardWrite);
+    setFeedback(
+      `Slice 14.2 test ${String(result.outcome).toUpperCase()}. ${copied ? "Complete result and sanitized diagnostic log copied to clipboard." : "Use Copy last test result once."}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    state.slice142LiveTest = { status: "failed", message: error.message };
+    renderSlice142LiveTest();
+    setFeedback(`Slice 14.2 Merchant Workspace & Capacity test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice142LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice142LastReport) return;
+  try {
+    await writeClipboard(state.slice142LastReport);
+    setFeedback(
+      "Complete Slice 14.2 Merchant Workspace & Capacity result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Merchant Workspace & Capacity result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice142LiveTest();
 
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));

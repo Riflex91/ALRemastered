@@ -60,6 +60,7 @@ import { DashboardPackageService } from "./packages/dashboard.ts";
 import { CombinedPackageService } from "./packages/combined.ts";
 import { PartyPackWizardService } from "./packages/party-wizard.ts";
 import { MerchantInventoryPreviewService } from "./merchant/inventory-preview.ts";
+import { MerchantWorkspaceCapacityService } from "./merchant/workspace-capacity.ts";
 import { ScriptPackageLibrary } from "./packages/library.ts";
 import { ScriptPackageUpdateService } from "./packages/updater.ts";
 import { getUserPaths } from "./platform/paths.ts";
@@ -211,6 +212,7 @@ let dashboardPackageService: DashboardPackageService | undefined;
 let combinedPackageService: CombinedPackageService | undefined;
 let partyPackWizardService: PartyPackWizardService | undefined;
 let merchantInventoryPreviewService: MerchantInventoryPreviewService | undefined;
+let merchantWorkspaceCapacityService: MerchantWorkspaceCapacityService | undefined;
 let slice41LiveTestService: Slice41LiveTestService | undefined;
 let slice42LiveTestService: Slice42LiveTestService | undefined;
 let slice43LiveTestService: Slice43LiveTestService | undefined;
@@ -743,6 +745,17 @@ diagnostics.registerComponent("merchant-inventory-preview", () => {
     message: state.message,
   };
 });
+merchantWorkspaceCapacityService = new MerchantWorkspaceCapacityService({
+  inventory: merchantInventoryPreviewService,
+});
+diagnostics.registerComponent("merchant-workspace-capacity", () => {
+  const state = merchantWorkspaceCapacityService!.state();
+  return {
+    name: "merchant-workspace-capacity",
+    status: state.status === "ready" ? "healthy" : "degraded",
+    message: state.message,
+  };
+});
 characterCardsService = new CharacterCardsService({
   logger,
   selection: selectionService!,
@@ -1058,6 +1071,7 @@ dashboard = new DashboardServer({
   combinedPackageService,
   partyPackWizardService,
   merchantInventoryPreviewService,
+  merchantWorkspaceCapacityService,
   rendererBridge,
   rendererHandoffService,
   alhdAssetProvider,

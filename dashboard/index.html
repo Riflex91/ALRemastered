@@ -6,7 +6,7 @@
   <title>ALRemastered</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body data-current-verification-slice="14.1">
+<body data-current-verification-slice="14.2">
   <main class="shell">
     <header class="topbar">
       <div>
@@ -582,6 +582,28 @@
       </small>
     </section>
 
+    <section class="account-panel" id="merchant-workspace-capacity">
+      <div class="diagnostics-heading">
+        <div>
+          <p class="eyebrow">Phase 14 advanced gameplay</p>
+          <h2>Merchant Workspace &amp; Capacity Preview</h2>
+        </div>
+        <strong id="merchant-workspace-capacity-status" aria-live="polite">Loading…</strong>
+      </div>
+      <div class="toolbar">
+        <button id="merchant-workspace-capacity-refresh" type="button">Refresh capacity preflight</button>
+      </div>
+      <article class="card">
+        <span class="label">Read-only Merchant capacity preflight</span>
+        <p id="merchant-workspace-capacity-summary" class="selection-note">
+          Connect the Merchant Character to calculate workspace and pickup reserves.
+        </p>
+      </article>
+      <small class="selection-note">
+        Slice 14.2 treats inventory space as a planning resource. It keeps three logical workspace slots and one logical pickup-reserve slot available before multi-step Merchant work may be planned. These reservations do not move items and grant no Bank, Buy/Sell, Trade, Transfer, Upgrade, Compound, Action Gateway, or raw-socket mutation authority.
+      </small>
+    </section>
+
     <div class="selection-content" data-verification-test="12.3" hidden>
       <div>
         <h3>Slice 12.3 one-click Package File Import test</h3>
@@ -690,6 +712,20 @@
         </div>
         <small class="selection-note" id="slice-14-1-live-test-note">
           Requires a connected Merchant Character. Verifies live inventory observation, slot-bound physical identities, default-HOLD disposition, default-denied Merchant package authority, runtime continuity, and zero gameplay writes.
+        </small>
+      </div>
+    </div>
+
+    <div class="selection-content" data-verification-test="14.2" hidden>
+      <div>
+        <h3>Slice 14.2 one-click Merchant Workspace &amp; Capacity test</h3>
+        <div class="server-picker">
+          <button id="start-slice-14-2-live-test" type="button">Start test</button>
+          <strong id="slice-14-2-live-test-status" aria-live="polite">Ready</strong>
+          <button id="copy-slice-14-2-live-test-result" type="button" hidden>Copy last test result</button>
+        </div>
+        <small class="selection-note" id="slice-14-2-live-test-note">
+          Requires a connected Merchant Character. Verifies live capacity accounting, workspace and pickup reserves, fail-closed pressure states, runtime continuity, and zero gameplay writes.
         </small>
       </div>
     </div>

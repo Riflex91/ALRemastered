@@ -3371,3 +3371,47 @@ Scope and safety:
 **Canonical queue status: Slice 14.1 = VERIFIED.**
 
 Slice 14.1 may be considered complete only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green. Slice 14.2 must remain blocked until then.
+
+---
+
+### Slice 14.2 – Merchant Workspace & Capacity Preview — implementation gate
+
+Planned implementation/release target:
+
+- slice: `14.2`;
+- client target: `0.1.0-alpha.84`;
+- platform for real verification: `win32`;
+- required Character class: `merchant`;
+- verification mode: real installed one-click test;
+- current status: implementation in progress; no live result recorded yet.
+
+Required one-click checks:
+
+- `workspace-capacity-descriptor`;
+- `merchant-capacity-live`;
+- `live-capacity-accounting`;
+- `capacity-reserve-accounting`;
+- `capacity-pressure-fail-closed`;
+- `isolated-self-test`;
+- `core-character-script-continuity`;
+- `read-only-gameplay-runtime`.
+
+Required safety evidence:
+
+- Slice 14.1 remains the source of live Merchant inventory truth;
+- workspace reserve defaults to exactly `3` logical slots;
+- pickup reserve defaults to exactly `1` logical slot;
+- total reserved capacity is exactly workspace + pickup reserve;
+- only free slots above the protected reserve are reported as general free capacity;
+- Capacity Pressure is one of `ready`, `constrained`, or `blocked`;
+- multi-step Merchant planning is fail-closed whenever the protected reserve cannot be satisfied;
+- logical reservations do not move, reorder, consume, or mutate any real inventory item;
+- Bank, Buy/Sell, Trade, Transfer, Upgrade, Compound, Craft, Dismantle, Fishing, Mining, Event, and Boss mutations remain unavailable;
+- Action Gateway delta during the one-click test is exactly `0`;
+- no raw socket access is introduced;
+- no User Script is touched or replaced;
+- Core, Character, and Script remain continuous.
+
+Slice 14.2 may become VERIFIED only after the implementation PR is merged, its exact post-merge `main` CI is fully green, `0.1.0-alpha.84` is published from that exact implementation commit, and the real installed Windows one-click test passes.
+
+**Canonical queue status: Slice 14.2 = IMPLEMENTATION IN PROGRESS.**
