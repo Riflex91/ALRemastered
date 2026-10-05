@@ -56,6 +56,8 @@ const state = {
   slice126LastReport: null,
   slice131LiveTest: { status: "idle", message: "Ready." },
   slice131LastReport: null,
+  slice132LiveTest: { status: "idle", message: "Ready." },
+  slice132LastReport: null,
   packageLibrary: null,
   packageImportDocument: null,
   packageImportRemoteSource: null,
@@ -163,6 +165,16 @@ const elements = {
   dashboardPackageVersion: document.querySelector("#dashboard-package-version"),
   dashboardPackageAuthor: document.querySelector("#dashboard-package-author"),
   dashboardPackageExport: document.querySelector("#dashboard-package-export"),
+  combinedPackageStatus: document.querySelector("#combined-package-status"),
+  combinedPackageId: document.querySelector("#combined-package-id"),
+  combinedPackageName: document.querySelector("#combined-package-name"),
+  combinedPackageVersion: document.querySelector("#combined-package-version"),
+  combinedPackageAuthor: document.querySelector("#combined-package-author"),
+  combinedPackageScripts: document.querySelector("#combined-package-scripts"),
+  combinedPackageConfig: document.querySelector("#combined-package-config"),
+  combinedPackageAssets: document.querySelector("#combined-package-assets"),
+  combinedPackagePermissions: document.querySelector("#combined-package-permissions"),
+  combinedPackageExport: document.querySelector("#combined-package-export"),
   dashboardLayoutImport: document.querySelector("#dashboard-layout-import"),
   dashboardLayoutImportFile: document.querySelector("#dashboard-layout-import-file"),
   dashboardLayoutImportPanel: document.querySelector("#dashboard-layout-import-panel"),
@@ -250,6 +262,10 @@ const elements = {
   slice131LiveTestStatus: document.querySelector("#slice-13-1-live-test-status"),
   slice131LiveTestNote: document.querySelector("#slice-13-1-live-test-note"),
   copySlice131LiveTestResult: document.querySelector("#copy-slice-13-1-live-test-result"),
+  startSlice132LiveTest: document.querySelector("#start-slice-13-2-live-test"),
+  slice132LiveTestStatus: document.querySelector("#slice-13-2-live-test-status"),
+  slice132LiveTestNote: document.querySelector("#slice-13-2-live-test-note"),
+  copySlice132LiveTestResult: document.querySelector("#copy-slice-13-2-live-test-result"),
   packageLibraryStatus: document.querySelector("#package-library-status"),
   packageLibraryRefresh: document.querySelector("#package-library-refresh"),
   packageLibraryMyScripts: document.querySelector("#package-library-my-scripts"),
@@ -276,6 +292,8 @@ const elements = {
   packageImportCodeCard: document.querySelector("#package-import-code-card"),
   packageImportCodeFile: document.querySelector("#package-import-code-file"),
   packageImportCode: document.querySelector("#package-import-code"),
+  packageImportAssetsCard: document.querySelector("#package-import-assets-card"),
+  packageImportAssets: document.querySelector("#package-import-assets"),
   packageImportNote: document.querySelector("#package-import-note"),
   coreStatus: document.querySelector("#core-status"),
   version: document.querySelector("#client-version"),
@@ -1018,6 +1036,49 @@ elements.dashboardPackageExport.addEventListener("click", async () => {
     setFeedback(`Dashboard package export failed: ${error.message}`, "error");
   } finally {
     elements.dashboardPackageExport.disabled = false;
+  }
+});
+
+elements.combinedPackageExport.addEventListener("click", async () => {
+  elements.combinedPackageExport.disabled = true;
+  elements.combinedPackageStatus.textContent = "Building…";
+  try {
+    const profile = activeDashboardLayoutProfile();
+    if (!profile) throw new Error("No active dashboard profile is available.");
+    const scripts = JSON.parse(elements.combinedPackageScripts.value);
+    const configSchema = JSON.parse(elements.combinedPackageConfig.value);
+    const assets = JSON.parse(elements.combinedPackageAssets.value);
+    if (!Array.isArray(scripts) || scripts.length === 0) {
+      throw new Error("Scripts JSON must contain at least one Script.");
+    }
+    if (!Array.isArray(assets)) throw new Error("Assets JSON must be an array.");
+    const permissions = elements.combinedPackagePermissions.value
+      .split(/[\n,]+/u)
+      .map((value) => value.trim())
+      .filter(Boolean);
+    const portableProfile = createPortableDashboardProfile(profile);
+    const exported = await postPackageLibrary("/api/packages/combined/export", {
+      packageId: elements.combinedPackageId.value.trim(),
+      name: elements.combinedPackageName.value.trim() || profile.name,
+      version: elements.combinedPackageVersion.value.trim(),
+      author: elements.combinedPackageAuthor.value.trim(),
+      scripts,
+      configSchema,
+      portableProfile,
+      assets,
+      permissions,
+    });
+    downloadDashboardPackage(exported);
+    elements.combinedPackageStatus.textContent = "Exported";
+    setFeedback(
+      `Combined pack ${exported.packageId} ${exported.version} exported with ${exported.scriptCount} Script(s), ${exported.assetCount} asset(s), Dashboard roles, Config Schema, and declared Permissions.`,
+      "success",
+    );
+  } catch (error) {
+    elements.combinedPackageStatus.textContent = "Export failed";
+    setFeedback(`Combined pack export failed: ${error.message}`, "error");
+  } finally {
+    elements.combinedPackageExport.disabled = false;
   }
 });
 
@@ -5239,14 +5300,20 @@ function renderPackageImportPreview(preview) {
   elements.packageImportName.textContent = preview.name;
   elements.packageImportVersion.textContent = preview.version;
   elements.packageImportAuthor.textContent = preview.author;
-  elements.packageImportKind.textContent = preview.packageKind === "dashboard" ? "Dashboard" : "Script";
+  elements.packageImportKind.textContent = preview.packageKind === "combined"
+    ? "Script + Dashboard"
+    : preview.packageKind === "dashboard"
+      ? "Dashboard"
+      : "Script";
   elements.packageImportIntegrity.textContent = `SHA-256 verified · ${preview.manifestHash.slice(0, 12)}…`;
   elements.packageImportDescription.textContent = preview.description;
   const isDashboardPackage = preview.packageKind === "dashboard";
-  elements.packageImportDashboardCard.hidden = !isDashboardPackage;
+  const hasDashboard = preview.packageKind === "dashboard" || preview.packageKind === "combined";
+  elements.packageImportDashboardCard.hidden = !hasDashboard;
   elements.packageImportConfigCard.hidden = isDashboardPackage;
   elements.packageImportCodeCard.hidden = isDashboardPackage;
-  if (isDashboardPackage) {
+  elements.packageImportAssetsCard.hidden = (preview.assets ?? []).length === 0;
+  if (hasDashboard) {
     const profile = preview.dashboard?.profile?.profile;
     const variants = ["desktop", "small"].filter((variant) => profile?.layouts?.[variant]);
     elements.packageImportDashboard.textContent =
@@ -5255,6 +5322,11 @@ function renderPackageImportPreview(preview) {
     elements.packageImportDashboard.textContent = "—";
   }
   elements.packageImportConfig.textContent = JSON.stringify(preview.configSchema, null, 2);
+  elements.packageImportAssets.textContent = (preview.assets ?? []).length > 0
+    ? preview.assets.map((asset) =>
+      `${asset.path} · ${asset.mediaType ?? "text/plain"} · ${asset.bytes} bytes · SHA-256 ${asset.sha256.slice(0, 12)}…`
+    ).join("\n")
+    : "—";
 
   elements.packageImportPermissions.replaceChildren();
   if ((preview.permissions ?? []).length === 0) {
@@ -5295,9 +5367,13 @@ function renderPackageImportPreview(preview) {
   elements.packageImportStatus.textContent = "Preview ready";
   elements.packageImportNote.textContent = preview.packageKind === "dashboard"
     ? "Review the portable Dashboard profile and Character roles. Dashboard-only packages contain no executable scripts or script permissions. Import stores the package; applying the layout requires explicit Character role mapping."
-    : preview.requiresDangerousConfirmation
-      ? "Review code, configuration, and permissions. Every dangerous permission must be explicitly checked before import. Import remains inactive."
-      : "Review code and configuration before import. This package declares no dangerous permissions and remains inactive after import.";
+    : preview.packageKind === "combined"
+      ? preview.requiresDangerousConfirmation
+        ? "Review Scripts, Config Schema, Dashboard roles, assets, and Permissions. Every dangerous permission must be explicitly confirmed. Import remains inactive; applying the Dashboard never activates Scripts."
+        : "Review Scripts, Config Schema, Dashboard roles, assets, and Permissions. Import remains inactive; applying the Dashboard never activates Scripts."
+      : preview.requiresDangerousConfirmation
+        ? "Review code, configuration, and permissions. Every dangerous permission must be explicitly checked before import. Import remains inactive."
+        : "Review code and configuration before import. This package declares no dangerous permissions and remains inactive after import.";
 }
 
 async function previewSelectedPackage() {
@@ -5354,7 +5430,9 @@ elements.packageImportRemotePreviewButton.addEventListener("click", async () => 
     const sourceLabel = preview.remoteSource?.kind === "github" ? "GitHub source" : "package link";
     elements.packageImportNote.textContent = preview.packageKind === "dashboard"
       ? `Previewed ${sourceLabel}. Review the portable Dashboard profile. The source is fetched again when you confirm; applying the layout later requires explicit Character role mapping.`
-      : `Previewed ${sourceLabel}. Review code, configuration, and permissions. The source is fetched again when you confirm, and the package remains inactive after import.`;
+      : preview.packageKind === "combined"
+        ? `Previewed ${sourceLabel}. Review Scripts, Dashboard roles, Config Schema, assets, and Permissions. The source is fetched again when you confirm; import remains inactive and Dashboard apply does not activate Scripts.`
+        : `Previewed ${sourceLabel}. Review code, configuration, and permissions. The source is fetched again when you confirm, and the package remains inactive after import.`;
     setFeedback(`Remote package preview ready: ${preview.name} ${preview.version}.`, "success");
   } catch (error) {
     state.packageImportDocument = null;
@@ -5567,9 +5645,12 @@ function renderPackageLibrary(snapshot) {
       const version = selectedVersion();
       if (!version) return;
       const dashboardPackage = version.packageKind === "dashboard";
+      const dashboardCapable = dashboardPackage || version.packageKind === "combined";
       status.textContent = dashboardPackage
         ? `Dashboard package · imported ${version.importedAt ?? "time unknown"} · package execution: not supported`
-        : `${version.active ? "Active" : "Inactive"} · imported ${version.importedAt ?? "time unknown"} · package execution: not supported`;
+        : version.packageKind === "combined"
+          ? `Combined pack · Scripts ${version.active ? "Active" : "Inactive"} · Dashboard applied separately · imported ${version.importedAt ?? "time unknown"} · package execution: not supported`
+          : `${version.active ? "Active" : "Inactive"} · imported ${version.importedAt ?? "time unknown"} · package execution: not supported`;
       description.textContent = version.description;
       permissions.textContent =
         `Permissions: ${version.permissions?.join(", ") || "none"}`;
@@ -5581,7 +5662,7 @@ function renderPackageLibrary(snapshot) {
       schemaLabel.hidden = dashboardPackage;
       schema.hidden = dashboardPackage;
       configLabel.hidden = dashboardPackage;
-      dashboardApplyButton.hidden = !dashboardPackage;
+      dashboardApplyButton.hidden = !dashboardCapable;
       updateLabel.hidden = dashboardPackage;
       updateStatus.hidden = dashboardPackage;
       changelogLabel.hidden = dashboardPackage;
@@ -5636,7 +5717,7 @@ function renderPackageLibrary(snapshot) {
     versionSelect.addEventListener("change", renderSelectedVersion);
     dashboardApplyButton.addEventListener("click", async () => {
       const version = selectedVersion();
-      if (!version || version.packageKind !== "dashboard") return;
+      if (!version || (version.packageKind !== "dashboard" && version.packageKind !== "combined")) return;
       dashboardApplyButton.disabled = true;
       try {
         const inspected = await postPackageLibrary("/api/packages/dashboard/inspect", {
@@ -5652,7 +5733,7 @@ function renderPackageLibrary(snapshot) {
         renderDashboardImportPanel();
         elements.dashboardLayoutImportPanel.scrollIntoView({ behavior: "smooth", block: "center" });
         setFeedback(
-          `Dashboard package "${packageEntry.name}" ${version.version} loaded. Map every Character role before applying it.`,
+          `${version.packageKind === "combined" ? "Combined pack Dashboard" : "Dashboard package"} "${packageEntry.name}" ${version.version} loaded. Map every Character role before applying it; Script Active state is unchanged.`,
           "success",
         );
       } catch (error) {
