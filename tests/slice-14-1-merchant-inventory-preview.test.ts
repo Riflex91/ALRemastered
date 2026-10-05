@@ -172,7 +172,7 @@ test("Slice 14.1 is current verification and UI exposes Merchant Inventory Previ
   const app = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
   const server = readFileSync(new URL("../src/dashboard/server.js", import.meta.url), "utf8");
   const merchant = readFileSync(new URL("../src/merchant/inventory-preview.js", import.meta.url), "utf8");
-  assert.match(html, /data-current-verification-slice="14\.1"/);
+  assert.match(html, /data-current-verification-slice="14\.2"/);
   assert.match(html, /<h2>Merchant Inventory &amp; Disposition Preview<\/h2>/);
   assert.match(html, /id="merchant-inventory-preview-refresh"/);
   assert.match(html, /Slice 14\.1 one-click Merchant Inventory Preview test/);
