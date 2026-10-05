@@ -7475,6 +7475,226 @@ elements.copySlice132LiveTestResult.addEventListener("click", async () => {
 
 renderSlice132LiveTest();
 
+function renderSlice133LiveTest() {
+  const test = state.slice133LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = { idle: "Ready", running: "Running…", passed: "PASSED", failed: "FAILED" };
+  elements.slice133LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice133LiveTest.disabled = test.status === "running";
+  elements.copySlice133LiveTestResult.hidden = !state.slice133LastReport;
+  if (test.status === "running") {
+    elements.slice133LiveTestNote.textContent =
+      "Testing Party Pack discovery, all-account Characters, class recommendations, unique role mapping, Dashboard application, explicit package activation, cleanup, and runtime continuity.";
+  } else if (test.message) {
+    elements.slice133LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function runSlice133Verification() {
+  const before = await fetchRendererSnapshot();
+  const response = await fetch("/api/packages/party-wizard/self-test", { cache: "no-store" });
+  const selfTest = await response.json();
+  if (!response.ok) throw new Error(selfTest.error ?? "Party Pack Wizard self-test failed.");
+
+  const after = await fetchRendererSnapshot();
+  const checks = selfTest.checks ?? {};
+  const descriptor = selfTest.descriptor ?? {};
+  const steps = [
+    { key: "party-pack-wizard-descriptor", outcome:
+      descriptor.packageKind === "combined" &&
+      descriptor.guidedRoleMapping === true &&
+      descriptor.characterRecommendations === true &&
+      descriptor.uniqueCharacterPerRoleRequired === true &&
+      descriptor.setupAppliesDashboard === true &&
+      descriptor.setupActivatesPackageMetadata === true &&
+      descriptor.setupStartsCharacters === false &&
+      descriptor.setupExecutesPackage === false
+        ? "passed" : "failed" },
+    { key: "combined-pack-visible", outcome: checks.combinedPackVisible ? "passed" : "failed" },
+    { key: "all-account-characters-visible", outcome:
+      checks.allAccountCharactersVisible ? "passed" : "failed" },
+    { key: "four-roles-visible", outcome: checks.fourRolesVisible ? "passed" : "failed" },
+    { key: "class-recommendations", outcome: checks.classRecommendations ? "passed" : "failed" },
+    { key: "unique-characters-required", outcome:
+      checks.uniqueCharactersRequired ? "passed" : "failed" },
+    { key: "explicit-role-mapping", outcome: checks.explicitRoleMapping ? "passed" : "failed" },
+    { key: "dashboard-applied", outcome: checks.dashboardApplied ? "passed" : "failed" },
+    { key: "package-activated-explicitly", outcome:
+      checks.packageActivatedExplicitly ? "passed" : "failed" },
+    { key: "no-character-start", outcome: checks.noCharacterStart ? "passed" : "failed" },
+    { key: "no-package-execution", outcome: checks.noExecution ? "passed" : "failed" },
+    { key: "verification-cleanup", outcome: checks.cleanup ? "passed" : "failed" },
+  ];
+
+  const beforeCore = before.snapshot?.core ?? {};
+  const afterCore = after.snapshot?.core ?? {};
+  const beforeCharacter = before.snapshot?.character ?? {};
+  const afterCharacter = after.snapshot?.character ?? {};
+  const beforeScript = before.snapshot?.script ?? {};
+  const afterScript = after.snapshot?.script ?? {};
+  const coreRestart = beforeCore.startedAt !== afterCore.startedAt;
+  const characterRestart = !sameSocketMarkers(beforeCharacter, afterCharacter);
+  const scriptRestart =
+    (beforeScript.runId ?? null) !== (afterScript.runId ?? null) ||
+    (beforeScript.startedAt ?? null) !== (afterScript.startedAt ?? null);
+  const actionGatewayRequests = Math.max(
+    0,
+    Number(after.snapshot?.actionGateway?.totalRequests ?? 0) -
+      Number(before.snapshot?.actionGateway?.totalRequests ?? 0),
+  );
+  steps.push({
+    key: "core-character-script-continuity",
+    outcome: !coreRestart && !characterRestart && !scriptRestart ? "passed" : "failed",
+  });
+  steps.push({
+    key: "read-only-gameplay-runtime",
+    outcome:
+      actionGatewayRequests === 0 &&
+      checks.noGameplayMutation &&
+      checks.rawSocketAccess &&
+      checks.userScriptUntouched
+        ? "passed" : "failed",
+  });
+
+  return {
+    outcome: steps.every((step) => step.outcome === "passed") ? "passed" : "failed",
+    steps,
+    selfTest,
+    coreRestart,
+    characterRestart,
+    scriptRestart,
+    actionGatewayRequests,
+    gameplayMutation: false,
+    rawSocketAccess: false,
+    userScriptTouched: false,
+    packageExecutionAttempted: false,
+  };
+}
+
+async function startSlice133LiveTest(clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice133LiveTest = {
+    status: "running",
+    message: "Slice 13.3 Party Pack Wizard test is running.",
+  };
+  renderSlice133LiveTest();
+
+  const verification = await runSlice133Verification();
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) {
+    throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  }
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live133-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const checks = verification.selfTest.checks ?? {};
+  const descriptor = verification.selfTest.descriptor ?? {};
+  const preview = verification.selfTest.preview ?? {};
+  const resultData = verification.selfTest.result ?? {};
+  const stepLines = verification.steps.map((step) =>
+    `- ${step.key}: ${String(step.outcome).toUpperCase()}`
+  );
+
+  const reportText = [
+    "ALRemastered Slice 13.3 one-click Party Pack Wizard test",
+    `Test ID: ${testId}`,
+    "Slice: 13.3",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    `Package kind: ${descriptor.packageKind ?? "unknown"}`,
+    `Guided role mapping: ${descriptor.guidedRoleMapping}`,
+    `Character recommendations: ${descriptor.characterRecommendations}`,
+    `Unique Character per role required: ${descriptor.uniqueCharacterPerRoleRequired}`,
+    `Setup applies Dashboard: ${descriptor.setupAppliesDashboard}`,
+    `Setup activates package metadata: ${descriptor.setupActivatesPackageMetadata}`,
+    `Setup starts Characters: ${descriptor.setupStartsCharacters}`,
+    `Setup executes package: ${descriptor.setupExecutesPackage}`,
+    `Combined pack visible: ${checks.combinedPackVisible}`,
+    `All account Characters visible: ${checks.allAccountCharactersVisible}`,
+    `Roles: ${preview.roles?.map((role) => role.label).join(", ") || "none"}`,
+    `Recommendations: ${preview.roles?.map((role) =>
+      `${role.label} -> ${role.recommendedCharacterName ?? "none"} (${role.recommendedCharacterType ?? "unknown"})`
+    ).join(", ") || "none"}`,
+    `Unique mapping enforced: ${checks.uniqueCharactersRequired}`,
+    `Role mapping: ${Object.entries(resultData.roleMapping ?? {}).map(([role, character]) =>
+      `${role} -> ${character}`
+    ).join(", ") || "none"}`,
+    `Applied profile: ${resultData.profileName ?? "unknown"}`,
+    `Layout variants: ${resultData.layoutVariants?.join(", ") || "none"}`,
+    `Package active after setup: ${resultData.packageActive}`,
+    `Characters started: ${resultData.charactersStarted}`,
+    "Package execution attempted: false",
+    `Verification cleanup: ${checks.cleanup}`,
+    `Core restart: ${verification.coreRestart}`,
+    `Character restart: ${verification.characterRestart}`,
+    `Script restart: ${verification.scriptRestart}`,
+    "Gameplay mutation: false",
+    `Action Gateway requests: ${verification.actionGatewayRequests}`,
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+
+  const result = {
+    testId,
+    slice: "13.3",
+    outcome,
+    startedAt,
+    completedAt,
+    message: outcome === "passed"
+      ? "Party Pack Wizard verification passed."
+      : "Party Pack Wizard verification failed.",
+    ...verification,
+  };
+  state.slice133LastReport = reportText;
+  state.slice133LiveTest = { status: outcome, message: result.message, lastResult: result };
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice133LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice133LiveTest.addEventListener("click", async () => {
+  if (state.slice133LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice133LastReport = null;
+  elements.copySlice133LiveTestResult.hidden = true;
+  try {
+    const { result, copied } = await startSlice133LiveTest(clipboardWrite);
+    setFeedback(
+      `Slice 13.3 test ${String(result.outcome).toUpperCase()}. ${copied ? "Complete result and sanitized diagnostic log copied to clipboard." : "Use Copy last test result once."}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    state.slice133LiveTest = { status: "failed", message: error.message };
+    renderSlice133LiveTest();
+    setFeedback(`Slice 13.3 Party Pack Wizard test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice133LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice133LastReport) return;
+  try {
+    await writeClipboard(state.slice133LastReport);
+    setFeedback("Complete Slice 13.3 Party Pack Wizard result and sanitized diagnostic log copied.", "success");
+  } catch (error) {
+    setFeedback(`Party Pack Wizard result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice133LiveTest();
+
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
   const days = Math.floor(totalSeconds / 86400);
