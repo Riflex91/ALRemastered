@@ -3537,3 +3537,81 @@ Required safety evidence:
 Slice 14.3 may become VERIFIED only after the implementation PR is merged, its exact post-merge `main` CI is fully green, `0.1.0-alpha.85` is published from that exact implementation commit, and the real installed Windows one-click test passes.
 
 **Canonical queue status: Slice 14.3 = IMPLEMENTATION IN PROGRESS.**
+
+
+---
+
+### Alpha.85 real one-click result: PASSED — Slice 14.3 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.85`;
+- release target / tested implementation main: `397fcb57b87c7356047828a38e554cb7763c5db3`;
+- client: `0.1.0-alpha.85`;
+- platform: `win32`;
+- test ID: `live143-6b372c69-9f9b-4d95-9e25-727dc0f75e71`;
+- outcome: `PASSED`;
+- test window: `2026-10-05T18:46:33.637Z → 2026-10-05T18:46:33.650Z`;
+- diagnostic export: 22 log lines, `Secrets sanitized: yes`.
+
+The one-click harness completed the full Slice 14.3 validation:
+
+- `gold-budget-descriptor: PASSED`;
+- `merchant-gold-live: PASSED`;
+- `safety-reserve-accounting: PASSED`;
+- `reservation-accounting: PASSED`;
+- `parallel-overbooking-blocked: PASSED`;
+- `isolated-self-test: PASSED`;
+- `core-character-script-continuity: PASSED`;
+- `read-only-gameplay-runtime: PASSED`;
+- observed gold: `15141206`;
+- Safety Reserve gold: `1000`;
+- Safety Reserve deficit: `0`;
+- spendable before reservations: `15140206`;
+- planned reserved gold: `0`;
+- available after reservations: `15140206`;
+- reservation deficit: `0`;
+- reservation count: `0`;
+- budget pressure: `ready`;
+- reservation planning only: `true`;
+- parallel overbooking blocked: `true`;
+- mutation authority: `false`;
+- bank mutation: `false`;
+- trade mutation: `false`;
+- transfer mutation: `false`;
+- gold transfer mutation: `false`;
+- Buy/Sell mutation: `false`;
+- `Core restart: false`;
+- `Character restart: false`;
+- `Script restart: false`;
+- `Gameplay mutation: false`;
+- Action Gateway requests: `0`;
+- `Raw socket access: false`;
+- `User Script touched: false`.
+
+Repository/release evidence:
+
+- implementation PR #170 final feature head: `9c1ad473177999282175112cb3961f38feba6f48`;
+- final implementation PR CI run `37353597878`: all four required jobs successful;
+- implementation main: `397fcb57b87c7356047828a38e554cb7763c5db3`;
+- exact post-implementation-main CI run `37353983270`: all four required jobs successful;
+- release publish run `37357982033`: Linux, Windows, and GitHub Release successful;
+- release branch, tag, release target, publish head, and tested implementation main are commit-identical at `397fcb57b87c7356047828a38e554cb7763c5db3`;
+- Windows x64 installer SHA-256: `f5d949602a2c263e74fa714423da058f482d519bea9b29fd43e69af58ed6316b`;
+- Linux x64 installer SHA-256: `9052cd3940758e276ad242ea64c204fadfb6762e33e97393e756edb0b94e108e`;
+- updater manifest SHA-256: `a6449deff1a64990ec5a726121710b32c14c54f94328bf2a36ea2a7851efb3d1`.
+
+Scope and safety:
+
+- live observed gold and Safety Reserve accounting were internally consistent;
+- live planning-reservation state began empty and therefore introduced no hidden economic allocation;
+- isolated self-test proved exact allocation, overbooking rejection, and Safety-Reserve preservation;
+- planning reservations remained read-only and performed no gameplay write;
+- Bank, Buy/Sell, Trade, Item Transfer, Gold Transfer, Upgrade, Compound, Craft, Dismantle, Fishing, Mining, Event, and Boss writes remained outside Slice 14.3;
+- mutation authority and all reported economic mutation flags remained false;
+- Core, Character, and Script remained continuous;
+- no gameplay mutation, Action Gateway requests, raw socket access, or User Script replacement occurred.
+
+**Canonical queue status: Slice 14.3 = VERIFIED.**
+
+Slice 14.3 may be considered complete only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
