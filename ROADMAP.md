@@ -4355,3 +4355,102 @@ Scope/safety evidence:
 
 Slice 13.1 is complete only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green. Slice 13.2 must not begin before that gate is satisfied.
 
+---
+
+## Verification Evidence — Slice 13.2 Script + Dashboard Packs
+
+**Status: VERIFIED**
+
+> 2026-10-05: VERIFIED on Windows with `0.1.0-alpha.81`. Real installed one-click test `live132-6657633a-a81c-4a75-bf8d-a22b0a053917` passed one combined `.alrpkg` containing multiple Scripts, portable Dashboard layout + roles, Config Schema, assets, declared Permissions, dangerous-permission confirmation, inactive import, independent Dashboard application, explicit Script activation, cleanup, runtime continuity, and read-only gameplay safety without package execution.
+
+Live verification evidence:
+
+- client: `0.1.0-alpha.81`;
+- platform: `win32`;
+- test ID: `live132-6657633a-a81c-4a75-bf8d-a22b0a053917`;
+- outcome: `PASSED`;
+- test window: `2026-10-05T15:26:13.483Z → 2026-10-05T15:26:13.506Z`;
+- `combined-package-descriptor: PASSED`;
+- `combined-kind: PASSED`;
+- `multiple-scripts: PASSED`;
+- `dashboard-and-roles: PASSED`;
+- `config-schema: PASSED`;
+- `assets: PASSED`;
+- `permissions: PASSED`;
+- `dangerous-permission-confirmation: PASSED`;
+- `imported-inactive: PASSED`;
+- `dashboard-apply-independent: PASSED`;
+- `explicit-role-mapping: PASSED`;
+- `source-character-ids-absent: PASSED`;
+- `layout-persisted: PASSED`;
+- `configuration-persisted: PASSED`;
+- `script-activation-explicit: PASSED`;
+- `no-package-execution: PASSED`;
+- `verification-cleanup: PASSED`;
+- `core-character-script-continuity: PASSED`;
+- `read-only-gameplay-runtime: PASSED`;
+- package extension: `.alrpkg`;
+- package kind: `combined`;
+- multiple Scripts supported: `true`;
+- Dashboard layout supported: `true`;
+- portable roles supported: `true`;
+- Config Schema supported: `true`;
+- assets supported: `true`;
+- Permissions supported: `true`;
+- Script count: `2`;
+- Scripts: `scripts/main.js (entry)`, `scripts/helpers.js`;
+- role IDs: `tank`;
+- asset paths: `assets/strategy.txt`;
+- Permissions: `movement`, `inventory.destroy`;
+- dangerous permission confirmation required: `true`;
+- imported inactive: `true`;
+- Dashboard apply leaves Scripts inactive: `true`;
+- explicit role mapping: `true`;
+- source Character IDs absent: `true`;
+- applied profile: `Slice 13.2 combined layout`;
+- layout variants: `desktop`;
+- layout persisted: `true`;
+- configuration persisted: `true`;
+- Script activation explicit: `true`;
+- active after explicit activation: `true`;
+- package execution attempted: `false`;
+- verification cleanup: `true`;
+- `Core restart: false`;
+- `Character restart: false`;
+- `Script restart: false`;
+- `Gameplay mutation: false`;
+- Action Gateway requests: `0`;
+- `Raw socket access: false`;
+- `User Script touched: false`;
+- diagnostic export: 12 log lines covering `2026-10-05T15:26:05.540Z → 2026-10-05T15:26:13.502Z`, `Secrets sanitized: yes`;
+- self-test diagnostic: `status=ready`, `executionAttempted=false`, `gameplayMutation=false`.
+
+Repository/release evidence:
+
+- implementation PR #162 final feature head: `1bca2234ec00c39b4d4071d927f6fc8058a22c96`;
+- final implementation PR CI runs `37330963135` and `37330986604` both completed on that exact head with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #162 merged with method `merge` into implementation `main` `909b4da7fbfc589affbe29d82e0cc6e7217b88d8`;
+- exact post-implementation-main CI run `37331820135` completed on `909b4da7fbfc589affbe29d82e0cc6e7217b88d8` with all four required jobs successful;
+- release publish run `37332252918` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.81`, tag `v0.1.0-alpha.81`, GitHub Release target, publish-run head, and tested implementation `main` are commit-identical at `909b4da7fbfc589affbe29d82e0cc6e7217b88d8`;
+- published assets:
+  - Windows x64 installer SHA-256 `69cb75023ac4d363977ac17e4978bfc2238bcca89a99e50b9caad5bdaad1cbe0`
+  - Linux x64 installer SHA-256 `0978bc2c9d6a07ee84119bda544cc89f9aa3dd970b0b0c57f63cfcfe1f235511`
+  - updater manifest SHA-256 `ff91e7aaf5f565e6726c79076e4f626bd88e832b566d2cabfe1292fac5c7b6db`.
+
+Scope/safety evidence:
+
+- one `.alrpkg` can carry multiple Scripts, portable Dashboard layout + roles, Config Schema, assets, and declared Permissions together;
+- dangerous Permissions remain blocked until explicitly approved;
+- import remains inactive and does not execute package code;
+- Dashboard application requires explicit Character-role mapping and leaves the Script Active state unchanged;
+- source Character IDs are absent from the packaged portable Dashboard profile;
+- Script configuration and Script activation remain explicit, separate actions;
+- verification cleanup removed isolated test data;
+- Core, Character, and Script remained continuous;
+- no gameplay mutation, Action Gateway request, raw socket access, package execution, or User Script replacement occurred.
+
+**Canonical roadmap status: Slice 13.2 = VERIFIED.**
+
+Slice 13.2 is complete only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green. Slice 13.3 must not begin before that gate is satisfied.
+
