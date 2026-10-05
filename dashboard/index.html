@@ -6,7 +6,7 @@
   <title>ALRemastered</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body data-current-verification-slice="13.3">
+<body data-current-verification-slice="14.1">
   <main class="shell">
     <header class="topbar">
       <div>
@@ -560,6 +560,28 @@
       </small>
     </section>
 
+    <section class="account-panel" id="merchant-inventory-preview">
+      <div class="diagnostics-heading">
+        <div>
+          <p class="eyebrow">Phase 14 advanced gameplay</p>
+          <h2>Merchant Inventory &amp; Disposition Preview</h2>
+        </div>
+        <strong id="merchant-inventory-preview-status" aria-live="polite">Loading…</strong>
+      </div>
+      <div class="toolbar">
+        <button id="merchant-inventory-preview-refresh" type="button">Refresh live inventory</button>
+      </div>
+      <article class="card">
+        <span class="label">Read-only Merchant ledger</span>
+        <p id="merchant-inventory-preview-summary" class="selection-note">
+          Connect the Merchant Character to inspect its live inventory.
+        </p>
+      </article>
+      <small class="selection-note">
+        Slice 14.1 creates slot-bound physical item identities and a disposition preview. Every observed item defaults to HOLD. This slice has no Bank, Buy/Sell, Trade, Transfer, Upgrade, Compound, Action Gateway, or raw-socket mutation authority.
+      </small>
+    </section>
+
     <div class="selection-content" data-verification-test="12.3" hidden>
       <div>
         <h3>Slice 12.3 one-click Package File Import test</h3>
@@ -654,6 +676,20 @@
         </div>
         <small class="selection-note" id="slice-13-3-live-test-note">
           Verifies combined-pack discovery, all-account Character visibility, class recommendations, unique role mapping, Dashboard application, explicit package activation, cleanup, and runtime continuity. The wizard starts no Characters and executes no package code or gameplay action.
+        </small>
+      </div>
+    </div>
+
+    <div class="selection-content" data-verification-test="14.1" hidden>
+      <div>
+        <h3>Slice 14.1 one-click Merchant Inventory Preview test</h3>
+        <div class="server-picker">
+          <button id="start-slice-14-1-live-test" type="button">Start test</button>
+          <strong id="slice-14-1-live-test-status" aria-live="polite">Ready</strong>
+          <button id="copy-slice-14-1-live-test-result" type="button" hidden>Copy last test result</button>
+        </div>
+        <small class="selection-note" id="slice-14-1-live-test-note">
+          Requires a connected Merchant Character. Verifies live inventory observation, slot-bound physical identities, default-HOLD disposition, default-denied Merchant package authority, runtime continuity, and zero gameplay writes.
         </small>
       </div>
     </div>

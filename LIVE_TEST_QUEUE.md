@@ -3250,3 +3250,47 @@ Scope and safety:
 
 Phase 13 may be considered complete only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green. Phase 14 must remain blocked until then.
 
+
+
+---
+
+### Slice 14.1 – Merchant Inventory & Disposition Preview — implementation gate
+
+Planned implementation/release target:
+
+- slice: `14.1`;
+- client target: `0.1.0-alpha.83`;
+- platform for real verification: `win32`;
+- required Character class: `merchant`;
+- verification mode: real installed one-click test;
+- current status: implementation in progress; no live result recorded yet.
+
+Required one-click checks:
+
+- `merchant-inventory-descriptor`;
+- `merchant-connected`;
+- `merchant-class`;
+- `live-inventory-observed`;
+- `physical-slot-identities`;
+- `default-hold-disposition`;
+- `merchant-permission-default-denied`;
+- `isolated-self-test`;
+- `core-character-script-continuity`;
+- `read-only-gameplay-runtime`.
+
+Required safety evidence:
+
+- live Merchant inventory is observed without creating gameplay authority;
+- physical identities are bound to Character, inventory slot, and observed item fingerprint;
+- duplicate-looking items in different slots remain physically distinct;
+- all dispositions remain `HOLD`;
+- Merchant package permission remains dangerous and default-denied;
+- Bank, Buy/Sell, Trade, Transfer, Upgrade, Compound, Craft, Dismantle, Fishing, Mining, Event, and Boss mutations remain unavailable in this slice;
+- Action Gateway delta during the one-click test is exactly `0`;
+- no raw socket access is introduced by the Merchant preview;
+- no User Script is touched or replaced;
+- Core, Character, and Script remain continuous.
+
+Slice 14.1 may become VERIFIED only after the implementation PR is merged, its exact post-merge `main` CI is fully green, `0.1.0-alpha.83` is published from that exact implementation commit, and the real installed Windows one-click test passes.
+
+**Canonical queue status: Slice 14.1 = IMPLEMENTATION IN PROGRESS.**

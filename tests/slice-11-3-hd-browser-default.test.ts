@@ -98,7 +98,7 @@ test("Slice 11.3 makes HD preferred only in Browser View and exposes required st
     "utf8",
   ).trim();
 
-  assert.match(html, /data-current-verification-slice="13\.3"/);
+  assert.match(html, /data-current-verification-slice="14\.1"/);
   assert.match(html, /Slice 11\.3 one-click HD Browser default test/);
   assert.match(browserHtml, /Adventure Land HD/);
   assert.match(browserHtml, /id="browser-hd-available"/);

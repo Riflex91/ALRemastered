@@ -332,13 +332,13 @@ test("Slice 13.3 Dashboard API exposes Wizard state, preview, setup, and isolate
   }
 });
 
-test("Slice 13.3 is current verification and UI exposes the Party Pack Wizard", () => {
+test("Slice 13.3 remains retained while Slice 14.1 is current verification", () => {
   const html = readFileSync(new URL("../dashboard/index.html", import.meta.url), "utf8");
   const app = readFileSync(new URL("../dashboard/app.js", import.meta.url), "utf8");
   const server = readFileSync(new URL("../src/dashboard/server.js", import.meta.url), "utf8");
   const wizard = readFileSync(new URL("../src/packages/party-wizard.js", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="13\.3"/);
+  assert.match(html, /data-current-verification-slice="14\.1"/);
   assert.match(html, /<h2>Party Pack Wizard<\/h2>/);
   assert.match(html, /id="party-pack-wizard-package"/);
   assert.match(html, /id="party-pack-wizard-roles"/);

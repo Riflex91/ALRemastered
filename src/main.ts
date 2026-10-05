@@ -59,6 +59,7 @@ import { ScriptPackageImporter } from "./packages/importer.ts";
 import { DashboardPackageService } from "./packages/dashboard.ts";
 import { CombinedPackageService } from "./packages/combined.ts";
 import { PartyPackWizardService } from "./packages/party-wizard.ts";
+import { MerchantInventoryPreviewService } from "./merchant/inventory-preview.ts";
 import { ScriptPackageLibrary } from "./packages/library.ts";
 import { ScriptPackageUpdateService } from "./packages/updater.ts";
 import { getUserPaths } from "./platform/paths.ts";
@@ -209,6 +210,7 @@ let scriptPackageUpdateService: ScriptPackageUpdateService | undefined;
 let dashboardPackageService: DashboardPackageService | undefined;
 let combinedPackageService: CombinedPackageService | undefined;
 let partyPackWizardService: PartyPackWizardService | undefined;
+let merchantInventoryPreviewService: MerchantInventoryPreviewService | undefined;
 let slice41LiveTestService: Slice41LiveTestService | undefined;
 let slice42LiveTestService: Slice42LiveTestService | undefined;
 let slice43LiveTestService: Slice43LiveTestService | undefined;
@@ -730,6 +732,17 @@ partyPackWizardService = new PartyPackWizardService({
   library: scriptPackageLibrary,
   logger,
 });
+merchantInventoryPreviewService = new MerchantInventoryPreviewService({
+  character: characterService!,
+});
+diagnostics.registerComponent("merchant-inventory-preview", () => {
+  const state = merchantInventoryPreviewService!.state();
+  return {
+    name: "merchant-inventory-preview",
+    status: state.status === "ready" ? "healthy" : "degraded",
+    message: state.message,
+  };
+});
 characterCardsService = new CharacterCardsService({
   logger,
   selection: selectionService!,
@@ -1044,6 +1057,7 @@ dashboard = new DashboardServer({
   dashboardPackageService,
   combinedPackageService,
   partyPackWizardService,
+  merchantInventoryPreviewService,
   rendererBridge,
   rendererHandoffService,
   alhdAssetProvider,

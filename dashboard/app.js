@@ -60,6 +60,9 @@ const state = {
   slice132LastReport: null,
   slice133LiveTest: { status: "idle", message: "Ready." },
   slice133LastReport: null,
+  slice141LiveTest: { status: "idle", message: "Ready." },
+  slice141LastReport: null,
+  merchantInventoryPreview: null,
   partyPackWizard: null,
   partyPackWizardPreview: null,
   packageLibrary: null,
@@ -274,6 +277,13 @@ const elements = {
   slice133LiveTestStatus: document.querySelector("#slice-13-3-live-test-status"),
   slice133LiveTestNote: document.querySelector("#slice-13-3-live-test-note"),
   copySlice133LiveTestResult: document.querySelector("#copy-slice-13-3-live-test-result"),
+  startSlice141LiveTest: document.querySelector("#start-slice-14-1-live-test"),
+  slice141LiveTestStatus: document.querySelector("#slice-14-1-live-test-status"),
+  slice141LiveTestNote: document.querySelector("#slice-14-1-live-test-note"),
+  copySlice141LiveTestResult: document.querySelector("#copy-slice-14-1-live-test-result"),
+  merchantInventoryPreviewStatus: document.querySelector("#merchant-inventory-preview-status"),
+  merchantInventoryPreviewRefresh: document.querySelector("#merchant-inventory-preview-refresh"),
+  merchantInventoryPreviewSummary: document.querySelector("#merchant-inventory-preview-summary"),
   partyPackWizardStatus: document.querySelector("#party-pack-wizard-status"),
   partyPackWizardPackage: document.querySelector("#party-pack-wizard-package"),
   partyPackWizardRefresh: document.querySelector("#party-pack-wizard-refresh"),
@@ -6078,6 +6088,57 @@ elements.partyPackWizardSetup.addEventListener("click", async () => {
   }
 });
 
+
+function renderMerchantInventoryPreview(snapshot) {
+  state.merchantInventoryPreview = snapshot;
+  if (!snapshot || snapshot.status !== "ready") {
+    elements.merchantInventoryPreviewStatus.textContent = "Unavailable";
+    elements.merchantInventoryPreviewSummary.textContent =
+      snapshot?.message ?? "Connect the Merchant Character to inspect its live inventory.";
+    return;
+  }
+  const character = snapshot.character ?? {};
+  const inventory = snapshot.inventory ?? {};
+  const holdCount = snapshot.disposition?.items?.filter((entry) =>
+    entry.disposition === "hold"
+  ).length ?? 0;
+  elements.merchantInventoryPreviewStatus.textContent =
+    `${character.name ?? "Character"} · ${character.type ?? "unknown"}`;
+  elements.merchantInventoryPreviewSummary.textContent = [
+    `Level ${character.level ?? "?"}`,
+    `Gold ${Number(character.gold ?? 0).toLocaleString("en-US")}`,
+    `Inventory ${inventory.used ?? 0}/${inventory.capacity ?? 0}`,
+    `Free ${inventory.free ?? 0}`,
+    `Physical identities ${inventory.items?.length ?? 0}`,
+    `HOLD ${holdCount}`,
+    "Mutation authority: false",
+  ].join(" · ");
+}
+
+async function refreshMerchantInventoryPreview() {
+  elements.merchantInventoryPreviewRefresh.disabled = true;
+  try {
+    const response = await fetch("/api/merchant/inventory-preview", { cache: "no-store" });
+    const snapshot = await response.json();
+    if (!response.ok && response.status !== 503) {
+      throw new Error(snapshot.error ?? `Merchant Inventory Preview request failed with HTTP ${response.status}.`);
+    }
+    renderMerchantInventoryPreview(snapshot);
+  } catch (error) {
+    state.merchantInventoryPreview = null;
+    elements.merchantInventoryPreviewStatus.textContent = "Unavailable";
+    elements.merchantInventoryPreviewSummary.textContent = error.message;
+    setFeedback(`Merchant Inventory Preview refresh failed: ${error.message}`, "error");
+  } finally {
+    elements.merchantInventoryPreviewRefresh.disabled = false;
+  }
+}
+
+elements.merchantInventoryPreviewRefresh.addEventListener("click", () => {
+  void refreshMerchantInventoryPreview();
+});
+void refreshMerchantInventoryPreview();
+
 elements.packageLibraryRefresh.addEventListener("click", () => void refreshPackageLibrary());
 void refreshPackageLibrary();
 
@@ -7694,6 +7755,220 @@ elements.copySlice133LiveTestResult.addEventListener("click", async () => {
 });
 
 renderSlice133LiveTest();
+
+function renderSlice141LiveTest() {
+  const test = state.slice141LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = { idle: "Ready", running: "Running…", passed: "PASSED", failed: "FAILED" };
+  elements.slice141LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice141LiveTest.disabled = test.status === "running";
+  elements.copySlice141LiveTestResult.hidden = !state.slice141LastReport;
+  if (test.status === "running") {
+    elements.slice141LiveTestNote.textContent =
+      "Reading the connected Merchant inventory, validating physical identities and default-HOLD safety, then checking runtime continuity and Action Gateway isolation.";
+  } else if (test.message) {
+    elements.slice141LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function runSlice141Verification() {
+  const before = await fetchRendererSnapshot();
+  const [previewResponse, selfTestResponse, permissionsResponse] = await Promise.all([
+    fetch("/api/merchant/inventory-preview", { cache: "no-store" }),
+    fetch("/api/merchant/inventory-preview/self-test", { cache: "no-store" }),
+    fetch("/api/packages/permissions", { cache: "no-store" }),
+  ]);
+  const preview = await previewResponse.json();
+  const selfTest = await selfTestResponse.json();
+  const permissions = await permissionsResponse.json();
+  if (!selfTestResponse.ok) throw new Error(selfTest.error ?? "Merchant Inventory Preview self-test failed.");
+  if (!permissionsResponse.ok) throw new Error(permissions.error ?? "Package permission descriptor is unavailable.");
+  const after = await fetchRendererSnapshot();
+  const descriptor = selfTest.descriptor ?? {};
+  const inventory = preview.inventory ?? {};
+  const items = Array.isArray(inventory.items) ? inventory.items : [];
+  const dispositions = Array.isArray(preview.disposition?.items) ? preview.disposition.items : [];
+  const physicalIds = items.map((item) => item.physicalId).filter(Boolean);
+  const fingerprintsValid = items.every((item) =>
+    typeof item.fingerprint === "string" && /^[a-f0-9]{64}$/.test(item.fingerprint)
+  );
+  const steps = [
+    { key: "merchant-inventory-descriptor", outcome:
+      descriptor.slice === "14.1" &&
+      descriptor.domain === "merchant" &&
+      descriptor.mode === "read-only" &&
+      descriptor.physicalInventoryIdentity === true &&
+      descriptor.defaultDisposition === "hold" &&
+      descriptor.mutationAuthority === false &&
+      descriptor.actionGatewayUsed === false &&
+      descriptor.rawSocketAccess === false ? "passed" : "failed" },
+    { key: "merchant-connected", outcome:
+      previewResponse.ok && preview.status === "ready" ? "passed" : "failed" },
+    { key: "merchant-class", outcome:
+      preview.character?.type === "merchant" ? "passed" : "failed" },
+    { key: "live-inventory-observed", outcome:
+      Number.isInteger(inventory.capacity) &&
+      Number.isInteger(inventory.used) &&
+      Number.isInteger(inventory.free) &&
+      inventory.capacity >= inventory.used &&
+      inventory.used === items.length &&
+      inventory.free === inventory.capacity - inventory.used ? "passed" : "failed" },
+    { key: "physical-slot-identities", outcome:
+      fingerprintsValid &&
+      new Set(physicalIds).size === physicalIds.length &&
+      physicalIds.length === items.length ? "passed" : "failed" },
+    { key: "default-hold-disposition", outcome:
+      preview.disposition?.default === "hold" &&
+      preview.disposition?.mutationAuthority === false &&
+      dispositions.length === items.length &&
+      dispositions.every((entry) => entry.disposition === "hold") ? "passed" : "failed" },
+    { key: "merchant-permission-default-denied", outcome:
+      permissions.dangerousDefaultAllowed === false &&
+      permissions.dangerousRequireExplicitApproval === true &&
+      permissions.dangerousPermissions?.includes("merchant") ? "passed" : "failed" },
+    { key: "isolated-self-test", outcome:
+      selfTest.status === "ready" &&
+      Object.values(selfTest.checks ?? {}).every(Boolean) &&
+      selfTest.gameplayMutation === false &&
+      selfTest.actionGatewayRequests === 0 &&
+      selfTest.rawSocketAccess === false &&
+      selfTest.userScriptTouched === false ? "passed" : "failed" },
+  ];
+  const beforeCore = before.snapshot?.core ?? {};
+  const afterCore = after.snapshot?.core ?? {};
+  const beforeCharacter = before.snapshot?.character ?? {};
+  const afterCharacter = after.snapshot?.character ?? {};
+  const beforeScript = before.snapshot?.script ?? {};
+  const afterScript = after.snapshot?.script ?? {};
+  const coreRestart = beforeCore.startedAt !== afterCore.startedAt;
+  const characterRestart = !sameSocketMarkers(beforeCharacter, afterCharacter);
+  const scriptRestart =
+    (beforeScript.runId ?? null) !== (afterScript.runId ?? null) ||
+    (beforeScript.startedAt ?? null) !== (afterScript.startedAt ?? null);
+  const actionGatewayRequests = Math.max(
+    0,
+    Number(after.snapshot?.actionGateway?.totalRequests ?? 0) -
+      Number(before.snapshot?.actionGateway?.totalRequests ?? 0),
+  );
+  steps.push({ key: "core-character-script-continuity", outcome:
+    !coreRestart && !characterRestart && !scriptRestart ? "passed" : "failed" });
+  steps.push({ key: "read-only-gameplay-runtime", outcome:
+    actionGatewayRequests === 0 &&
+    descriptor.mutationAuthority === false &&
+    descriptor.actionGatewayUsed === false &&
+    descriptor.rawSocketAccess === false ? "passed" : "failed" });
+  return {
+    outcome: steps.every((step) => step.outcome === "passed") ? "passed" : "failed",
+    steps, preview, selfTest, permissions,
+    coreRestart, characterRestart, scriptRestart, actionGatewayRequests,
+    gameplayMutation: false, rawSocketAccess: false, userScriptTouched: false,
+  };
+}
+
+async function startSlice141LiveTest(clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice141LiveTest = { status: "running", message: "Slice 14.1 Merchant Inventory Preview test is running." };
+  renderSlice141LiveTest();
+  const verification = await runSlice141Verification();
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live141-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const preview = verification.preview ?? {};
+  const inventory = preview.inventory ?? {};
+  const descriptor = verification.selfTest?.descriptor ?? {};
+  const stepLines = verification.steps.map((step) => `- ${step.key}: ${String(step.outcome).toUpperCase()}`);
+  const reportText = [
+    "ALRemastered Slice 14.1 one-click Merchant Inventory Preview test",
+    `Test ID: ${testId}`,
+    "Slice: 14.1",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    `Character type: ${preview.character?.type ?? "unavailable"}`,
+    `Character level: ${preview.character?.level ?? "unavailable"}`,
+    `Inventory capacity: ${inventory.capacity ?? "unavailable"}`,
+    `Inventory used: ${inventory.used ?? "unavailable"}`,
+    `Inventory free: ${inventory.free ?? "unavailable"}`,
+    `Physical identities: ${inventory.items?.length ?? 0}`,
+    `Default disposition: ${preview.disposition?.default ?? "unknown"}`,
+    `Mutation authority: ${descriptor.mutationAuthority}`,
+    `Bank mutation: ${descriptor.bankMutation}`,
+    `Trade mutation: ${descriptor.tradeMutation}`,
+    `Transfer mutation: ${descriptor.transferMutation}`,
+    `Upgrade mutation: ${descriptor.upgradeMutation}`,
+    `Compound mutation: ${descriptor.compoundMutation}`,
+    `Merchant package permission dangerous/default denied: ${verification.permissions?.dangerousPermissions?.includes("merchant") === true && verification.permissions?.dangerousDefaultAllowed === false}`,
+    `Core restart: ${verification.coreRestart}`,
+    `Character restart: ${verification.characterRestart}`,
+    `Script restart: ${verification.scriptRestart}`,
+    "Gameplay mutation: false",
+    `Action Gateway requests: ${verification.actionGatewayRequests}`,
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+  const result = {
+    testId,
+    slice: "14.1",
+    outcome,
+    startedAt,
+    completedAt,
+    message: outcome === "passed"
+      ? "Merchant Inventory Preview verification passed."
+      : "Merchant Inventory Preview verification failed. Connect a Merchant Character and retry if the live inventory steps are unavailable.",
+    ...verification,
+  };
+  state.slice141LastReport = reportText;
+  state.slice141LiveTest = { status: outcome, message: result.message, lastResult: result };
+  renderMerchantInventoryPreview(preview);
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice141LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice141LiveTest.addEventListener("click", async () => {
+  if (state.slice141LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice141LastReport = null;
+  elements.copySlice141LiveTestResult.hidden = true;
+  try {
+    const { result, copied } = await startSlice141LiveTest(clipboardWrite);
+    setFeedback(
+      `Slice 14.1 test ${String(result.outcome).toUpperCase()}. ${copied ? "Complete result and sanitized diagnostic log copied to clipboard." : "Use Copy last test result once."}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    state.slice141LiveTest = { status: "failed", message: error.message };
+    renderSlice141LiveTest();
+    setFeedback(`Slice 14.1 Merchant Inventory Preview test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice141LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice141LastReport) return;
+  try {
+    await writeClipboard(state.slice141LastReport);
+    setFeedback("Complete Slice 14.1 Merchant Inventory Preview result and sanitized diagnostic log copied.", "success");
+  } catch (error) {
+    setFeedback(`Merchant Inventory Preview result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice141LiveTest();
+
 
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
