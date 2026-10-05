@@ -120,6 +120,7 @@ export class ScriptPackageUpdateService {
       updateSupported: true,
       rollbackSupported: true,
       dashboardPackageUpdatesSupported: false,
+      combinedPackageUpdatesSupported: true,
       newPermissionsRequireConfirmation: true,
       dangerousPermissionsStillRequireConfirmation: true,
       sourceKinds: Object.freeze(["link", "github"]),
@@ -135,10 +136,10 @@ export class ScriptPackageUpdateService {
   async check(packageId: string): Promise<ScriptPackageUpdatePreview> {
     const current = this.#currentPackage(packageId);
     const base = current.version;
-    if (base.packageKind !== "script") {
+    if (base.packageKind === "dashboard") {
       throw new ScriptPackageUpdateError(
         "PACKAGE_UPDATE_KIND_UNSUPPORTED",
-        "Dashboard package updates are not part of Slice 13.1. Import the desired Dashboard package version explicitly.",
+        "Dashboard-only package updates are not supported by the Script update path. Import the desired Dashboard package version explicitly.",
       );
     }
     const sourceVersion = current.package.versions.find((entry) => entry.remoteSource);
