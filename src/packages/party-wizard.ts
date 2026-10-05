@@ -363,7 +363,7 @@ export class PartyPackWizardService {
     const profile = state.profiles.find((entry) => entry.id === result.profileId);
     const widgetMappings = Object.fromEntries(
       (profile?.layouts.desktop?.widgets ?? []).map((widget) => [
-        widget.characterRole,
+        widget.id,
         widget.characterId,
       ]),
     );
@@ -386,10 +386,10 @@ export class PartyPackWizardService {
         duplicateRejected &&
         duplicateErrorCode === "PARTY_PACK_CHARACTER_DUPLICATE",
       explicitRoleMapping:
-        widgetMappings.tank === "CH_WARRIOR" &&
-        widgetMappings.healer === "CH_PRIEST" &&
-        widgetMappings.dps === "CH_RANGER" &&
-        widgetMappings.merchant === "CH_MERCHANT",
+        widgetMappings["tank-card"] === "CH_WARRIOR" &&
+        widgetMappings["healer-card"] === "CH_PRIEST" &&
+        widgetMappings["dps-card"] === "CH_RANGER" &&
+        widgetMappings["merchant-card"] === "CH_MERCHANT",
       dashboardApplied:
         state.activeProfileId === result.profileId &&
         result.layoutVariants.includes("desktop"),
