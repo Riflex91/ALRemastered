@@ -3415,3 +3415,81 @@ Required safety evidence:
 Slice 14.2 may become VERIFIED only after the implementation PR is merged, its exact post-merge `main` CI is fully green, `0.1.0-alpha.84` is published from that exact implementation commit, and the real installed Windows one-click test passes.
 
 **Canonical queue status: Slice 14.2 = IMPLEMENTATION IN PROGRESS.**
+
+
+---
+
+### Alpha.84 real one-click result: PASSED — Slice 14.2 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.84`;
+- release target / tested implementation main: `49cbee3dad03b20af7a338ca6b3458c109463c41`;
+- client: `0.1.0-alpha.84`;
+- platform: `win32`;
+- test ID: `live142-6a58b376-854a-4da9-b412-1a6e82d7bb89`;
+- outcome: `PASSED`;
+- test window: `2026-10-05T17:47:58.075Z → 2026-10-05T17:47:58.088Z`;
+- diagnostic export: 33 log lines, `Secrets sanitized: yes`.
+
+The one-click harness completed the full Slice 14.2 validation:
+
+- `workspace-capacity-descriptor: PASSED`;
+- `merchant-capacity-live: PASSED`;
+- `live-capacity-accounting: PASSED`;
+- `capacity-reserve-accounting: PASSED`;
+- `capacity-pressure-fail-closed: PASSED`;
+- `isolated-self-test: PASSED`;
+- `core-character-script-continuity: PASSED`;
+- `read-only-gameplay-runtime: PASSED`;
+- inventory capacity: `42`;
+- inventory used: `33`;
+- inventory free: `9`;
+- workspace reserve slots: `3`;
+- pickup reserve slots: `1`;
+- total reserved slots: `4`;
+- general free slots: `5`;
+- capacity deficit: `0`;
+- capacity pressure: `ready`;
+- multi-step workflow allowed: `true`;
+- reservation planning only: `true`;
+- mutation authority: `false`;
+- bank mutation: `false`;
+- trade mutation: `false`;
+- transfer mutation: `false`;
+- Buy/Sell mutation: `false`;
+- `Core restart: false`;
+- `Character restart: false`;
+- `Script restart: false`;
+- `Gameplay mutation: false`;
+- Action Gateway requests: `0`;
+- `Raw socket access: false`;
+- `User Script touched: false`.
+
+Repository/release evidence:
+
+- implementation PR #168 final feature head: `42eb2b84d3dfc655262b1617c355ec3ef6058878`;
+- final implementation PR CI run `37348293135`: all four required jobs successful;
+- implementation main: `49cbee3dad03b20af7a338ca6b3458c109463c41`;
+- exact post-implementation-main CI run `37348707188`: all four required jobs successful;
+- release publish run `37349960105`: Linux, Windows, and GitHub Release successful;
+- release branch, tag, release target, publish head, and tested implementation main are commit-identical at `49cbee3dad03b20af7a338ca6b3458c109463c41`;
+- Windows x64 installer SHA-256: `6a758a609ac86c026fa5d6f5590859abf0d7bfaa99545c61a6e8f1882270ee1d`;
+- Linux x64 installer SHA-256: `f16b9ba5e092e13c8f81bf443bc952d947171fb47a044fb053b09dba45a90522`;
+- updater manifest SHA-256: `a070e934c8913c4dcaca90ccc6bef01450136cc71764839f764048c7fc4ec215`.
+
+Scope and safety:
+
+- live capacity accounting matched the observed inventory exactly: `42 - 33 = 9` free;
+- the protected reserve was exactly `3` workspace + `1` pickup = `4` logical slots;
+- `5` free slots remained above the protected reserve;
+- Capacity Pressure was `ready` with deficit `0`;
+- reservations remained planning-only and performed no real inventory mutation;
+- Bank, Buy/Sell, Trade, Transfer, Upgrade, Compound, Craft, Dismantle, Fishing, Mining, Event, and Boss writes remained outside Slice 14.2;
+- mutation authority and all reported economic mutation flags remained false;
+- Core, Character, and Script remained continuous;
+- no gameplay mutation, Action Gateway requests, raw socket access, or User Script replacement occurred.
+
+**Canonical queue status: Slice 14.2 = VERIFIED.**
+
+Slice 14.2 may be considered complete only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green. Slice 14.3 must remain blocked until then.
