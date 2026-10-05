@@ -107,7 +107,7 @@ test("Slice 10.1 exposes only read-only renderer bridge transport and Current ve
   const server = readFileSync(new URL("../src/dashboard/server.js", import.meta.url), "utf8");
   const main = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="13\.1"/);
+  assert.match(html, /data-current-verification-slice="13\.2"/);
   assert.match(html, /data-verification-test="10\.1" hidden/);
   assert.match(html, /id="start-slice-10-1-live-test"/);
   assert.match(html, />Start renderer bridge test</);
