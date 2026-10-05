@@ -320,7 +320,7 @@ test("Slice 13.1 is current verification and UI exposes Dashboard package sharin
   assert.match(server, /POST" && path === "\/api\/packages\/dashboard\/inspect"/);
   assert.match(server, /POST" && path === "\/api\/packages\/dashboard\/apply"/);
 
-  assert.match(format, /supportedPackageKinds: Object\.freeze\(\["script", "dashboard"\]\)/);
+  assert.match(format, /supportedPackageKinds: Object\.freeze\(\["script", "dashboard", "combined"\]\)/);
   assert.match(format, /combinedScriptDashboardPackagesSupported: true/);
   assert.match(format, /PACKAGE_COMBINED_KIND_UNSUPPORTED/);
   assert.match(service, /packageExecutionSupported: false/);
