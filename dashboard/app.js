@@ -58,6 +58,10 @@ const state = {
   slice131LastReport: null,
   slice132LiveTest: { status: "idle", message: "Ready." },
   slice132LastReport: null,
+  slice133LiveTest: { status: "idle", message: "Ready." },
+  slice133LastReport: null,
+  partyPackWizard: null,
+  partyPackWizardPreview: null,
   packageLibrary: null,
   packageImportDocument: null,
   packageImportRemoteSource: null,
@@ -266,6 +270,16 @@ const elements = {
   slice132LiveTestStatus: document.querySelector("#slice-13-2-live-test-status"),
   slice132LiveTestNote: document.querySelector("#slice-13-2-live-test-note"),
   copySlice132LiveTestResult: document.querySelector("#copy-slice-13-2-live-test-result"),
+  startSlice133LiveTest: document.querySelector("#start-slice-13-3-live-test"),
+  slice133LiveTestStatus: document.querySelector("#slice-13-3-live-test-status"),
+  slice133LiveTestNote: document.querySelector("#slice-13-3-live-test-note"),
+  copySlice133LiveTestResult: document.querySelector("#copy-slice-13-3-live-test-result"),
+  partyPackWizardStatus: document.querySelector("#party-pack-wizard-status"),
+  partyPackWizardPackage: document.querySelector("#party-pack-wizard-package"),
+  partyPackWizardRefresh: document.querySelector("#party-pack-wizard-refresh"),
+  partyPackWizardRoles: document.querySelector("#party-pack-wizard-roles"),
+  partyPackWizardSetup: document.querySelector("#party-pack-wizard-setup"),
+  partyPackWizardNote: document.querySelector("#party-pack-wizard-note"),
   packageLibraryStatus: document.querySelector("#package-library-status"),
   packageLibraryRefresh: document.querySelector("#package-library-refresh"),
   packageLibraryMyScripts: document.querySelector("#package-library-my-scripts"),
@@ -5885,6 +5899,7 @@ async function refreshPackageLibrary() {
   elements.packageLibraryRefresh.disabled = true;
   try {
     renderPackageLibrary(await fetchPackageLibrary());
+    await refreshPartyPackWizard({ preserveSelection: true });
   } catch (error) {
     elements.packageLibraryStatus.textContent = "Unavailable";
     setFeedback(`Script Library refresh failed: ${error.message}`, "error");
@@ -5892,6 +5907,176 @@ async function refreshPackageLibrary() {
     elements.packageLibraryRefresh.disabled = false;
   }
 }
+
+function partyPackWizardSelection() {
+  const value = elements.partyPackWizardPackage.value;
+  return state.partyPackWizard?.packs?.find((pack) =>
+    `${pack.packageId}@${pack.version}` === value
+  ) ?? null;
+}
+
+function partyPackWizardRoleMapping() {
+  return Object.fromEntries(
+    [...elements.partyPackWizardRoles.querySelectorAll("select[data-party-pack-role]")]
+      .map((select) => [select.dataset.partyPackRole, select.value]),
+  );
+}
+
+function syncPartyPackWizardSetup() {
+  const selects = [...elements.partyPackWizardRoles.querySelectorAll(
+    "select[data-party-pack-role]",
+  )];
+  const values = selects.map((select) => select.value).filter(Boolean);
+  const complete = selects.length > 0 && values.length === selects.length;
+  const unique = new Set(values).size === values.length;
+  elements.partyPackWizardSetup.disabled = !(complete && unique);
+  if (!complete) {
+    elements.partyPackWizardNote.textContent =
+      "Map every Party Pack role to one Adventure Land Character before setup.";
+  } else if (!unique) {
+    elements.partyPackWizardNote.textContent =
+      "Each Party Pack role must use a different Adventure Land Character.";
+  } else {
+    elements.partyPackWizardNote.textContent =
+      "Ready. Set up applies the role-mapped Dashboard and explicitly activates the combined package metadata. It starts no Characters and executes no package code.";
+  }
+}
+
+function renderPartyPackWizardPreview(preview) {
+  state.partyPackWizardPreview = preview;
+  elements.partyPackWizardRoles.replaceChildren();
+  for (const role of preview.roles ?? []) {
+    const label = document.createElement("label");
+    label.className = "check-field";
+    const title = document.createElement("span");
+    title.textContent = role.label;
+    const select = document.createElement("select");
+    select.dataset.partyPackRole = role.id;
+
+    const empty = document.createElement("option");
+    empty.value = "";
+    empty.textContent = "Select Character";
+    select.append(empty);
+
+    for (const character of preview.characters ?? []) {
+      const option = document.createElement("option");
+      option.value = character.id;
+      const recommended = role.recommendedCharacterId === character.id;
+      option.textContent =
+        `${character.name} (${character.type}, Lv ${character.level})${recommended ? " — recommended" : ""}`;
+      if (recommended) option.selected = true;
+      select.append(option);
+    }
+    select.addEventListener("change", syncPartyPackWizardSetup);
+    label.append(title, select);
+    elements.partyPackWizardRoles.append(label);
+  }
+  elements.partyPackWizardStatus.textContent =
+    `${preview.name} ${preview.version} · ${preview.roles?.length ?? 0} role(s)`;
+  syncPartyPackWizardSetup();
+}
+
+async function previewPartyPackWizardSelection() {
+  const pack = partyPackWizardSelection();
+  state.partyPackWizardPreview = null;
+  elements.partyPackWizardSetup.disabled = true;
+  if (!pack) {
+    elements.partyPackWizardRoles.innerHTML =
+      '<p class="selection-note">Select an imported combined pack.</p>';
+    return;
+  }
+  elements.partyPackWizardStatus.textContent = "Loading roles…";
+  try {
+    const preview = await postPackageLibrary("/api/packages/party-wizard/preview", {
+      packageId: pack.packageId,
+      version: pack.version,
+    });
+    renderPartyPackWizardPreview(preview);
+  } catch (error) {
+    elements.partyPackWizardStatus.textContent = "Preview unavailable";
+    elements.partyPackWizardRoles.innerHTML =
+      '<p class="selection-note">Party Pack roles could not be loaded.</p>';
+    setFeedback(`Party Pack Wizard preview failed: ${error.message}`, "error");
+  }
+}
+
+async function refreshPartyPackWizard({ preserveSelection = false } = {}) {
+  const previous = preserveSelection ? elements.partyPackWizardPackage.value : "";
+  elements.partyPackWizardRefresh.disabled = true;
+  try {
+    const response = await fetch("/api/packages/party-wizard", { cache: "no-store" });
+    const snapshot = await response.json();
+    if (!response.ok) {
+      throw new Error(snapshot.error ?? `Party Pack Wizard request failed with HTTP ${response.status}.`);
+    }
+    state.partyPackWizard = snapshot;
+    elements.partyPackWizardPackage.replaceChildren();
+
+    for (const pack of snapshot.packs ?? []) {
+      const option = document.createElement("option");
+      option.value = `${pack.packageId}@${pack.version}`;
+      option.textContent =
+        `${pack.name} ${pack.version}${pack.active ? " · active" : ""}`;
+      elements.partyPackWizardPackage.append(option);
+    }
+    if (previous && [...elements.partyPackWizardPackage.options].some((option) => option.value === previous)) {
+      elements.partyPackWizardPackage.value = previous;
+    }
+
+    if ((snapshot.packs?.length ?? 0) === 0) {
+      elements.partyPackWizardStatus.textContent = "No combined packs";
+      elements.partyPackWizardRoles.innerHTML =
+        '<p class="selection-note">Import a combined Script + Dashboard Pack first.</p>';
+      elements.partyPackWizardSetup.disabled = true;
+      return;
+    }
+    if (snapshot.selectionStatus !== "ready" || (snapshot.characters?.length ?? 0) === 0) {
+      elements.partyPackWizardStatus.textContent = "Characters unavailable";
+      elements.partyPackWizardRoles.innerHTML =
+        '<p class="selection-note">Connect the Adventure Land account and load Characters first.</p>';
+      elements.partyPackWizardSetup.disabled = true;
+      return;
+    }
+    await previewPartyPackWizardSelection();
+  } catch (error) {
+    state.partyPackWizard = null;
+    state.partyPackWizardPreview = null;
+    elements.partyPackWizardStatus.textContent = "Unavailable";
+    elements.partyPackWizardSetup.disabled = true;
+    setFeedback(`Party Pack Wizard refresh failed: ${error.message}`, "error");
+  } finally {
+    elements.partyPackWizardRefresh.disabled = false;
+  }
+}
+
+elements.partyPackWizardPackage.addEventListener("change", () => {
+  void previewPartyPackWizardSelection();
+});
+elements.partyPackWizardRefresh.addEventListener("click", () => {
+  void refreshPartyPackWizard({ preserveSelection: true });
+});
+elements.partyPackWizardSetup.addEventListener("click", async () => {
+  const pack = partyPackWizardSelection();
+  if (!pack) return;
+  elements.partyPackWizardSetup.disabled = true;
+  try {
+    const result = await postPackageLibrary("/api/packages/party-wizard/setup", {
+      packageId: pack.packageId,
+      version: pack.version,
+      roleMapping: partyPackWizardRoleMapping(),
+    });
+    state.dashboardLayouts = await dashboardLayoutRequest("/api/dashboard-layout");
+    await applyActiveDashboardLayout();
+    await refreshPackageLibrary();
+    setFeedback(
+      `Party Pack "${result.name}" ${result.version} set up with ${Object.keys(result.roleMapping ?? {}).length} role(s). Dashboard applied and package metadata activated; no Character was started and no package code was executed.`,
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Party Pack setup failed: ${error.message}`, "error");
+    syncPartyPackWizardSetup();
+  }
+});
 
 elements.packageLibraryRefresh.addEventListener("click", () => void refreshPackageLibrary());
 void refreshPackageLibrary();
