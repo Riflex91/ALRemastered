@@ -69,6 +69,13 @@ export interface ScriptPackageImportDashboard {
   readonly roleIds: readonly string[];
 }
 
+export interface ScriptPackageImportAsset {
+  readonly path: string;
+  readonly mediaType?: string;
+  readonly bytes: number;
+  readonly sha256: string;
+}
+
 export interface ScriptPackageImportPreview {
   readonly status: "ready";
   readonly previewToken: string;
@@ -79,13 +86,14 @@ export interface ScriptPackageImportPreview {
   readonly description: string;
   readonly readme: string;
   readonly compatibility: unknown;
-  readonly packageKind: "script" | "dashboard";
+  readonly packageKind: "script" | "dashboard" | "combined";
   readonly permissions: readonly ScriptPackagePermission[];
   readonly safePermissions: readonly ScriptPackagePermission[];
   readonly dangerousPermissions: readonly ScriptPackagePermission[];
   readonly configSchema: Readonly<Record<string, unknown>>;
   readonly code: readonly ScriptPackageImportCodeFile[];
   readonly dashboard?: ScriptPackageImportDashboard;
+  readonly assets: readonly ScriptPackageImportAsset[];
   readonly fileCount: number;
   readonly totalBytes: number;
   readonly manifestHash: string;
@@ -99,7 +107,7 @@ export interface ScriptPackageImportReceipt {
   readonly packageId: string;
   readonly name: string;
   readonly version: string;
-  readonly packageKind: "script" | "dashboard";
+  readonly packageKind: "script" | "dashboard" | "combined";
   readonly previewToken: string;
   readonly manifestHash: string;
   readonly approvedDangerous: readonly ScriptPackagePermission[];
@@ -117,7 +125,7 @@ interface StoredImportReceipt {
   readonly packageId: string;
   readonly name: string;
   readonly version: string;
-  readonly packageKind: "script" | "dashboard";
+  readonly packageKind: "script" | "dashboard" | "combined";
   readonly previewToken: string;
   readonly manifestHash: string;
   readonly approvedDangerous: readonly ScriptPackagePermission[];
@@ -172,8 +180,11 @@ export class ScriptPackageImporter {
         "configuration",
         "code",
         "dashboard",
+        "assets",
       ]),
       dashboardPackagesSupported: true,
+      combinedPackagesSupported: true,
+      combinedAssetsSupported: true,
       dashboardPackageExecutionSupported: false,
       dangerousPermissionsRequireConfirmation: true,
       importedPackagesInactive: true,
@@ -191,7 +202,9 @@ export class ScriptPackageImporter {
     const document = input as ScriptPackageDocument;
     const readme = document.files[document.manifest.readme.path]!;
     const packageKind = inspection.packageKind;
-    const configSchema = packageKind === "script"
+    const scriptCapable = packageKind === "script" || packageKind === "combined";
+    const dashboardCapable = packageKind === "dashboard" || packageKind === "combined";
+    const configSchema = scriptCapable
       ? parseConfigSchema(document.files[document.manifest.configSchema!.path]!)
       : Object.freeze({
         type: "object",
@@ -203,7 +216,7 @@ export class ScriptPackageImporter {
     const safePermissions = permissions.filter(
       (permission) => !isDangerousScriptPackagePermission(permission),
     );
-    const code = packageKind === "script"
+    const code = scriptCapable
       ? document.manifest.scripts!.map((script) => Object.freeze({
         path: script.path,
         entry: script.entry,
@@ -211,7 +224,7 @@ export class ScriptPackageImporter {
       }))
       : [];
     let dashboard: ScriptPackageImportDashboard | undefined;
-    if (packageKind === "dashboard") {
+    if (dashboardCapable) {
       const path = document.manifest.dashboard!.path;
       let portable: unknown;
       try {
@@ -230,6 +243,12 @@ export class ScriptPackageImporter {
         roleIds: Object.freeze([...portableDashboardRoleIds(portable)]),
       });
     }
+    const assets = Object.freeze((document.manifest.assets ?? []).map((asset) => Object.freeze({
+      path: asset.path,
+      ...(asset.mediaType ? { mediaType: asset.mediaType } : {}),
+      bytes: Buffer.byteLength(document.files[asset.path]!, "utf8"),
+      sha256: document.hashes.files[asset.path]!,
+    })));
     const previewToken = sha256Text(canonicalPackageJson(document));
 
     return Object.freeze({
@@ -249,6 +268,7 @@ export class ScriptPackageImporter {
       configSchema,
       code: Object.freeze(code),
       ...(dashboard ? { dashboard } : {}),
+      assets,
       fileCount: inspection.fileCount,
       totalBytes: inspection.totalBytes,
       manifestHash: inspection.manifestHash,

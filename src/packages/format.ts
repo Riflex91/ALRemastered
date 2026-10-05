@@ -34,7 +34,12 @@ export interface ScriptPackageScript {
   readonly entry: boolean;
 }
 
-export type ScriptPackageKind = "script" | "dashboard";
+export interface ScriptPackageAsset {
+  readonly path: string;
+  readonly mediaType?: string;
+}
+
+export type ScriptPackageKind = "script" | "dashboard" | "combined";
 
 export interface ScriptPackageManifest {
   readonly kind?: ScriptPackageKind;
@@ -51,6 +56,7 @@ export interface ScriptPackageManifest {
   readonly dashboard?: {
     readonly path: string;
   };
+  readonly assets?: readonly ScriptPackageAsset[];
   readonly readme: {
     readonly path: string;
   };
@@ -85,6 +91,8 @@ export interface ScriptPackageInspection {
   readonly entryScript?: string;
   readonly configSchemaPath?: string;
   readonly dashboardPath?: string;
+  readonly assetCount: number;
+  readonly assetPaths: readonly string[];
   readonly readmePath: string;
   readonly fileCount: number;
   readonly totalBytes: number;
@@ -170,9 +178,9 @@ function validateManifest(input: unknown): ScriptPackageManifest {
   const explicitKind = input.kind === undefined ? undefined : requiredString(input.kind, "manifest.kind", 20);
   const packageKind: ScriptPackageKind = explicitKind === undefined
     ? "script"
-    : explicitKind === "script" || explicitKind === "dashboard"
+    : explicitKind === "script" || explicitKind === "dashboard" || explicitKind === "combined"
       ? explicitKind
-      : fail("PACKAGE_KIND_INVALID", "manifest.kind must be script or dashboard.");
+      : fail("PACKAGE_KIND_INVALID", "manifest.kind must be script, dashboard, or combined.");
 
   const id = requiredString(input.id, "manifest.id", 80);
   if (!PACKAGE_ID_PATTERN.test(id)) {
@@ -281,10 +289,10 @@ function validateManifest(input: unknown): ScriptPackageManifest {
     if (permissions.length !== 0) {
       fail("PACKAGE_DASHBOARD_PERMISSIONS_INVALID", "Dashboard-only packages must not request script permissions.");
     }
-    if (input.scripts !== undefined || input.configSchema !== undefined) {
+    if (input.scripts !== undefined || input.configSchema !== undefined || input.assets !== undefined) {
       fail(
         "PACKAGE_COMBINED_KIND_UNSUPPORTED",
-        "Combined Script + Dashboard packages are reserved for Slice 13.2.",
+        "Dashboard-only packages cannot contain scripts, Config Schema, or assets. Use kind combined.",
       );
     }
     if (!isRecord(input.dashboard)) {
@@ -301,12 +309,13 @@ function validateManifest(input: unknown): ScriptPackageManifest {
     });
   }
 
-  if (input.dashboard !== undefined) {
+  if (packageKind === "script" && (input.dashboard !== undefined || input.assets !== undefined)) {
     fail(
       "PACKAGE_COMBINED_KIND_UNSUPPORTED",
-      "Combined Script + Dashboard packages are reserved for Slice 13.2.",
+      "Script packages with Dashboard content or assets must declare kind combined.",
     );
   }
+
   if (!Array.isArray(input.scripts) || input.scripts.length === 0) {
     fail("PACKAGE_SCRIPTS_INVALID", "manifest.scripts must contain at least one script.");
   }
@@ -340,10 +349,55 @@ function validateManifest(input: unknown): ScriptPackageManifest {
     fail("PACKAGE_CONFIG_SCHEMA_INVALID", "Config Schema must reference a JSON file.");
   }
 
+  if (packageKind === "script") {
+    return Object.freeze({
+      ...common,
+      scripts: Object.freeze(scripts),
+      configSchema: Object.freeze({ path: configSchemaPath }),
+    });
+  }
+
+  if (!isRecord(input.dashboard)) {
+    fail("PACKAGE_DASHBOARD_INVALID", "Combined packages must declare manifest.dashboard.");
+  }
+  const dashboardPath = safePath(input.dashboard.path, "manifest.dashboard.path");
+  if (!dashboardPath.endsWith(".json")) {
+    fail("PACKAGE_DASHBOARD_INVALID", "Dashboard profile must reference a JSON file.");
+  }
+
+  const rawAssets = input.assets === undefined ? [] : input.assets;
+  if (!Array.isArray(rawAssets)) {
+    fail("PACKAGE_ASSETS_INVALID", "manifest.assets must be an array when provided.");
+  }
+  const reservedPaths = new Set([
+    ...scriptPaths,
+    configSchemaPath,
+    dashboardPath,
+    readmePath,
+  ]);
+  const assetPaths = new Set<string>();
+  const assets = rawAssets.map((value, index) => {
+    if (!isRecord(value)) {
+      fail("PACKAGE_ASSETS_INVALID", `manifest.assets[${index}] must be an object.`);
+    }
+    const path = safePath(value.path, `manifest.assets[${index}].path`);
+    if (reservedPaths.has(path) || assetPaths.has(path)) {
+      fail("PACKAGE_ASSETS_INVALID", `Asset path must be unique and not overlap another package file: ${path}.`);
+    }
+    assetPaths.add(path);
+    const mediaType = value.mediaType === undefined
+      ? undefined
+      : requiredString(value.mediaType, `manifest.assets[${index}].mediaType`, 120);
+    return Object.freeze({ path, ...(mediaType ? { mediaType } : {}) });
+  });
+
   return Object.freeze({
     ...common,
+    kind: "combined" as const,
     scripts: Object.freeze(scripts),
     configSchema: Object.freeze({ path: configSchemaPath }),
+    dashboard: Object.freeze({ path: dashboardPath }),
+    assets: Object.freeze(assets),
   });
 }
 
@@ -378,21 +432,23 @@ function validateReferencedFiles(
   manifest: ScriptPackageManifest,
   files: Readonly<Record<string, string>>,
 ): void {
-  const packageKind: ScriptPackageKind = manifest.kind === "dashboard" ? "dashboard" : "script";
-  const requiredPaths = packageKind === "dashboard"
-    ? [manifest.dashboard!.path, manifest.readme.path]
-    : [
-      ...manifest.scripts!.map((script) => script.path),
-      manifest.configSchema!.path,
-      manifest.readme.path,
-    ];
+  const packageKind: ScriptPackageKind = manifest.kind ?? "script";
+  const scriptCapable = packageKind === "script" || packageKind === "combined";
+  const dashboardCapable = packageKind === "dashboard" || packageKind === "combined";
+  const requiredPaths = [
+    ...(scriptCapable ? manifest.scripts!.map((script) => script.path) : []),
+    ...(scriptCapable ? [manifest.configSchema!.path] : []),
+    ...(dashboardCapable ? [manifest.dashboard!.path] : []),
+    ...(packageKind === "combined" ? (manifest.assets ?? []).map((asset) => asset.path) : []),
+    manifest.readme.path,
+  ];
   for (const path of requiredPaths) {
     if (!(path in files)) {
       fail("PACKAGE_FILE_MISSING", `Referenced package file is missing: ${path}.`);
     }
   }
 
-  if (packageKind === "dashboard") {
+  if (dashboardCapable) {
     let dashboard: unknown;
     try {
       dashboard = JSON.parse(files[manifest.dashboard!.path]!);
@@ -402,7 +458,9 @@ function validateReferencedFiles(
     if (!isRecord(dashboard)) {
       fail("PACKAGE_DASHBOARD_INVALID", "Dashboard profile JSON must be an object.");
     }
-  } else {
+  }
+
+  if (scriptCapable) {
     const configText = files[manifest.configSchema!.path]!;
     let config: unknown;
     try {
@@ -503,8 +561,8 @@ export function validateScriptPackage(input: unknown): ScriptPackageInspection {
   const files = validateFiles(input.files);
   validateReferencedFiles(manifest, files);
   const hashes = validateHashes(input.hashes, manifest, files);
-  const packageKind: ScriptPackageKind = manifest.kind === "dashboard" ? "dashboard" : "script";
-  const entryScript = packageKind === "script"
+  const packageKind: ScriptPackageKind = manifest.kind ?? "script";
+  const entryScript = packageKind === "script" || packageKind === "combined"
     ? manifest.scripts!.find((script) => script.entry)
     : undefined;
   const totalBytes = Object.values(files)
@@ -525,6 +583,8 @@ export function validateScriptPackage(input: unknown): ScriptPackageInspection {
     ...(entryScript ? { entryScript: entryScript.path } : {}),
     ...(manifest.configSchema ? { configSchemaPath: manifest.configSchema.path } : {}),
     ...(manifest.dashboard ? { dashboardPath: manifest.dashboard.path } : {}),
+    assetCount: manifest.assets?.length ?? 0,
+    assetPaths: Object.freeze((manifest.assets ?? []).map((asset) => asset.path)),
     readmePath: manifest.readme.path,
     fileCount: Object.keys(files).length,
     totalBytes,
@@ -565,10 +625,25 @@ export function scriptPackageFormatDescriptor() {
       "dashboard",
       "readme",
     ]),
+    combinedManifestFields: Object.freeze([
+      "kind",
+      "id",
+      "name",
+      "version",
+      "author",
+      "compatibility",
+      "permissions",
+      "scripts",
+      "configSchema",
+      "dashboard",
+      "assets",
+      "readme",
+    ]),
     packageSections: Object.freeze(["manifest", "files", "hashes"]),
-    supportedPackageKinds: Object.freeze(["script", "dashboard"]),
+    supportedPackageKinds: Object.freeze(["script", "dashboard", "combined"]),
     dashboardOnlyPackagesSupported: true,
-    combinedScriptDashboardPackagesSupported: false,
+    combinedScriptDashboardPackagesSupported: true,
+    combinedAssetsSupported: true,
     permissionDeclarationsOnly: true,
     permissionEnforcement: false,
     importSupported: false,

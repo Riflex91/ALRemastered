@@ -87,7 +87,7 @@ test("Slice 13.1 Dashboard package self-test validates package sharing without e
     assert.equal(result.descriptor.packageKind, "dashboard");
     assert.equal(result.descriptor.packageExtension, ".alrpkg");
     assert.equal(result.descriptor.packageExecutionSupported, false);
-    assert.equal(result.descriptor.combinedScriptDashboardPackagesSupported, false);
+    assert.equal(result.descriptor.combinedScriptDashboardPackagesSupported, true);
     assert.equal(result.checks.samePackageFormat, true);
     assert.equal(result.checks.dashboardKind, true);
     assert.equal(result.checks.portableProfileValidated, true);
@@ -301,7 +301,7 @@ test("Slice 13.1 is current verification and UI exposes Dashboard package sharin
   const service = readFileSync(new URL("../src/packages/dashboard.js", import.meta.url), "utf8");
   const updater = readFileSync(new URL("../src/packages/updater.js", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="13\.1"/);
+  assert.match(html, /data-current-verification-slice="13\.2"/);
   assert.match(html, /Slice 13\.1 one-click Dashboard Packages test/);
   assert.match(html, /id="dashboard-package-export"/);
   assert.match(html, />Export as \.alrpkg</);
@@ -320,8 +320,8 @@ test("Slice 13.1 is current verification and UI exposes Dashboard package sharin
   assert.match(server, /POST" && path === "\/api\/packages\/dashboard\/inspect"/);
   assert.match(server, /POST" && path === "\/api\/packages\/dashboard\/apply"/);
 
-  assert.match(format, /supportedPackageKinds: Object\.freeze\(\["script", "dashboard"\]\)/);
-  assert.match(format, /combinedScriptDashboardPackagesSupported: false/);
+  assert.match(format, /supportedPackageKinds: Object\.freeze\(\["script", "dashboard", "combined"\]\)/);
+  assert.match(format, /combinedScriptDashboardPackagesSupported: true/);
   assert.match(format, /PACKAGE_COMBINED_KIND_UNSUPPORTED/);
   assert.match(service, /packageExecutionSupported: false/);
   assert.match(service, /resolvePortableDashboardProfile/);

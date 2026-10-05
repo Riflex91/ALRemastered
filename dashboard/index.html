@@ -6,7 +6,7 @@
   <title>ALRemastered</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body data-current-verification-slice="13.1">
+<body data-current-verification-slice="13.2">
   <main class="shell">
     <header class="topbar">
       <div>
@@ -383,6 +383,68 @@
       </div>
     </div>
 
+    <section class="account-panel" id="combined-package-builder">
+      <div class="diagnostics-heading">
+        <div>
+          <p class="eyebrow">Phase 13 community packs</p>
+          <h2>Combined Pack Builder</h2>
+        </div>
+        <strong id="combined-package-status" aria-live="polite">Ready</strong>
+      </div>
+      <div class="status-grid">
+        <label class="card">
+          <span class="label">Package ID</span>
+          <input id="combined-package-id" type="text" maxlength="80" placeholder="org.example.party-pack">
+        </label>
+        <label class="card">
+          <span class="label">Name</span>
+          <input id="combined-package-name" type="text" maxlength="120" placeholder="4-Man Boss Pack">
+        </label>
+        <label class="card">
+          <span class="label">Version</span>
+          <input id="combined-package-version" type="text" maxlength="80" value="1.0.0">
+        </label>
+        <label class="card">
+          <span class="label">Author</span>
+          <input id="combined-package-author" type="text" maxlength="120" placeholder="Author name">
+        </label>
+      </div>
+      <div class="explainability-details">
+        <label class="card">
+          <span class="label">Scripts JSON</span>
+          <textarea id="combined-package-scripts" rows="10" spellcheck="false">[
+  {
+    "path": "scripts/main.js",
+    "entry": true,
+    "source": "export function main() { return \"configured by ALRemastered\"; }\n"
+  }
+]</textarea>
+        </label>
+        <label class="card">
+          <span class="label">Config Schema JSON</span>
+          <textarea id="combined-package-config" rows="10" spellcheck="false">{
+  "type": "object",
+  "properties": {},
+  "additionalProperties": false
+}</textarea>
+        </label>
+        <label class="card">
+          <span class="label">Assets JSON</span>
+          <textarea id="combined-package-assets" rows="8" spellcheck="false">[]</textarea>
+        </label>
+        <label class="card">
+          <span class="label">Permissions</span>
+          <textarea id="combined-package-permissions" rows="8" spellcheck="false" placeholder="movement&#10;inventory.read"></textarea>
+        </label>
+      </div>
+      <div class="toolbar">
+        <button id="combined-package-export" type="button">Export combined .alrpkg</button>
+      </div>
+      <small class="selection-note">
+        The active Dashboard profile is packaged as a portable role-based layout. Scripts, Config Schema, assets, and declared Permissions share the same hashed .alrpkg document. Dangerous permissions are still confirmed only during import; exporting never activates or executes package code.
+      </small>
+    </section>
+
     <section class="account-panel" id="package-import-panel">
       <div class="diagnostics-heading">
         <div>
@@ -428,6 +490,10 @@
           <span class="label">Code</span>
           <select id="package-import-code-file" aria-label="Package code file"></select>
           <pre id="package-import-code">—</pre>
+        </article>
+        <article class="card" id="package-import-assets-card" hidden>
+          <span class="label">Assets</span>
+          <pre id="package-import-assets">—</pre>
         </article>
       </div>
       <small class="selection-note" id="package-import-note">
@@ -531,6 +597,20 @@
         </div>
         <small class="selection-note" id="slice-13-1-live-test-note">
           Verifies Dashboard-only .alrpkg export/import, portable Character roles, explicit role mapping, persistent layout application, combined-pack deferral, cleanup, and uninterrupted runtime. No package code or gameplay action is executed.
+        </small>
+      </div>
+    </div>
+
+    <div class="selection-content" data-verification-test="13.2" hidden>
+      <div>
+        <h3>Slice 13.2 one-click Script + Dashboard Pack test</h3>
+        <div class="server-picker">
+          <button id="start-slice-13-2-live-test" type="button">Start test</button>
+          <strong id="slice-13-2-live-test-status" aria-live="polite">Ready</strong>
+          <button id="copy-slice-13-2-live-test-result" type="button" hidden>Copy last test result</button>
+        </div>
+        <small class="selection-note" id="slice-13-2-live-test-note">
+          Verifies one combined .alrpkg containing multiple Scripts, Dashboard layout and roles, Config Schema, assets, and Permissions. Import remains inactive, dangerous permissions require explicit confirmation, Dashboard apply does not activate Scripts, and no package code or gameplay action is executed.
         </small>
       </div>
     </div>

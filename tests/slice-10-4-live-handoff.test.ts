@@ -114,7 +114,7 @@ test("Slice 10.4 is the current one-click verification and preserves prior Slice
   const server = readFileSync(new URL("../src/dashboard/server.js", import.meta.url), "utf8");
   const main = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="13\.1"/);
+  assert.match(html, /data-current-verification-slice="13\.2"/);
   assert.match(html, /data-verification-test="10\.3" hidden/);
   assert.match(html, /data-verification-test="10\.4" hidden/);
   assert.match(html, /id="start-slice-10-4-live-test"/);

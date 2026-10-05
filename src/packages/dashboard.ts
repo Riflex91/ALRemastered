@@ -60,7 +60,9 @@ export class DashboardPackageService {
       importedPreviewSupported: true,
       roleMappingRequired: true,
       packageExecutionSupported: false,
-      combinedScriptDashboardPackagesSupported: false,
+      combinedScriptDashboardPackagesSupported: true,
+      combinedDashboardApplySupported: true,
+      combinedScriptActivationAutomatic: false,
     });
   }
 
@@ -110,10 +112,13 @@ export class DashboardPackageService {
   inspectImported(packageId: string, version: string) {
     const document = this.#readImportedDocument(packageId, version);
     const preview = this.#importer.preview(document);
-    if (preview.packageKind !== "dashboard" || !preview.dashboard) {
+    if (
+      (preview.packageKind !== "dashboard" && preview.packageKind !== "combined") ||
+      !preview.dashboard
+    ) {
       throw new DashboardPackageError(
         "DASHBOARD_PACKAGE_KIND_REQUIRED",
-        "The selected imported package is not a Dashboard package.",
+        "The selected imported package does not contain a Dashboard profile.",
       );
     }
     return Object.freeze({
@@ -163,13 +168,14 @@ export class DashboardPackageService {
       throw error;
     }
 
-    this.#logger?.info("Dashboard package applied with explicit Character role mapping.", {
+    this.#logger?.info("Package Dashboard profile applied with explicit Character role mapping.", {
       packageId: input.packageId,
       version: input.version,
       profileId,
       roleCount: dashboard.roleIds.length,
       executionAttempted: false,
       gameplayMutation: false,
+      scriptActivationChanged: false,
     });
 
     return Object.freeze({
@@ -184,6 +190,7 @@ export class DashboardPackageService {
       ),
       executionAttempted: false,
       gameplayMutation: false,
+      scriptActivationChanged: false,
     });
   }
 
@@ -371,7 +378,8 @@ export class DashboardPackageService {
     if (
       inspection.packageId !== packageId ||
       inspection.version !== version ||
-      inspection.packageKind !== "dashboard"
+      inspection.packageKind !== "dashboard" &&
+      inspection.packageKind !== "combined"
     ) {
       throw new DashboardPackageError(
         "DASHBOARD_PACKAGE_INVALID",

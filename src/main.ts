@@ -57,6 +57,7 @@ import { Slice83LiveTestService } from "./live-test/slice-8-3.ts";
 import { Slice84LiveTestService } from "./live-test/slice-8-4.ts";
 import { ScriptPackageImporter } from "./packages/importer.ts";
 import { DashboardPackageService } from "./packages/dashboard.ts";
+import { CombinedPackageService } from "./packages/combined.ts";
 import { ScriptPackageLibrary } from "./packages/library.ts";
 import { ScriptPackageUpdateService } from "./packages/updater.ts";
 import { getUserPaths } from "./platform/paths.ts";
@@ -205,6 +206,7 @@ let scriptRuntime: ScriptRuntimeService | undefined;
 let scriptPackageLibrary: ScriptPackageLibrary | undefined;
 let scriptPackageUpdateService: ScriptPackageUpdateService | undefined;
 let dashboardPackageService: DashboardPackageService | undefined;
+let combinedPackageService: CombinedPackageService | undefined;
 let slice41LiveTestService: Slice41LiveTestService | undefined;
 let slice42LiveTestService: Slice42LiveTestService | undefined;
 let slice43LiveTestService: Slice43LiveTestService | undefined;
@@ -711,6 +713,13 @@ dashboardPackageService = new DashboardPackageService({
   layoutStore: dashboardLayoutStore,
   logger,
 });
+combinedPackageService = new CombinedPackageService({
+  rootDir: importedPackagesDir,
+  importer: scriptPackageImporter,
+  library: scriptPackageLibrary,
+  dashboardPackages: dashboardPackageService,
+  logger,
+});
 characterCardsService = new CharacterCardsService({
   logger,
   selection: selectionService!,
@@ -1023,6 +1032,7 @@ dashboard = new DashboardServer({
   scriptPackageLibrary,
   scriptPackageUpdateService,
   dashboardPackageService,
+  combinedPackageService,
   rendererBridge,
   rendererHandoffService,
   alhdAssetProvider,

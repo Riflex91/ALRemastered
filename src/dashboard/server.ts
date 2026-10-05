@@ -34,6 +34,11 @@ import type { ScriptPackageImporter } from "../packages/importer.ts";
 import type { ScriptPackageLibrary } from "../packages/library.ts";
 import type { ScriptPackageUpdateService } from "../packages/updater.ts";
 import type { DashboardPackageService } from "../packages/dashboard.ts";
+import type {
+  CombinedPackageService,
+  CombinedPackAssetInput,
+  CombinedPackScriptInput,
+} from "../packages/combined.ts";
 import type { CharacterCardsService } from "./character-cards.ts";
 import type { SetupWizardService, SetupWizardStartInput } from "./setup-wizard.ts";
 import type { TemplateConfigurationService } from "./template-config.ts";
@@ -107,6 +112,7 @@ export interface DashboardServerOptions {
   readonly scriptPackageLibrary?: ScriptPackageLibrary;
   readonly scriptPackageUpdateService?: ScriptPackageUpdateService;
   readonly dashboardPackageService?: DashboardPackageService;
+  readonly combinedPackageService?: CombinedPackageService;
   readonly rendererBridge?: RendererBridge;
   readonly rendererHandoffService?: RendererHandoffService;
   readonly alhdAssetProvider?: AlhdAssetProvider;
@@ -172,6 +178,7 @@ export class DashboardServer {
   readonly #scriptPackageLibrary?: ScriptPackageLibrary;
   readonly #scriptPackageUpdateService?: ScriptPackageUpdateService;
   readonly #dashboardPackageService?: DashboardPackageService;
+  readonly #combinedPackageService?: CombinedPackageService;
   readonly #rendererBridge?: RendererBridge;
   readonly #rendererHandoffService?: RendererHandoffService;
   readonly #alhdAssetProvider?: AlhdAssetProvider;
@@ -241,6 +248,7 @@ export class DashboardServer {
     this.#scriptPackageLibrary = options.scriptPackageLibrary;
     this.#scriptPackageUpdateService = options.scriptPackageUpdateService;
     this.#dashboardPackageService = options.dashboardPackageService;
+    this.#combinedPackageService = options.combinedPackageService;
     this.#rendererBridge = options.rendererBridge;
     this.#rendererHandoffService = options.rendererHandoffService;
     this.#alhdAssetProvider = options.alhdAssetProvider;
@@ -424,6 +432,92 @@ export class DashboardServer {
           throw new Error("packageId is required.");
         }
         return this.#scriptPackageUpdateService!.rollback(body.packageId);
+      });
+    }
+
+    if (method === "GET" && path === "/api/packages/combined") {
+      if (!this.#combinedPackageService) {
+        return this.#json(response, { status: "unavailable" }, 503);
+      }
+      return this.#json(response, this.#combinedPackageService.descriptor());
+    }
+    if (method === "GET" && path === "/api/packages/combined/self-test") {
+      if (!this.#combinedPackageService) {
+        return this.#json(response, { error: "Combined package service is unavailable." }, 503);
+      }
+      return this.#runPackageImportAction(
+        response,
+        () => this.#combinedPackageService!.runSelfTest(),
+      );
+    }
+    if (method === "POST" && path === "/api/packages/combined/export") {
+      if (!this.#combinedPackageService) {
+        return this.#json(response, { error: "Combined package service is unavailable." }, 503);
+      }
+      return this.#runPackageImportAction(response, async () => {
+        const body = await this.#readJsonObject(request, 2 * 1024 * 1024);
+        for (const key of ["packageId", "name", "version", "author"] as const) {
+          if (typeof body[key] !== "string" || !body[key].trim()) {
+            throw new Error(`${key} is required.`);
+          }
+        }
+        if (!Array.isArray(body.scripts) || body.scripts.length === 0) {
+          throw new Error("scripts must contain at least one Script file.");
+        }
+        const scripts = body.scripts.map((value, index) => {
+          if (
+            typeof value !== "object" ||
+            value === null ||
+            Array.isArray(value) ||
+            typeof (value as Record<string, unknown>).path !== "string" ||
+            typeof (value as Record<string, unknown>).entry !== "boolean" ||
+            typeof (value as Record<string, unknown>).source !== "string"
+          ) {
+            throw new Error(`scripts[${index}] must contain path, entry, and source.`);
+          }
+          return value as unknown as CombinedPackScriptInput;
+        });
+        if (!("configSchema" in body)) throw new Error("configSchema is required.");
+        if (!("portableProfile" in body)) throw new Error("portableProfile is required.");
+        if (
+          body.permissions !== undefined &&
+          (!Array.isArray(body.permissions) ||
+            body.permissions.some((value) => typeof value !== "string"))
+        ) {
+          throw new Error("permissions must be an array of permission strings.");
+        }
+        let assets: readonly CombinedPackAssetInput[] | undefined;
+        if (body.assets !== undefined) {
+          if (!Array.isArray(body.assets)) throw new Error("assets must be an array.");
+          assets = body.assets.map((value, index) => {
+            if (
+              typeof value !== "object" ||
+              value === null ||
+              Array.isArray(value) ||
+              typeof (value as Record<string, unknown>).path !== "string" ||
+              typeof (value as Record<string, unknown>).content !== "string" ||
+              (
+                (value as Record<string, unknown>).mediaType !== undefined &&
+                typeof (value as Record<string, unknown>).mediaType !== "string"
+              )
+            ) {
+              throw new Error(`assets[${index}] must contain path and content, with optional mediaType.`);
+            }
+            return value as unknown as CombinedPackAssetInput;
+          });
+        }
+        return this.#combinedPackageService!.createPackage({
+          packageId: body.packageId as string,
+          name: body.name as string,
+          version: body.version as string,
+          author: body.author as string,
+          scripts,
+          configSchema: body.configSchema,
+          portableProfile: body.portableProfile,
+          assets,
+          permissions: body.permissions as readonly string[] | undefined,
+          readme: typeof body.readme === "string" ? body.readme : undefined,
+        });
       });
     }
 
