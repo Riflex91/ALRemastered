@@ -4267,3 +4267,91 @@ Scope/safety evidence:
 
 Phase 12 is complete only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green. Phase 13 must not begin before that gate is satisfied.
 
+---
+
+## Verification Evidence — Slice 13.1 Dashboard Packages
+
+**Status: VERIFIED**
+
+> 2026-10-05: VERIFIED on Windows with `0.1.0-alpha.80`. Real installed one-click test `live131-06f98c0d-d404-41d5-a1c7-b3ccf7569495` passed Dashboard-only `.alrpkg` packaging, portable Dashboard profile validation, explicit Character-role mapping, fixed-Character-ID removal, persistent layout application, combined-pack deferral, cleanup, runtime continuity, and read-only gameplay safety without package execution.
+
+Live verification evidence:
+
+- client: `0.1.0-alpha.80`;
+- platform: `win32`;
+- test ID: `live131-06f98c0d-d404-41d5-a1c7-b3ccf7569495`;
+- outcome: `PASSED`;
+- test window: `2026-10-05T14:39:56.435Z → 2026-10-05T14:39:56.462Z`;
+- `dashboard-package-descriptor: PASSED`;
+- `same-package-format: PASSED`;
+- `dashboard-kind: PASSED`;
+- `portable-profile-validated: PASSED`;
+- `no-script-payload: PASSED`;
+- `imported-inactive: PASSED`;
+- `explicit-role-mapping: PASSED`;
+- `source-character-ids-absent: PASSED`;
+- `layout-persisted: PASSED`;
+- `combined-pack-deferred: PASSED`;
+- `no-package-execution: PASSED`;
+- `verification-cleanup: PASSED`;
+- `core-character-script-continuity: PASSED`;
+- `read-only-gameplay-runtime: PASSED`;
+- package extension: `.alrpkg`;
+- package kind: `dashboard`;
+- portable profile kind: `ALRemasteredDashboardProfile`;
+- Dashboard export supported: `true`;
+- role mapping required: `true`;
+- same package format: `true`;
+- Dashboard kind validated: `true`;
+- portable profile validated: `true`;
+- no script payload: `true`;
+- imported inactive: `true`;
+- explicit role mapping: `true`;
+- applied profile: `Slice 13.1 packaged layout`;
+- applied profile ID: `pkg-87907bc3949d24d2fb7c6983`;
+- layout variants: `desktop`;
+- source Character IDs absent: `true`;
+- layout persisted: `true`;
+- combined Script + Dashboard deferred: `true`;
+- combined rejection error: `PACKAGE_COMBINED_KIND_UNSUPPORTED`;
+- package execution attempted: `false`;
+- verification cleanup: `true`;
+- `Core restart: false`;
+- `Character restart: false`;
+- `Script restart: false`;
+- `Gameplay mutation: false`;
+- Action Gateway requests: `0`;
+- `Raw socket access: false`;
+- `User Script touched: false`;
+- diagnostic export: 11 log lines covering `2026-10-05T14:39:50.785Z → 2026-10-05T14:39:51.053Z`, `Secrets sanitized: yes`.
+
+Repository/release evidence:
+
+- implementation PR #160 final feature head: `fcad0e3c6758af241e4366d9df485b29f5cc373e`;
+- final implementation PR CI run `37232118864` completed on that exact head with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #160 merged with method `merge` into implementation `main` `57df7212d5d4446914d898ff5f81e39a035bf406`;
+- exact post-implementation-main CI run `37232298357` completed on `57df7212d5d4446914d898ff5f81e39a035bf406` with all four required jobs successful;
+- release publish run `37232508726` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.80`, tag `v0.1.0-alpha.80`, GitHub Release target, publish-run head, and tested implementation `main` are commit-identical at `57df7212d5d4446914d898ff5f81e39a035bf406`;
+- published assets:
+  - Windows x64 installer SHA-256 `96692294fe590d62c546a9773c4e83dc6ba6b58203515f847d214e0e0878bd9e`
+  - Linux x64 installer SHA-256 `8af03471762fe335ebcb40cb152e2adf3952169a343b4ecce0a9293d7bf51f7a`
+  - updater manifest SHA-256 `dd2f74832383527d9f9a26696317a8d9243cad5ec9ac57ab05ddec98a274f3c0`.
+
+Scope/safety evidence:
+
+- Dashboard layouts use the existing `.alrpkg` package system through a dedicated Dashboard-only package kind;
+- the package carries the existing portable Dashboard profile representation instead of fixed Character IDs;
+- importing a Dashboard package keeps it inactive and does not execute package code;
+- applying the package requires explicit Character-role mapping before resolved local Dashboard layouts are persisted;
+- the package contains no Script payload and requests no Script permissions;
+- combined Script + Dashboard packages are explicitly rejected in Slice 13.1 with `PACKAGE_COMBINED_KIND_UNSUPPORTED` and remain Slice 13.2 scope;
+- Dashboard-package updates remain outside Slice 13.1;
+- verification cleanup removed its isolated test data;
+- Core, Character, and Script remained continuous;
+- no gameplay mutation, Action Gateway request, raw socket access, package execution, or User Script replacement occurred.
+
+**Canonical roadmap status: Slice 13.1 = VERIFIED.**
+
+Slice 13.1 is complete only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green. Slice 13.2 must not begin before that gate is satisfied.
+
