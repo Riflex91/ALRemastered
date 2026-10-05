@@ -4677,3 +4677,81 @@ Scope/safety evidence:
 **Canonical roadmap status: Slice 14.1 = VERIFIED.**
 
 Slice 14.1 is complete only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green. Slice 14.2 must not begin before that gate is satisfied.
+
+
+---
+
+## Verification Evidence — Slice 14.2 Merchant Workspace & Capacity Preview
+
+**Status: VERIFIED**
+
+> 2026-10-05: VERIFIED on Windows with `0.1.0-alpha.84`. Real installed one-click test `live142-6a58b376-854a-4da9-b412-1a6e82d7bb89` passed the workspace/capacity descriptor, live Merchant capacity observation, live capacity accounting, reserve accounting, fail-closed capacity pressure, isolated self-test, Core/Character/Script continuity, and read-only gameplay-runtime checks.
+
+Live verification evidence:
+
+- client: `0.1.0-alpha.84`;
+- platform: `win32`;
+- test ID: `live142-6a58b376-854a-4da9-b412-1a6e82d7bb89`;
+- outcome: `PASSED`;
+- test window: `2026-10-05T17:47:58.075Z → 2026-10-05T17:47:58.088Z`;
+- `workspace-capacity-descriptor: PASSED`;
+- `merchant-capacity-live: PASSED`;
+- `live-capacity-accounting: PASSED`;
+- `capacity-reserve-accounting: PASSED`;
+- `capacity-pressure-fail-closed: PASSED`;
+- `isolated-self-test: PASSED`;
+- `core-character-script-continuity: PASSED`;
+- `read-only-gameplay-runtime: PASSED`;
+- inventory capacity: `42`;
+- inventory used: `33`;
+- inventory free: `9`;
+- workspace reserve slots: `3`;
+- pickup reserve slots: `1`;
+- total reserved slots: `4`;
+- general free slots: `5`;
+- capacity deficit: `0`;
+- capacity pressure: `ready`;
+- multi-step workflow allowed: `true`;
+- reservation planning only: `true`;
+- mutation authority: `false`;
+- bank mutation: `false`;
+- trade mutation: `false`;
+- transfer mutation: `false`;
+- Buy/Sell mutation: `false`;
+- `Core restart: false`;
+- `Character restart: false`;
+- `Script restart: false`;
+- `Gameplay mutation: false`;
+- Action Gateway requests: `0`;
+- `Raw socket access: false`;
+- `User Script touched: false`;
+- diagnostic export: 33 log lines covering `2026-10-05T17:47:28.847Z → 2026-10-05T17:47:58.063Z`, `Secrets sanitized: yes`.
+
+Repository/release evidence:
+
+- implementation PR #168 final feature head: `42eb2b84d3dfc655262b1617c355ec3ef6058878`;
+- final implementation PR CI run `37348293135` completed on that exact head with Ubuntu Verify, Windows Verify, Linux installer upgrade smoke, and Windows installer upgrade smoke all successful;
+- PR #168 merged into implementation `main` `49cbee3dad03b20af7a338ca6b3458c109463c41`;
+- exact post-implementation-main CI run `37348707188` completed on `49cbee3dad03b20af7a338ca6b3458c109463c41` with all four required jobs successful;
+- release publish run `37349960105` completed successfully for Linux, Windows, and GitHub Release;
+- release branch `release/v0.1.0-alpha.84`, tag `v0.1.0-alpha.84`, GitHub Release target, publish-run head, and tested implementation `main` are commit-identical at `49cbee3dad03b20af7a338ca6b3458c109463c41`;
+- published assets:
+  - Windows x64 installer SHA-256 `6a758a609ac86c026fa5d6f5590859abf0d7bfaa99545c61a6e8f1882270ee1d`;
+  - Linux x64 installer SHA-256 `f16b9ba5e092e13c8f81bf443bc952d947171fb47a044fb053b09dba45a90522`;
+  - updater manifest SHA-256 `a070e934c8913c4dcaca90ccc6bef01450136cc71764839f764048c7fc4ec215`.
+
+Scope/safety evidence:
+
+- live Merchant capacity accounting matched the observed inventory exactly: `42 - 33 = 9` free slots;
+- workspace and pickup planning reserves totaled exactly `3 + 1 = 4` logical slots;
+- the planner exposed exactly `5` general free slots above the protected reserve;
+- capacity deficit was `0`, pressure was `ready`, and multi-step planning was permitted only because the protected reserve was satisfied;
+- reservations remained planning-only and did not occupy, move, reorder, or mutate physical inventory;
+- Bank, Buy/Sell, Trade, Transfer, Upgrade, Compound, Craft, Dismantle, Fishing, Mining, Event, and Boss writes remained unavailable in Slice 14.2;
+- mutation authority and every reported economic mutation flag remained false;
+- Core, Character, and Script remained continuous;
+- no gameplay mutation, Action Gateway request, raw socket access, or User Script replacement occurred.
+
+**Canonical roadmap status: Slice 14.2 = VERIFIED.**
+
+Slice 14.2 is complete only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green. Slice 14.3 must not begin before that gate is satisfied.
