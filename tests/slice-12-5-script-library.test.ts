@@ -278,7 +278,7 @@ test("Slice 12.5 remains retained while Slice 12.6 owns Updates / Rollback verif
   const server = readFileSync(new URL("../src/dashboard/server.js", import.meta.url), "utf8");
   const library = readFileSync(new URL("../src/packages/library.js", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="13\.2"/);
+  assert.match(html, /data-current-verification-slice="13\.3"/);
   assert.match(html, /id="package-library-panel"/);
   assert.match(html, /id="package-library-my-scripts"/);
   assert.match(html, /id="package-library-imported"/);
