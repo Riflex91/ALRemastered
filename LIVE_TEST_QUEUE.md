@@ -3065,3 +3065,94 @@ Scope and safety:
 
 Slice 13.1 may be considered complete only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green. Slice 13.2 must remain blocked until then.
 
+---
+
+### Alpha.81 real one-click result: PASSED — Slice 13.2 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.81`
+- release target / tested implementation main: `909b4da7fbfc589affbe29d82e0cc6e7217b88d8`
+- client: `0.1.0-alpha.81` / Windows
+- platform: `win32`
+- test ID: `live132-6657633a-a81c-4a75-bf8d-a22b0a053917`
+- outcome: `passed`
+- test window: `2026-10-05T15:26:13.483Z → 2026-10-05T15:26:13.506Z`
+- diagnostic export: 12 log lines, `Secrets sanitized: yes`.
+
+The one-click harness completed the full Slice 13.2 validation:
+
+- `combined-package-descriptor: PASSED`;
+- `combined-kind: PASSED`;
+- `multiple-scripts: PASSED`;
+- `dashboard-and-roles: PASSED`;
+- `config-schema: PASSED`;
+- `assets: PASSED`;
+- `permissions: PASSED`;
+- `dangerous-permission-confirmation: PASSED`;
+- `imported-inactive: PASSED`;
+- `dashboard-apply-independent: PASSED`;
+- `explicit-role-mapping: PASSED`;
+- `source-character-ids-absent: PASSED`;
+- `layout-persisted: PASSED`;
+- `configuration-persisted: PASSED`;
+- `script-activation-explicit: PASSED`;
+- `no-package-execution: PASSED`;
+- `verification-cleanup: PASSED`;
+- `core-character-script-continuity: PASSED`;
+- `read-only-gameplay-runtime: PASSED`;
+- package kind: `combined`;
+- Script count: `2`;
+- Scripts: `scripts/main.js (entry)`, `scripts/helpers.js`;
+- role IDs: `tank`;
+- asset path: `assets/strategy.txt`;
+- Permissions: `movement`, `inventory.destroy`;
+- dangerous permission confirmation required: `true`;
+- imported inactive: `true`;
+- Dashboard apply leaves Scripts inactive: `true`;
+- explicit role mapping: `true`;
+- source Character IDs absent: `true`;
+- applied profile: `Slice 13.2 combined layout`;
+- layout variants: `desktop`;
+- layout persisted: `true`;
+- configuration persisted: `true`;
+- Script activation explicit: `true`;
+- active after explicit activation: `true`;
+- package execution attempted: `false`;
+- verification cleanup: `true`;
+- `Core restart: false`;
+- `Character restart: false`;
+- `Script restart: false`;
+- `Gameplay mutation: false`;
+- Action Gateway requests: `0`;
+- `Raw socket access: false`;
+- `User Script touched: false`.
+
+Repository/release evidence:
+
+- implementation PR #162 final feature head: `1bca2234ec00c39b4d4071d927f6fc8058a22c96`;
+- implementation PR CI runs `37330963135` and `37330986604`: all four required jobs successful;
+- implementation main: `909b4da7fbfc589affbe29d82e0cc6e7217b88d8`;
+- exact post-implementation-main CI run `37331820135`: all four required jobs successful;
+- release publish run `37332252918`: Linux, Windows, and GitHub Release successful;
+- release branch, tag, release target, publish head, and tested implementation main are commit-identical at `909b4da7fbfc589affbe29d82e0cc6e7217b88d8`;
+- Windows x64 installer SHA-256: `69cb75023ac4d363977ac17e4978bfc2238bcca89a99e50b9caad5bdaad1cbe0`;
+- Linux x64 installer SHA-256: `0978bc2c9d6a07ee84119bda544cc89f9aa3dd970b0b0c57f63cfcfe1f235511`;
+- updater manifest SHA-256: `ff91e7aaf5f565e6726c79076e4f626bd88e832b566d2cabfe1292fac5c7b6db`.
+
+Scope and safety:
+
+- multiple Scripts, portable Dashboard layout + roles, Config Schema, assets, and Permissions share one existing-format `.alrpkg`;
+- dangerous Permissions require explicit confirmation before import;
+- import remains inactive and does not execute package code;
+- Dashboard apply uses explicit Character-role mapping and leaves Scripts inactive;
+- Script configuration and activation are separate explicit operations;
+- source Character IDs are absent from the packaged portable Dashboard data;
+- verification cleanup completed successfully;
+- Core, Character, and Script remained continuous;
+- no gameplay mutation, Action Gateway requests, raw socket access, package execution, or User Script replacement occurred.
+
+**Canonical queue status: Slice 13.2 = VERIFIED.**
+
+Slice 13.2 may be considered complete only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green. Slice 13.3 must remain blocked until then.
+
