@@ -41,7 +41,7 @@ export interface ScriptLibraryVersion {
   readonly version: string;
   readonly author: string;
   readonly description: string;
-  readonly packageKind: "script" | "dashboard";
+  readonly packageKind: "script" | "dashboard" | "combined";
   readonly manifestHash: string;
   readonly importedAt?: string;
   readonly permissions: readonly ScriptPackagePermission[];
@@ -86,7 +86,7 @@ interface LocatedPackage {
   readonly packagePath: string;
   readonly statePath: string;
   readonly receiptPath: string;
-  readonly packageKind: "script" | "dashboard";
+  readonly packageKind: "script" | "dashboard" | "combined";
   readonly configSchema: Readonly<Record<string, unknown>>;
 }
 
@@ -127,7 +127,9 @@ export class ScriptPackageLibrary {
       configurationSupported: true,
       oneActiveVersionPerPackage: true,
       dashboardPackagesVisible: true,
+      combinedPackagesVisible: true,
       dashboardActivationSupported: false,
+      combinedActivationSupported: true,
       activationExecutesPackage: false,
       executionSupported: false,
       updatesSupported: false,
@@ -203,10 +205,10 @@ export class ScriptPackageLibrary {
     readonly active: boolean;
   }): ScriptLibrarySnapshot {
     const target = this.#locate(input.packageId, input.version);
-    if (target.packageKind !== "script") {
+    if (target.packageKind === "dashboard") {
       throw new ScriptPackageLibraryError(
         "PACKAGE_LIBRARY_ACTIVATION_UNSUPPORTED",
-        "Dashboard packages are applied through Dashboard layout import, not Script Library activation.",
+        "Dashboard-only packages are applied through Dashboard layout import, not Script Library activation.",
       );
     }
     const packageDir = target.packageDir;
@@ -248,10 +250,10 @@ export class ScriptPackageLibrary {
     readonly configuration: unknown;
   }): ScriptLibrarySnapshot {
     const located = this.#locate(input.packageId, input.version);
-    if (located.packageKind !== "script") {
+    if (located.packageKind === "dashboard") {
       throw new ScriptPackageLibraryError(
         "PACKAGE_LIBRARY_CONFIGURATION_UNSUPPORTED",
-        "Dashboard packages do not expose Script Library configuration.",
+        "Dashboard-only packages do not expose Script Library configuration.",
       );
     }
     const configuration = validateConfiguration(input.configuration, located.configSchema);
@@ -471,7 +473,7 @@ export class ScriptPackageLibrary {
       properties: {},
       additionalProperties: false,
     };
-    if (inspection.packageKind === "script") {
+    if (inspection.packageKind === "script" || inspection.packageKind === "combined") {
       const schemaText = document.files[document.manifest.configSchema!.path];
       try {
         configSchema = JSON.parse(schemaText ?? "");
