@@ -263,7 +263,7 @@ test("Slice 12.3 file import remains retained while Slice 12.4 owns remote impor
   const server = readFileSync(new URL("../src/dashboard/server.js", import.meta.url), "utf8");
   const importer = readFileSync(new URL("../src/packages/importer.js", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="14\.3"/);
+  assert.match(html, /data-current-verification-slice="14\.4"/);
   assert.match(html, /id="package-import-file"/);
   assert.match(html, /id="package-import-preview"/);
   assert.match(html, /id="package-import-confirm"/);

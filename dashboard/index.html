@@ -6,7 +6,7 @@
   <title>ALRemastered</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body data-current-verification-slice="14.3">
+<body data-current-verification-slice="14.4">
   <main class="shell">
     <header class="topbar">
       <div>
@@ -626,6 +626,28 @@
       </small>
     </section>
 
+    <section class="account-panel" id="merchant-demand-inbox">
+      <div class="diagnostics-heading">
+        <div>
+          <p class="eyebrow">Phase 14 advanced gameplay</p>
+          <h2>Merchant Demand Inbox Preview</h2>
+        </div>
+        <strong id="merchant-demand-inbox-status" aria-live="polite">Loading…</strong>
+      </div>
+      <div class="toolbar">
+        <button id="merchant-demand-inbox-refresh" type="button">Refresh demand inbox</button>
+      </div>
+      <article class="card">
+        <span class="label">Planning-only Merchant Demand Inbox</span>
+        <p id="merchant-demand-inbox-summary" class="selection-note">
+          Connect the Merchant Character to inspect queued planning demands.
+        </p>
+      </article>
+      <small class="selection-note">
+        Slice 14.4 introduces the internal Merchant planning inbox with duplicate-ID rejection, deadlines, priorities, resource bindings, and pinned knowledge snapshots. The live inbox starts empty until later producers are connected. Dashboard access is GET-only and grants no workflow execution, gameplay mutation, Action Gateway, or raw-socket authority.
+      </small>
+    </section>
+
     <div class="selection-content" data-verification-test="12.3" hidden>
       <div>
         <h3>Slice 12.3 one-click Package File Import test</h3>
@@ -762,6 +784,20 @@
         </div>
         <small class="selection-note" id="slice-14-3-live-test-note">
           Requires a connected Merchant Character. Verifies live gold observation, Safety Reserve accounting, planning-reservation isolation, overbooking protection, runtime continuity, and zero gameplay writes.
+        </small>
+      </div>
+    </div>
+
+    <div class="selection-content" data-verification-test="14.4" hidden>
+      <div>
+        <h3>Slice 14.4 one-click Merchant Demand Inbox test</h3>
+        <div class="server-picker">
+          <button id="start-slice-14-4-live-test" type="button">Start test</button>
+          <strong id="slice-14-4-live-test-status" aria-live="polite">Ready</strong>
+          <button id="copy-slice-14-4-live-test-result" type="button" hidden>Copy last test result</button>
+        </div>
+        <small class="selection-note" id="slice-14-4-live-test-note">
+          Requires a connected Merchant Character. Verifies the empty-safe live planning inbox, duplicate-ID and deadline/resource guards in isolation, deterministic ordering, runtime continuity, and zero gameplay writes.
         </small>
       </div>
     </div>

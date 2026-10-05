@@ -207,7 +207,7 @@ test("Slice 14.3 is current verification and UI exposes Merchant Gold & Budget P
   const server = readFileSync(new URL("../src/dashboard/server.js", import.meta.url), "utf8");
   const merchant = readFileSync(new URL("../src/merchant/gold-budget.js", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="14\.3"/);
+  assert.match(html, /data-current-verification-slice="14\.4"/);
   assert.match(html, /<h2>Merchant Gold &amp; Budget Preview<\/h2>/);
   assert.match(html, /id="merchant-gold-budget-refresh"/);
   assert.match(html, /Slice 14\.3 one-click Merchant Gold &amp; Budget test/);

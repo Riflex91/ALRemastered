@@ -1301,6 +1301,37 @@ Explizit **nicht** Bestandteil von Slice 14.3:
 
 Der reale Verification-Gate verlangt einen installierten Windows-Client mit verbundenem Merchant-Character und muss Live-Gold-Beobachtung, Safety-Reserve-Accounting, Planning-Reservation-Accounting, Overbooking-Schutz, `Action Gateway requests: 0`, keine Gameplay-Mutation, keine Raw-Socket-Nutzung und unveränderte Core-/Character-/Script-Laufzeit nachweisen.
 
+## Slice 14.4 – Merchant Demand Inbox Preview
+
+Vierter Merchant-Slice als interne, weiterhin read-only Planning-Grenze für zukünftige Merchant-Aufträge:
+
+- Merchant Demands besitzen stabile `demandId`, Demand-Art, Character-Bindung, optionale Account-Bindung, Erstellzeit und Deadline;
+- Priority Class und numerischer Priority Rank werden als explizite Planungsdaten geführt;
+- Resource IDs werden normalisiert, sortiert und dürfen innerhalb eines Demands nicht doppelt vorkommen;
+- jeder Demand trägt einen Payload-Fingerprint und einen gepinnten Knowledge Snapshot aus Commit + mindestens einem SHA-256-Quellhash;
+- doppelte Demand-IDs werden fail-closed abgelehnt;
+- ungültige Deadlines, Ressourcen, Priority-Daten und Knowledge Pins werden fail-closed abgelehnt;
+- OPEN-Demands werden deterministisch nach `createdAtMs`, danach `demandId` sortiert;
+- Standardgrenze der Inbox ist `512` Einträge;
+- die Live-Inbox startet absichtlich leer, bis spätere interne Producer angeschlossen werden;
+- isolierter Self-Test beweist Deduplizierung, Deadline-/Resource-Guards, Knowledge-Pinning, deterministische Sortierung und Bounded-Inbox-Verhalten;
+- Dashboard besitzt nur GET-Preview und GET-Self-Test.
+
+Explizit **nicht** Bestandteil von Slice 14.4:
+
+- keine externe Dashboard- oder HTTP-Submission von Demands;
+- keine Workflow-Ausführung;
+- keine Scheduler-Startautorität;
+- kein Buy/Sell;
+- keine Bankmutation;
+- kein Trade;
+- kein Item- oder Gold-Transfer;
+- kein Upgrade, Compound, Craft oder Dismantle;
+- kein Fishing-, Mining-, Event- oder Boss-Write;
+- keine neue Action-Gateway- oder Raw-Socket-Autorität.
+
+Der reale Verification-Gate verlangt einen installierten Windows-Client mit verbundenem Merchant-Character und muss die empty-safe Live-Inbox, den isolierten Dedupe-/Deadline-/Resource-/Knowledge-Vertrag, `Action Gateway requests: 0`, keine Gameplay-Mutation, keine Raw-Socket-Nutzung und unveränderte Core-/Character-/Script-Laufzeit nachweisen.
+
 ---
 
 # Phase 15 – Distribution, Update-Härtung und zusätzliche Paketformate

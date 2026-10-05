@@ -66,9 +66,12 @@ const state = {
   slice142LastReport: null,
   slice143LiveTest: { status: "idle", message: "Ready." },
   slice143LastReport: null,
+  slice144LiveTest: { status: "idle", message: "Ready." },
+  slice144LastReport: null,
   merchantInventoryPreview: null,
   merchantWorkspaceCapacity: null,
   merchantGoldBudget: null,
+  merchantDemandInbox: null,
   partyPackWizard: null,
   partyPackWizardPreview: null,
   packageLibrary: null,
@@ -295,6 +298,10 @@ const elements = {
   slice143LiveTestStatus: document.querySelector("#slice-14-3-live-test-status"),
   slice143LiveTestNote: document.querySelector("#slice-14-3-live-test-note"),
   copySlice143LiveTestResult: document.querySelector("#copy-slice-14-3-live-test-result"),
+  startSlice144LiveTest: document.querySelector("#start-slice-14-4-live-test"),
+  slice144LiveTestStatus: document.querySelector("#slice-14-4-live-test-status"),
+  slice144LiveTestNote: document.querySelector("#slice-14-4-live-test-note"),
+  copySlice144LiveTestResult: document.querySelector("#copy-slice-14-4-live-test-result"),
   merchantInventoryPreviewStatus: document.querySelector("#merchant-inventory-preview-status"),
   merchantInventoryPreviewRefresh: document.querySelector("#merchant-inventory-preview-refresh"),
   merchantInventoryPreviewSummary: document.querySelector("#merchant-inventory-preview-summary"),
@@ -304,6 +311,9 @@ const elements = {
   merchantGoldBudgetStatus: document.querySelector("#merchant-gold-budget-status"),
   merchantGoldBudgetRefresh: document.querySelector("#merchant-gold-budget-refresh"),
   merchantGoldBudgetSummary: document.querySelector("#merchant-gold-budget-summary"),
+  merchantDemandInboxStatus: document.querySelector("#merchant-demand-inbox-status"),
+  merchantDemandInboxRefresh: document.querySelector("#merchant-demand-inbox-refresh"),
+  merchantDemandInboxSummary: document.querySelector("#merchant-demand-inbox-summary"),
   partyPackWizardStatus: document.querySelector("#party-pack-wizard-status"),
   partyPackWizardPackage: document.querySelector("#party-pack-wizard-package"),
   partyPackWizardRefresh: document.querySelector("#party-pack-wizard-refresh"),
@@ -6256,6 +6266,51 @@ elements.merchantGoldBudgetRefresh.addEventListener("click", () => {
 });
 void refreshMerchantGoldBudget();
 
+function renderMerchantDemandInbox(snapshot) {
+  state.merchantDemandInbox = snapshot;
+  if (!snapshot || snapshot.status !== "ready") {
+    elements.merchantDemandInboxStatus.textContent = "Unavailable";
+    elements.merchantDemandInboxSummary.textContent =
+      snapshot?.message ?? "Connect the Merchant Character to inspect queued planning demands.";
+    return;
+  }
+  const inbox = snapshot.inbox ?? {};
+  elements.merchantDemandInboxStatus.textContent = "Ready";
+  elements.merchantDemandInboxSummary.textContent = [
+    `Entries ${inbox.entryCount ?? 0}/${inbox.maxEntries ?? 0}`,
+    `Open ${inbox.openCount ?? 0}`,
+    `Expired open ${inbox.expiredOpenCount ?? 0}`,
+    `Oldest open ${inbox.oldestOpenDemandId ?? "none"}`,
+    "External submission: disabled",
+    "Workflow execution: disabled",
+    "Gameplay mutation: false",
+  ].join(" · ");
+}
+
+async function refreshMerchantDemandInbox() {
+  elements.merchantDemandInboxRefresh.disabled = true;
+  try {
+    const response = await fetch("/api/merchant/demand-inbox", { cache: "no-store" });
+    const snapshot = await response.json();
+    if (!response.ok && response.status !== 503) {
+      throw new Error(snapshot.error ?? `Merchant Demand Inbox request failed with HTTP ${response.status}.`);
+    }
+    renderMerchantDemandInbox(snapshot);
+  } catch (error) {
+    state.merchantDemandInbox = null;
+    elements.merchantDemandInboxStatus.textContent = "Unavailable";
+    elements.merchantDemandInboxSummary.textContent = error.message;
+    setFeedback(`Merchant Demand Inbox refresh failed: ${error.message}`, "error");
+  } finally {
+    elements.merchantDemandInboxRefresh.disabled = false;
+  }
+}
+
+elements.merchantDemandInboxRefresh.addEventListener("click", () => {
+  void refreshMerchantDemandInbox();
+});
+void refreshMerchantDemandInbox();
+
 elements.packageLibraryRefresh.addEventListener("click", () => void refreshPackageLibrary());
 void refreshPackageLibrary();
 
@@ -8543,6 +8598,246 @@ elements.copySlice143LiveTestResult.addEventListener("click", async () => {
 });
 
 renderSlice143LiveTest();
+
+function renderSlice144LiveTest() {
+  const test = state.slice144LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = { idle: "Ready", running: "Running…", passed: "PASSED", failed: "FAILED" };
+  elements.slice144LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice144LiveTest.disabled = test.status === "running";
+  elements.copySlice144LiveTestResult.hidden = !state.slice144LastReport;
+  if (test.status === "running") {
+    elements.slice144LiveTestNote.textContent =
+      "Reading the live planning inbox, validating empty-safe state and isolated Demand guards, then checking runtime continuity and Action Gateway isolation.";
+  } else if (test.message) {
+    elements.slice144LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function runSlice144Verification() {
+  const before = await fetchRendererSnapshot();
+  const [previewResponse, selfTestResponse] = await Promise.all([
+    fetch("/api/merchant/demand-inbox", { cache: "no-store" }),
+    fetch("/api/merchant/demand-inbox/self-test", { cache: "no-store" }),
+  ]);
+  const preview = await previewResponse.json();
+  const selfTest = await selfTestResponse.json();
+  if (!selfTestResponse.ok) {
+    throw new Error(selfTest.error ?? "Merchant Demand Inbox self-test failed.");
+  }
+  const after = await fetchRendererSnapshot();
+  const descriptor = selfTest.descriptor ?? {};
+  const inbox = preview.inbox ?? {};
+  const checks = selfTest.checks ?? {};
+  const steps = [
+    { key: "demand-inbox-descriptor", outcome:
+      descriptor.slice === "14.4" &&
+      descriptor.domain === "merchant" &&
+      descriptor.mode === "read-only" &&
+      descriptor.sourceSlice === "14.1" &&
+      descriptor.demandInbox === true &&
+      descriptor.maxEntriesDefault === 512 &&
+      descriptor.duplicateDemandIdsBlocked === true &&
+      descriptor.deadlineValidation === true &&
+      descriptor.deterministicOpenOrdering === "createdAtMs,demandId" &&
+      descriptor.knowledgeSnapshotRequired === true &&
+      descriptor.planningOnly === true &&
+      descriptor.externalSubmissionEnabled === false &&
+      descriptor.workflowExecutionAuthority === false &&
+      descriptor.mutationAuthority === false &&
+      descriptor.actionGatewayUsed === false &&
+      descriptor.rawSocketAccess === false ? "passed" : "failed" },
+    { key: "merchant-demand-live", outcome:
+      previewResponse.ok && preview.status === "ready" ? "passed" : "failed" },
+    { key: "live-inbox-empty-safe", outcome:
+      inbox.maxEntries === 512 &&
+      inbox.entryCount === 0 &&
+      inbox.openCount === 0 &&
+      inbox.expiredOpenCount === 0 &&
+      inbox.oldestOpenDemandId === null &&
+      Array.isArray(inbox.entries) &&
+      inbox.entries.length === 0 &&
+      inbox.externalSubmissionEnabled === false &&
+      inbox.workflowExecutionAuthority === false &&
+      inbox.gameplayMutationAuthority === false ? "passed" : "failed" },
+    { key: "duplicate-demand-id-blocked", outcome:
+      checks.duplicateIdBlocked === true ? "passed" : "failed" },
+    { key: "deadline-resource-knowledge-guards", outcome:
+      checks.invalidDeadlineBlocked === true &&
+      checks.duplicateResourceBlocked === true &&
+      checks.normalizedResources === true &&
+      checks.knowledgePinned === true &&
+      checks.openOrdering === true &&
+      checks.boundedInbox === true ? "passed" : "failed" },
+    { key: "isolated-self-test", outcome:
+      selfTest.status === "ready" &&
+      Object.values(checks).every(Boolean) &&
+      selfTest.gameplayMutation === false &&
+      selfTest.actionGatewayRequests === 0 &&
+      selfTest.rawSocketAccess === false &&
+      selfTest.userScriptTouched === false ? "passed" : "failed" },
+  ];
+
+  const beforeCore = before.snapshot?.core ?? {};
+  const afterCore = after.snapshot?.core ?? {};
+  const beforeCharacter = before.snapshot?.character ?? {};
+  const afterCharacter = after.snapshot?.character ?? {};
+  const beforeScript = before.snapshot?.script ?? {};
+  const afterScript = after.snapshot?.script ?? {};
+  const coreRestart = beforeCore.startedAt !== afterCore.startedAt;
+  const characterRestart = !sameSocketMarkers(beforeCharacter, afterCharacter);
+  const scriptRestart =
+    (beforeScript.runId ?? null) !== (afterScript.runId ?? null) ||
+    (beforeScript.startedAt ?? null) !== (afterScript.startedAt ?? null);
+  const actionGatewayRequests = Math.max(
+    0,
+    Number(after.snapshot?.actionGateway?.totalRequests ?? 0) -
+      Number(before.snapshot?.actionGateway?.totalRequests ?? 0),
+  );
+  steps.push({ key: "core-character-script-continuity", outcome:
+    !coreRestart && !characterRestart && !scriptRestart ? "passed" : "failed" });
+  steps.push({ key: "read-only-gameplay-runtime", outcome:
+    actionGatewayRequests === 0 &&
+    descriptor.mutationAuthority === false &&
+    descriptor.bankMutation === false &&
+    descriptor.tradeMutation === false &&
+    descriptor.transferMutation === false &&
+    descriptor.goldTransferMutation === false &&
+    descriptor.buySellMutation === false &&
+    descriptor.workflowExecutionAuthority === false &&
+    descriptor.externalSubmissionEnabled === false &&
+    descriptor.actionGatewayUsed === false &&
+    descriptor.rawSocketAccess === false ? "passed" : "failed" });
+
+  return {
+    outcome: steps.every((step) => step.outcome === "passed") ? "passed" : "failed",
+    steps, preview, selfTest,
+    coreRestart, characterRestart, scriptRestart, actionGatewayRequests,
+    gameplayMutation: false, rawSocketAccess: false, userScriptTouched: false,
+  };
+}
+
+async function startSlice144LiveTest(clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice144LiveTest = {
+    status: "running",
+    message: "Slice 14.4 Merchant Demand Inbox test is running.",
+  };
+  renderSlice144LiveTest();
+  const verification = await runSlice144Verification();
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) {
+    throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  }
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live144-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const inbox = verification.preview?.inbox ?? {};
+  const descriptor = verification.selfTest?.descriptor ?? {};
+  const selfPreview = verification.selfTest?.preview ?? {};
+  const stepLines = verification.steps.map((step) =>
+    `- ${step.key}: ${String(step.outcome).toUpperCase()}`
+  );
+  const reportText = [
+    "ALRemastered Slice 14.4 one-click Merchant Demand Inbox test",
+    `Test ID: ${testId}`,
+    "Slice: 14.4",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    `Inbox max entries: ${inbox.maxEntries ?? "unavailable"}`,
+    `Live entry count: ${inbox.entryCount ?? "unavailable"}`,
+    `Live open count: ${inbox.openCount ?? "unavailable"}`,
+    `Live expired open count: ${inbox.expiredOpenCount ?? "unavailable"}`,
+    `Live oldest open demand: ${inbox.oldestOpenDemandId ?? "none"}`,
+    `External submission enabled: ${inbox.externalSubmissionEnabled}`,
+    `Workflow execution authority: ${inbox.workflowExecutionAuthority}`,
+    `Gameplay mutation authority: ${inbox.gameplayMutationAuthority}`,
+    `Self-test entry count: ${selfPreview.entryCount ?? "unavailable"}`,
+    `Self-test open count: ${selfPreview.openCount ?? "unavailable"}`,
+    `Self-test sorted OPEN IDs: ${Array.isArray(selfPreview.sortedOpenIds) ? selfPreview.sortedOpenIds.join(", ") : "unavailable"}`,
+    `Duplicate Demand IDs blocked: ${descriptor.duplicateDemandIdsBlocked}`,
+    `Deadline validation: ${descriptor.deadlineValidation}`,
+    `Knowledge snapshot required: ${descriptor.knowledgeSnapshotRequired}`,
+    `Planning only: ${descriptor.planningOnly}`,
+    `Mutation authority: ${descriptor.mutationAuthority}`,
+    `Bank mutation: ${descriptor.bankMutation}`,
+    `Trade mutation: ${descriptor.tradeMutation}`,
+    `Transfer mutation: ${descriptor.transferMutation}`,
+    `Gold transfer mutation: ${descriptor.goldTransferMutation}`,
+    `Buy/Sell mutation: ${descriptor.buySellMutation}`,
+    `Core restart: ${verification.coreRestart}`,
+    `Character restart: ${verification.characterRestart}`,
+    `Script restart: ${verification.scriptRestart}`,
+    "Gameplay mutation: false",
+    `Action Gateway requests: ${verification.actionGatewayRequests}`,
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+
+  const result = {
+    testId,
+    slice: "14.4",
+    outcome,
+    startedAt,
+    completedAt,
+    message: outcome === "passed"
+      ? "Merchant Demand Inbox verification passed."
+      : "Merchant Demand Inbox verification failed. Connect a Merchant Character and retry if the live inbox is unavailable.",
+    ...verification,
+  };
+  state.slice144LastReport = reportText;
+  state.slice144LiveTest = { status: outcome, message: result.message, lastResult: result };
+  renderMerchantDemandInbox(verification.preview);
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice144LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice144LiveTest.addEventListener("click", async () => {
+  if (state.slice144LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice144LastReport = null;
+  elements.copySlice144LiveTestResult.hidden = true;
+  try {
+    const { result, copied } = await startSlice144LiveTest(clipboardWrite);
+    setFeedback(
+      `Slice 14.4 test ${String(result.outcome).toUpperCase()}. ${copied ? "Complete result and sanitized diagnostic log copied to clipboard." : "Use Copy last test result once."}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    state.slice144LiveTest = { status: "failed", message: error.message };
+    renderSlice144LiveTest();
+    setFeedback(`Slice 14.4 Merchant Demand Inbox test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice144LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice144LastReport) return;
+  try {
+    await writeClipboard(state.slice144LastReport);
+    setFeedback(
+      "Complete Slice 14.4 Merchant Demand Inbox result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Merchant Demand Inbox result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice144LiveTest();
 
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
