@@ -1242,6 +1242,34 @@ Explizit **nicht** Bestandteil von Slice 14.1:
 
 Der reale Verification-Gate verlangt einen installierten Windows-Client mit verbundenem Merchant-Character und muss insbesondere `Action Gateway requests: 0`, keine Gameplay-Mutation, keine Raw-Socket-Nutzung und unveränderte Core-/Character-/Script-Laufzeit nachweisen.
 
+## Slice 14.2 – Merchant Workspace & Capacity Preview
+
+Zweiter Merchant-Slice als weiterhin read-only Capacity-Preflight auf Basis des verifizierten Slice-14.1-Inventarledgers:
+
+- reale Inventarkapazität, belegte Slots und freie Slots aus dem Live-Merchant-Preview übernehmen;
+- standardmäßig drei logische Workspace-Slots für mehrstufige Merchant-Arbeit schützen;
+- zusätzlich einen logischen Pickup-Reserve-Slot für spätere Collection-/Transfer-Flows schützen;
+- `totalReservedSlots = workspaceSlots + pickupReserveSlots` transparent ausweisen;
+- nur Slots oberhalb dieser Reserve als allgemeine freie Kapazität melden;
+- Capacity Pressure als `ready`, `constrained` oder `blocked` modellieren;
+- mehrstufige Merchant-Workflows fail-closed blockieren, solange die Workspace-/Pickup-Reserve nicht vollständig erfüllbar ist;
+- Ready-, Constrained- und Blocked-Zustände im isolierten Self-Test deterministisch nachweisen;
+- Dashboard zeigt ausschließlich Capacity-/Preflight-Daten.
+
+Die Reserven in Slice 14.2 sind ausschließlich **Planning Reservations**. Sie belegen oder verschieben keine echten Slots und erzeugen keine Gameplay-Authority.
+
+Explizit **nicht** Bestandteil von Slice 14.2:
+
+- keine Bankmutation;
+- kein Buy/Sell oder Trade;
+- kein Item- oder Gold-Transfer;
+- kein Upgrade, Compound, Craft oder Dismantle;
+- kein Fishing-, Mining-, Event- oder Boss-Write;
+- kein tatsächliches Umordnen, Freimachen oder Reservieren von Inventarslots;
+- keine neue Action-Gateway- oder Raw-Socket-Autorität.
+
+Der reale Verification-Gate verlangt einen installierten Windows-Client mit verbundenem Merchant-Character und muss Live-Capacity-Accounting, Workspace-/Pickup-Reserve, fail-closed Pressure, `Action Gateway requests: 0`, keine Gameplay-Mutation, keine Raw-Socket-Nutzung und unveränderte Core-/Character-/Script-Laufzeit nachweisen.
+
 ---
 
 # Phase 15 – Distribution, Update-Härtung und zusätzliche Paketformate
