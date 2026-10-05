@@ -3493,3 +3493,47 @@ Scope and safety:
 **Canonical queue status: Slice 14.2 = VERIFIED.**
 
 Slice 14.2 may be considered complete only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green. Slice 14.3 must remain blocked until then.
+
+---
+
+### Slice 14.3 – Merchant Gold & Budget Preview — implementation gate
+
+Planned implementation/release target:
+
+- slice: `14.3`;
+- client target: `0.1.0-alpha.85`;
+- platform for real verification: `win32`;
+- required Character class: `merchant`;
+- verification mode: real installed one-click test;
+- current status: implementation in progress; no live result recorded yet.
+
+Required one-click checks:
+
+- `gold-budget-descriptor`;
+- `merchant-gold-live`;
+- `safety-reserve-accounting`;
+- `reservation-accounting`;
+- `parallel-overbooking-blocked`;
+- `isolated-self-test`;
+- `core-character-script-continuity`;
+- `read-only-gameplay-runtime`.
+
+Required safety evidence:
+
+- Slice 14.1 remains the source of live Merchant gold truth;
+- default Gold Safety Reserve is exactly `1.000`;
+- spendable gold is live observed gold minus the protected Safety Reserve, floored at zero;
+- live state starts with zero planning reservations;
+- isolated self-test proves multiple planning reservations are summed deterministically;
+- exact allocation may become `constrained` but must preserve the Safety Reserve;
+- overbooking beyond spendable gold is `blocked`;
+- observed gold below the configured Safety Reserve is `blocked`;
+- planning reservations do not buy, sell, bank, trade, transfer, upgrade, compound, craft, dismantle, fish, mine, trigger events, or boss actions;
+- Action Gateway delta during the one-click test is exactly `0`;
+- no raw socket access is introduced;
+- no User Script is touched or replaced;
+- Core, Character, and Script remain continuous.
+
+Slice 14.3 may become VERIFIED only after the implementation PR is merged, its exact post-merge `main` CI is fully green, `0.1.0-alpha.85` is published from that exact implementation commit, and the real installed Windows one-click test passes.
+
+**Canonical queue status: Slice 14.3 = IMPLEMENTATION IN PROGRESS.**
