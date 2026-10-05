@@ -301,7 +301,7 @@ test("Slice 13.1 is current verification and UI exposes Dashboard package sharin
   const service = readFileSync(new URL("../src/packages/dashboard.js", import.meta.url), "utf8");
   const updater = readFileSync(new URL("../src/packages/updater.js", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="13\.2"/);
+  assert.match(html, /data-current-verification-slice="13\.3"/);
   assert.match(html, /Slice 13\.1 one-click Dashboard Packages test/);
   assert.match(html, /id="dashboard-package-export"/);
   assert.match(html, />Export as \.alrpkg</);
