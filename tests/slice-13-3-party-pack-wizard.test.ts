@@ -238,7 +238,7 @@ test("Slice 13.3 setup applies role-mapped Dashboard and explicitly activates pa
       .find((entry) => entry.id === result.profileId);
     const mapping = Object.fromEntries(
       (profile?.layouts.desktop?.widgets ?? []).map((entry) => [
-        entry.characterRole,
+        entry.id,
         entry.characterId,
       ]),
     );
