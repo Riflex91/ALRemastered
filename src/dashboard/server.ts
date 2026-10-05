@@ -40,6 +40,7 @@ import type {
   CombinedPackScriptInput,
 } from "../packages/combined.ts";
 import type { PartyPackWizardService } from "../packages/party-wizard.ts";
+import type { MerchantInventoryPreviewService } from "../merchant/inventory-preview.ts";
 import type { CharacterCardsService } from "./character-cards.ts";
 import type { SetupWizardService, SetupWizardStartInput } from "./setup-wizard.ts";
 import type { TemplateConfigurationService } from "./template-config.ts";
@@ -115,6 +116,7 @@ export interface DashboardServerOptions {
   readonly dashboardPackageService?: DashboardPackageService;
   readonly combinedPackageService?: CombinedPackageService;
   readonly partyPackWizardService?: PartyPackWizardService;
+  readonly merchantInventoryPreviewService?: MerchantInventoryPreviewService;
   readonly rendererBridge?: RendererBridge;
   readonly rendererHandoffService?: RendererHandoffService;
   readonly alhdAssetProvider?: AlhdAssetProvider;
@@ -182,6 +184,7 @@ export class DashboardServer {
   readonly #dashboardPackageService?: DashboardPackageService;
   readonly #combinedPackageService?: CombinedPackageService;
   readonly #partyPackWizardService?: PartyPackWizardService;
+  readonly #merchantInventoryPreviewService?: MerchantInventoryPreviewService;
   readonly #rendererBridge?: RendererBridge;
   readonly #rendererHandoffService?: RendererHandoffService;
   readonly #alhdAssetProvider?: AlhdAssetProvider;
@@ -253,6 +256,7 @@ export class DashboardServer {
     this.#dashboardPackageService = options.dashboardPackageService;
     this.#combinedPackageService = options.combinedPackageService;
     this.#partyPackWizardService = options.partyPackWizardService;
+    this.#merchantInventoryPreviewService = options.merchantInventoryPreviewService;
     this.#rendererBridge = options.rendererBridge;
     this.#rendererHandoffService = options.rendererHandoffService;
     this.#alhdAssetProvider = options.alhdAssetProvider;
@@ -495,6 +499,26 @@ export class DashboardServer {
           roleMapping: body.roleMapping as Readonly<Record<string, string>>,
         });
       });
+    }
+
+    if (method === "GET" && path === "/api/merchant/inventory-preview") {
+      if (!this.#merchantInventoryPreviewService) {
+        return this.#json(response, { status: "unavailable" }, 503);
+      }
+      return this.#json(response, this.#merchantInventoryPreviewService.state());
+    }
+    if (method === "GET" && path === "/api/merchant/inventory-preview/self-test") {
+      if (!this.#merchantInventoryPreviewService) {
+        return this.#json(
+          response,
+          { error: "Merchant Inventory Preview is unavailable." },
+          503,
+        );
+      }
+      return this.#json(
+        response,
+        this.#merchantInventoryPreviewService.runSelfTest(),
+      );
     }
 
     if (method === "GET" && path === "/api/packages/combined") {
