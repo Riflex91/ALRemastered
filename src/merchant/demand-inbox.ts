@@ -173,6 +173,20 @@ export class MerchantDemandInboxService {
         error instanceof Error && error.message === "MERCHANT_DEMAND_RESOURCE_DUPLICATE";
     }
 
+    const bounded = new MerchantDemandInboxService({
+      inventory: fixtureInventory,
+      maxEntries: 1,
+      clock: () => new Date("2026-10-05T00:00:10.000Z"),
+    });
+    bounded.submitPlanningDemand(fixtureDemand("D-LIMIT-1", 1_000, 20_000, 0));
+    let inboxFullBlocked = false;
+    try {
+      bounded.submitPlanningDemand(fixtureDemand("D-LIMIT-2", 2_000, 20_000, 0));
+    } catch (error) {
+      inboxFullBlocked =
+        error instanceof Error && error.message === "MERCHANT_DEMAND_INBOX_FULL";
+    }
+
     const snapshot = inbox.state();
     const sortedOpenIds = snapshot.inbox.entries
       .filter((entry) => entry.status === "OPEN")
@@ -202,6 +216,7 @@ export class MerchantDemandInboxService {
       boundedInbox:
         snapshot.inbox.maxEntries === 3 &&
         snapshot.inbox.entryCount === 2,
+      inboxFullBlocked,
       noExternalSubmission:
         snapshot.inbox.externalSubmissionEnabled === false,
       noWorkflowExecution:
