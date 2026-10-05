@@ -58,6 +58,7 @@ import { Slice84LiveTestService } from "./live-test/slice-8-4.ts";
 import { ScriptPackageImporter } from "./packages/importer.ts";
 import { DashboardPackageService } from "./packages/dashboard.ts";
 import { CombinedPackageService } from "./packages/combined.ts";
+import { PartyPackWizardService } from "./packages/party-wizard.ts";
 import { ScriptPackageLibrary } from "./packages/library.ts";
 import { ScriptPackageUpdateService } from "./packages/updater.ts";
 import { getUserPaths } from "./platform/paths.ts";
@@ -207,6 +208,7 @@ let scriptPackageLibrary: ScriptPackageLibrary | undefined;
 let scriptPackageUpdateService: ScriptPackageUpdateService | undefined;
 let dashboardPackageService: DashboardPackageService | undefined;
 let combinedPackageService: CombinedPackageService | undefined;
+let partyPackWizardService: PartyPackWizardService | undefined;
 let slice41LiveTestService: Slice41LiveTestService | undefined;
 let slice42LiveTestService: Slice42LiveTestService | undefined;
 let slice43LiveTestService: Slice43LiveTestService | undefined;
@@ -720,6 +722,14 @@ combinedPackageService = new CombinedPackageService({
   dashboardPackages: dashboardPackageService,
   logger,
 });
+partyPackWizardService = new PartyPackWizardService({
+  rootDir: importedPackagesDir,
+  selection: selectionService!,
+  combinedPackages: combinedPackageService,
+  dashboardPackages: dashboardPackageService,
+  library: scriptPackageLibrary,
+  logger,
+});
 characterCardsService = new CharacterCardsService({
   logger,
   selection: selectionService!,
@@ -1033,6 +1043,7 @@ dashboard = new DashboardServer({
   scriptPackageUpdateService,
   dashboardPackageService,
   combinedPackageService,
+  partyPackWizardService,
   rendererBridge,
   rendererHandoffService,
   alhdAssetProvider,
