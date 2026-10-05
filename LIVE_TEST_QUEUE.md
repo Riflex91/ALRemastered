@@ -3615,3 +3615,49 @@ Scope and safety:
 **Canonical queue status: Slice 14.3 = VERIFIED.**
 
 Slice 14.3 may be considered complete only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green.
+
+---
+
+### Slice 14.4 – Merchant Demand Inbox Preview — implementation gate
+
+Planned implementation/release target:
+
+- slice: `14.4`;
+- client target: `0.1.0-alpha.86`;
+- platform for real verification: `win32`;
+- required Character class: `merchant`;
+- verification mode: real installed one-click test;
+- current status: implementation in progress; no live result recorded yet.
+
+Required one-click checks:
+
+- `demand-inbox-descriptor`;
+- `merchant-demand-live`;
+- `live-inbox-empty-safe`;
+- `duplicate-demand-id-blocked`;
+- `deadline-resource-knowledge-guards`;
+- `isolated-self-test`;
+- `core-character-script-continuity`;
+- `read-only-gameplay-runtime`.
+
+Required safety evidence:
+
+- Slice 14.1 remains the source of live Merchant identity/binding;
+- live Demand Inbox starts empty until later internal producers are explicitly connected;
+- default inbox bound is exactly `512`;
+- duplicate Demand IDs are blocked;
+- invalid deadlines and duplicate resources are blocked;
+- Resource IDs are normalized deterministically;
+- Knowledge Snapshot requires a 40-hex commit and at least one 64-hex SHA-256 source hash;
+- OPEN ordering is deterministic by `createdAtMs`, then `demandId`;
+- Dashboard exposes no POST/submit endpoint;
+- workflow execution authority remains false;
+- Bank, Buy/Sell, Trade, Item Transfer, Gold Transfer, Upgrade, Compound, Craft, Dismantle, Fishing, Mining, Event, and Boss mutations remain unavailable;
+- Action Gateway delta during the one-click test is exactly `0`;
+- no raw socket access is introduced;
+- no User Script is touched or replaced;
+- Core, Character, and Script remain continuous.
+
+Slice 14.4 may become VERIFIED only after the implementation PR is merged, its exact post-merge `main` CI is fully green, `0.1.0-alpha.86` is published from that exact implementation commit, and the real installed Windows one-click test passes.
+
+**Canonical queue status: Slice 14.4 = IMPLEMENTATION IN PROGRESS.**
