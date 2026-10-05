@@ -3156,3 +3156,97 @@ Scope and safety:
 
 Slice 13.2 may be considered complete only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green. Slice 13.3 must remain blocked until then.
 
+---
+
+### Alpha.82 real one-click result: PASSED — Slice 13.3 VERIFIED
+
+Real live report:
+
+- release: `v0.1.0-alpha.82`
+- release target / tested implementation main: `7c11c3cdad2ff92ed44da449346ce0827273832b`
+- client: `0.1.0-alpha.82` / Windows
+- platform: `win32`
+- test ID: `live133-45f44519-deca-466d-9974-5f7a86520339`
+- outcome: `passed`
+- test window: `2026-10-05T16:07:16.198Z → 2026-10-05T16:07:16.222Z`
+- diagnostic export: 11 log lines, `Secrets sanitized: yes`.
+
+The one-click harness completed the full Slice 13.3 validation:
+
+- `party-pack-wizard-descriptor: PASSED`;
+- `combined-pack-visible: PASSED`;
+- `all-account-characters-visible: PASSED`;
+- `four-roles-visible: PASSED`;
+- `class-recommendations: PASSED`;
+- `unique-characters-required: PASSED`;
+- `explicit-role-mapping: PASSED`;
+- `dashboard-applied: PASSED`;
+- `package-activated-explicitly: PASSED`;
+- `no-character-start: PASSED`;
+- `no-package-execution: PASSED`;
+- `verification-cleanup: PASSED`;
+- `core-character-script-continuity: PASSED`;
+- `read-only-gameplay-runtime: PASSED`;
+- package kind: `combined`;
+- guided role mapping: `true`;
+- Character recommendations: `true`;
+- unique Character per role required: `true`;
+- setup applies Dashboard: `true`;
+- setup activates package metadata: `true`;
+- setup starts Characters: `false`;
+- setup executes package: `false`;
+- combined pack visible: `true`;
+- all account Characters visible: `true`;
+- roles: `Tank`, `Healer`, `DPS`, `Merchant`;
+- recommendations:
+  - `Tank → Warrior (warrior)`;
+  - `Healer → Priest (priest)`;
+  - `DPS → Ranger (ranger)`;
+  - `Merchant → Merchant (merchant)`;
+- unique mapping enforced: `true`;
+- role mapping:
+  - `tank → CH_WARRIOR`;
+  - `healer → CH_PRIEST`;
+  - `dps → CH_RANGER`;
+  - `merchant → CH_MERCHANT`;
+- applied profile: `4-Man Boss Party Pack`;
+- layout variants: `desktop`;
+- package active after setup: `true`;
+- Characters started: `false`;
+- package execution attempted: `false`;
+- verification cleanup: `true`;
+- `Core restart: false`;
+- `Character restart: false`;
+- `Script restart: false`;
+- `Gameplay mutation: false`;
+- Action Gateway requests: `0`;
+- `Raw socket access: false`;
+- `User Script touched: false`.
+
+Repository/release evidence:
+
+- implementation PR #164 final feature head: `78f2240a8c8e5cb1095ff065a992234690248a30`;
+- final implementation PR CI run `37336800835`: all four required jobs successful;
+- implementation main: `7c11c3cdad2ff92ed44da449346ce0827273832b`;
+- exact post-implementation-main CI run `37337193290`, attempt 2: all four required jobs successful;
+- release publish run `37337831659`: Linux, Windows, and GitHub Release successful;
+- release branch, tag, release target, publish head, and tested implementation main are commit-identical at `7c11c3cdad2ff92ed44da449346ce0827273832b`;
+- Windows x64 installer SHA-256: `717a92fe62964f54924e40ab06e2a52455ec62e2607e601701794405ee62b6b1`;
+- Linux x64 installer SHA-256: `19dc1a28b69ebb65b528a179b8d569211932be6bf06599e230d41e2c0c13e229`;
+- updater manifest SHA-256: `1a7b9e76a3ca90c1ea274f90ea571aebd599caeda5d9a3e87a840cf122ffcadf`.
+
+Scope and safety:
+
+- Party Pack Wizard uses imported Combined Packs and existing account Characters;
+- every role requires a unique explicit Character mapping;
+- class recommendations are advisory and preselected when possible;
+- setup applies the Dashboard profile and explicitly activates package metadata;
+- setup starts no Characters and executes no package code;
+- verification cleanup completed successfully;
+- Core, Character, and Script remained continuous;
+- no gameplay mutation, Action Gateway request, raw socket access, or User Script replacement occurred.
+
+**Canonical queue status: Slice 13.3 = VERIFIED.**
+
+Phase 13 may be considered complete only after this verification documentation is merged and the exact resulting post-merge `main` CI is fully green. Phase 14 must remain blocked until then.
+
