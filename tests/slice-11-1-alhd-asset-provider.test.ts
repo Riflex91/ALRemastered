@@ -78,7 +78,7 @@ test("Slice 11.1 retains ALHD source semantics and is the only current verificat
     readFileSync(new URL("../assets/alhd/hd-assets.json", import.meta.url), "utf8"),
   );
 
-  assert.match(html, /data-current-verification-slice="14\.2"/);
+  assert.match(html, /data-current-verification-slice="14\.3"/);
   assert.match(html, /data-verification-test="10\.4" hidden/);
   assert.match(html, /data-verification-test="11\.1" hidden/);
   assert.match(html, /Slice 11\.1 one-click ALHD asset provider test/);

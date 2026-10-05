@@ -61,6 +61,7 @@ import { CombinedPackageService } from "./packages/combined.ts";
 import { PartyPackWizardService } from "./packages/party-wizard.ts";
 import { MerchantInventoryPreviewService } from "./merchant/inventory-preview.ts";
 import { MerchantWorkspaceCapacityService } from "./merchant/workspace-capacity.ts";
+import { MerchantGoldBudgetService } from "./merchant/gold-budget.ts";
 import { ScriptPackageLibrary } from "./packages/library.ts";
 import { ScriptPackageUpdateService } from "./packages/updater.ts";
 import { getUserPaths } from "./platform/paths.ts";
@@ -213,6 +214,7 @@ let combinedPackageService: CombinedPackageService | undefined;
 let partyPackWizardService: PartyPackWizardService | undefined;
 let merchantInventoryPreviewService: MerchantInventoryPreviewService | undefined;
 let merchantWorkspaceCapacityService: MerchantWorkspaceCapacityService | undefined;
+let merchantGoldBudgetService: MerchantGoldBudgetService | undefined;
 let slice41LiveTestService: Slice41LiveTestService | undefined;
 let slice42LiveTestService: Slice42LiveTestService | undefined;
 let slice43LiveTestService: Slice43LiveTestService | undefined;
@@ -756,6 +758,17 @@ diagnostics.registerComponent("merchant-workspace-capacity", () => {
     message: state.message,
   };
 });
+merchantGoldBudgetService = new MerchantGoldBudgetService({
+  inventory: merchantInventoryPreviewService,
+});
+diagnostics.registerComponent("merchant-gold-budget", () => {
+  const state = merchantGoldBudgetService!.state();
+  return {
+    name: "merchant-gold-budget",
+    status: state.status === "ready" ? "healthy" : "degraded",
+    message: state.message,
+  };
+});
 characterCardsService = new CharacterCardsService({
   logger,
   selection: selectionService!,
@@ -1072,6 +1085,7 @@ dashboard = new DashboardServer({
   partyPackWizardService,
   merchantInventoryPreviewService,
   merchantWorkspaceCapacityService,
+  merchantGoldBudgetService,
   rendererBridge,
   rendererHandoffService,
   alhdAssetProvider,

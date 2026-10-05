@@ -171,7 +171,7 @@ test("Slice 14.2 is current verification and UI exposes Merchant Workspace & Cap
   const server = readFileSync(new URL("../src/dashboard/server.js", import.meta.url), "utf8");
   const merchant = readFileSync(new URL("../src/merchant/workspace-capacity.js", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="14\.2"/);
+  assert.match(html, /data-current-verification-slice="14\.3"/);
   assert.match(html, /<h2>Merchant Workspace &amp; Capacity Preview<\/h2>/);
   assert.match(html, /id="merchant-workspace-capacity-refresh"/);
   assert.match(html, /Slice 14\.2 one-click Merchant Workspace &amp; Capacity test/);
