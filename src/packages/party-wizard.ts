@@ -33,6 +33,7 @@ export class PartyPackWizardError extends Error {
 }
 
 export class PartyPackWizardService {
+  readonly #rootDir: string;
   readonly #selection: Pick<AdventureLandSelectionService, "state">;
   readonly #combinedPackages: Pick<CombinedPackageService, "inspectImported">;
   readonly #dashboardPackages: Pick<DashboardPackageService, "applyImported">;
@@ -40,12 +41,14 @@ export class PartyPackWizardService {
   readonly #logger?: Logger;
 
   constructor(options: {
+    readonly rootDir: string;
     readonly selection: Pick<AdventureLandSelectionService, "state">;
     readonly combinedPackages: Pick<CombinedPackageService, "inspectImported">;
     readonly dashboardPackages: Pick<DashboardPackageService, "applyImported">;
     readonly library: Pick<ScriptPackageLibrary, "snapshot" | "setActive">;
     readonly logger?: Logger;
   }) {
+    this.#rootDir = options.rootDir;
     this.#selection = options.selection;
     this.#combinedPackages = options.combinedPackages;
     this.#dashboardPackages = options.dashboardPackages;
@@ -231,6 +234,10 @@ export class PartyPackWizardService {
     return selection;
   }
 
+  runSelfTest() {
+    return PartyPackWizardService.runSelfTest(this.#rootDir);
+  }
+
   static runSelfTest(rootDir: string) {
     const verificationRoot = join(rootDir, ".slice-13-3-verification");
     rmSync(verificationRoot, { recursive: true, force: true });
@@ -315,6 +322,7 @@ export class PartyPackWizardService {
       }),
     };
     const wizard = new PartyPackWizardService({
+      rootDir: packageRoot,
       selection,
       combinedPackages,
       dashboardPackages,
