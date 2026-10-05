@@ -329,7 +329,7 @@ test("Slice 13.2 is current verification and UI exposes combined pack creation a
   const combined = readFileSync(new URL("../src/packages/combined.js", import.meta.url), "utf8");
   const updater = readFileSync(new URL("../src/packages/updater.js", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="13\.2"/);
+  assert.match(html, /data-current-verification-slice="13\.3"/);
   assert.match(html, /Combined Pack Builder/);
   assert.match(html, /Export combined \.alrpkg/);
   assert.match(html, /Slice 13\.2 one-click Script \+ Dashboard Pack test/);
