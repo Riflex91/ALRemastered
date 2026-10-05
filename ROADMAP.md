@@ -1270,6 +1270,37 @@ Explizit **nicht** Bestandteil von Slice 14.2:
 
 Der reale Verification-Gate verlangt einen installierten Windows-Client mit verbundenem Merchant-Character und muss Live-Capacity-Accounting, Workspace-/Pickup-Reserve, fail-closed Pressure, `Action Gateway requests: 0`, keine Gameplay-Mutation, keine Raw-Socket-Nutzung und unveränderte Core-/Character-/Script-Laufzeit nachweisen.
 
+## Slice 14.3 – Merchant Gold & Budget Preview
+
+Dritter Merchant-Slice als read-only Gold-/Budget-Ledger auf Basis der verifizierten Live-Merchant-Beobachtung:
+
+- den live beobachteten Goldbestand des verbundenen Merchant übernehmen;
+- standardmäßig `1.000` Gold als Safety Reserve schützen;
+- `spendableBeforeReservations = max(0, observedGold - safetyReserveGold)` transparent ausweisen;
+- exklusive Gold-Planungsreservierungen mit Reservation-ID, Workflow-ID, Betrag und Zweck modellieren;
+- mehrere Planungsreservierungen deterministisch aufsummieren;
+- `availableAfterReservations` und `reservationDeficit` transparent berechnen;
+- parallele Überbuchung blockieren, sobald geplante Reservierungen das spendierbare Gold übersteigen;
+- Safety-Reserve-Unterschreitung fail-closed als `blocked` behandeln;
+- Budget Pressure als `ready`, `constrained` oder `blocked` modellieren;
+- Ready-, exakt voll belegte, überbuchte und Safety-Reserve-blockierte Zustände im isolierten Self-Test nachweisen;
+- Dashboard zeigt ausschließlich Gold-/Budget-/Preflight-Daten.
+
+Alle Reservierungen in Slice 14.3 sind ausschließlich **Planning Reservations**. Sie persistieren keine wirtschaftliche Transaktion und senden keinerlei Gameplay-Befehl.
+
+Explizit **nicht** Bestandteil von Slice 14.3:
+
+- kein Buy/Sell;
+- keine Bankmutation;
+- kein Trade;
+- kein Item- oder Gold-Transfer;
+- kein Upgrade, Compound, Craft oder Dismantle;
+- kein Fishing-, Mining-, Event- oder Boss-Write;
+- keine echte Goldreservierung im Spiel;
+- keine neue Action-Gateway- oder Raw-Socket-Autorität.
+
+Der reale Verification-Gate verlangt einen installierten Windows-Client mit verbundenem Merchant-Character und muss Live-Gold-Beobachtung, Safety-Reserve-Accounting, Planning-Reservation-Accounting, Overbooking-Schutz, `Action Gateway requests: 0`, keine Gameplay-Mutation, keine Raw-Socket-Nutzung und unveränderte Core-/Character-/Script-Laufzeit nachweisen.
+
 ---
 
 # Phase 15 – Distribution, Update-Härtung und zusätzliche Paketformate
