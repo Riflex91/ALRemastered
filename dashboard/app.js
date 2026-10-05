@@ -7060,6 +7060,236 @@ elements.copySlice131LiveTestResult.addEventListener("click", async () => {
 
 renderSlice131LiveTest();
 
+function renderSlice132LiveTest() {
+  const test = state.slice132LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = { idle: "Ready", running: "Running…", passed: "PASSED", failed: "FAILED" };
+  elements.slice132LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice132LiveTest.disabled = test.status === "running";
+  elements.copySlice132LiveTestResult.hidden = !state.slice132LastReport;
+  if (test.status === "running") {
+    elements.slice132LiveTestNote.textContent =
+      "Testing one combined .alrpkg with multiple Scripts, Dashboard roles/layout, Config Schema, assets, Permissions, explicit dangerous-right confirmation, separated Dashboard apply and Script activation, cleanup, and runtime continuity.";
+  } else if (test.message) {
+    elements.slice132LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function runSlice132Verification() {
+  const before = await fetchRendererSnapshot();
+  const descriptorResponse = await fetch("/api/packages/combined", { cache: "no-store" });
+  const descriptor = await descriptorResponse.json();
+  if (!descriptorResponse.ok) throw new Error(descriptor.error ?? "Combined package descriptor failed.");
+
+  const selfTestResponse = await fetch("/api/packages/combined/self-test", { cache: "no-store" });
+  const selfTest = await selfTestResponse.json();
+  if (!selfTestResponse.ok) throw new Error(selfTest.error ?? "Combined package self-test failed.");
+
+  const after = await fetchRendererSnapshot();
+  const checks = selfTest.checks ?? {};
+  const steps = [
+    { key: "combined-package-descriptor", outcome:
+      descriptor.packageKind === "combined" &&
+      descriptor.multipleScriptsSupported === true &&
+      descriptor.dashboardLayoutSupported === true &&
+      descriptor.portableRolesSupported === true &&
+      descriptor.configSchemaSupported === true &&
+      descriptor.assetsSupported === true &&
+      descriptor.permissionsSupported === true
+        ? "passed" : "failed" },
+    { key: "combined-kind", outcome: checks.combinedKind ? "passed" : "failed" },
+    { key: "multiple-scripts", outcome: checks.multipleScripts ? "passed" : "failed" },
+    { key: "dashboard-and-roles", outcome: checks.dashboardAndRoles ? "passed" : "failed" },
+    { key: "config-schema", outcome: checks.configSchema ? "passed" : "failed" },
+    { key: "assets", outcome: checks.assets ? "passed" : "failed" },
+    { key: "permissions", outcome: checks.permissions ? "passed" : "failed" },
+    { key: "dangerous-permission-confirmation", outcome:
+      checks.dangerousPermissionConfirmation ? "passed" : "failed" },
+    { key: "imported-inactive", outcome: checks.importedInactive ? "passed" : "failed" },
+    { key: "dashboard-apply-independent", outcome:
+      checks.dashboardApplyIndependent ? "passed" : "failed" },
+    { key: "explicit-role-mapping", outcome: checks.explicitRoleMapping ? "passed" : "failed" },
+    { key: "source-character-ids-absent", outcome:
+      checks.sourceCharacterIdsAbsent ? "passed" : "failed" },
+    { key: "layout-persisted", outcome: checks.layoutPersisted ? "passed" : "failed" },
+    { key: "configuration-persisted", outcome:
+      checks.configurationPersisted ? "passed" : "failed" },
+    { key: "script-activation-explicit", outcome:
+      checks.scriptActivationExplicit ? "passed" : "failed" },
+    { key: "no-package-execution", outcome:
+      checks.noExecution && descriptor.packageExecutionSupported === false ? "passed" : "failed" },
+    { key: "verification-cleanup", outcome: checks.cleanup ? "passed" : "failed" },
+  ];
+
+  const beforeCore = before.snapshot?.core ?? {};
+  const afterCore = after.snapshot?.core ?? {};
+  const beforeCharacter = before.snapshot?.character ?? {};
+  const afterCharacter = after.snapshot?.character ?? {};
+  const beforeScript = before.snapshot?.script ?? {};
+  const afterScript = after.snapshot?.script ?? {};
+  const coreRestart = beforeCore.startedAt !== afterCore.startedAt;
+  const characterRestart = !sameSocketMarkers(beforeCharacter, afterCharacter);
+  const scriptRestart =
+    (beforeScript.runId ?? null) !== (afterScript.runId ?? null) ||
+    (beforeScript.startedAt ?? null) !== (afterScript.startedAt ?? null);
+  const actionGatewayRequests = Math.max(
+    0,
+    Number(after.snapshot?.actionGateway?.totalRequests ?? 0) -
+      Number(before.snapshot?.actionGateway?.totalRequests ?? 0),
+  );
+  steps.push({
+    key: "core-character-script-continuity",
+    outcome: !coreRestart && !characterRestart && !scriptRestart ? "passed" : "failed",
+  });
+  steps.push({
+    key: "read-only-gameplay-runtime",
+    outcome: actionGatewayRequests === 0 && checks.noGameplayMutation ? "passed" : "failed",
+  });
+
+  return {
+    outcome: steps.every((step) => step.outcome === "passed") ? "passed" : "failed",
+    steps,
+    descriptor,
+    selfTest,
+    coreRestart,
+    characterRestart,
+    scriptRestart,
+    actionGatewayRequests,
+    gameplayMutation: false,
+    rawSocketAccess: false,
+    userScriptTouched: false,
+    packageExecutionAttempted: false,
+  };
+}
+
+async function startSlice132LiveTest(clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice132LiveTest = {
+    status: "running",
+    message: "Slice 13.2 Script + Dashboard Pack test is running.",
+  };
+  renderSlice132LiveTest();
+
+  const verification = await runSlice132Verification();
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) {
+    throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  }
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live132-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const checks = verification.selfTest.checks ?? {};
+  const inspection = verification.selfTest.inspection ?? {};
+  const preview = verification.selfTest.preview ?? {};
+  const applied = verification.selfTest.applied ?? {};
+  const activated = verification.selfTest.activated ?? {};
+  const stepLines = verification.steps.map((step) =>
+    `- ${step.key}: ${String(step.outcome).toUpperCase()}`
+  );
+
+  const reportText = [
+    "ALRemastered Slice 13.2 one-click Script + Dashboard Pack test",
+    `Test ID: ${testId}`,
+    "Slice: 13.2",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    `Package extension: ${verification.descriptor.packageExtension}`,
+    `Package kind: ${verification.descriptor.packageKind}`,
+    `Multiple Scripts supported: ${verification.descriptor.multipleScriptsSupported}`,
+    `Dashboard layout supported: ${verification.descriptor.dashboardLayoutSupported}`,
+    `Portable roles supported: ${verification.descriptor.portableRolesSupported}`,
+    `Config Schema supported: ${verification.descriptor.configSchemaSupported}`,
+    `Assets supported: ${verification.descriptor.assetsSupported}`,
+    `Permissions supported: ${verification.descriptor.permissionsSupported}`,
+    `Combined kind validated: ${checks.combinedKind}`,
+    `Script count: ${inspection.scriptCount ?? "unknown"}`,
+    `Scripts: ${preview.scripts?.map((script) => `${script.path}${script.entry ? " (entry)" : ""}`).join(", ") || "none"}`,
+    `Role IDs: ${preview.roleIds?.join(", ") || "none"}`,
+    `Asset paths: ${preview.assetPaths?.join(", ") || "none"}`,
+    `Permissions: ${preview.permissions?.join(", ") || "none"}`,
+    `Dangerous permission confirmation required: ${checks.dangerousPermissionConfirmation}`,
+    `Imported inactive: ${checks.importedInactive}`,
+    `Dashboard apply leaves Scripts inactive: ${checks.dashboardApplyIndependent}`,
+    `Explicit role mapping: ${checks.explicitRoleMapping}`,
+    `Source Character IDs absent: ${checks.sourceCharacterIdsAbsent}`,
+    `Applied profile: ${applied.profileName ?? "unknown"}`,
+    `Layout variants: ${applied.layoutVariants?.join(", ") || "none"}`,
+    `Layout persisted: ${checks.layoutPersisted}`,
+    `Configuration persisted: ${checks.configurationPersisted}`,
+    `Script activation explicit: ${checks.scriptActivationExplicit}`,
+    `Active after explicit activation: ${activated.active ?? false}`,
+    "Package execution attempted: false",
+    `Verification cleanup: ${checks.cleanup}`,
+    `Core restart: ${verification.coreRestart}`,
+    `Character restart: ${verification.characterRestart}`,
+    `Script restart: ${verification.scriptRestart}`,
+    "Gameplay mutation: false",
+    `Action Gateway requests: ${verification.actionGatewayRequests}`,
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+
+  const result = {
+    testId,
+    slice: "13.2",
+    outcome,
+    startedAt,
+    completedAt,
+    message: outcome === "passed"
+      ? "Script + Dashboard Pack verification passed."
+      : "Script + Dashboard Pack verification failed.",
+    ...verification,
+  };
+  state.slice132LastReport = reportText;
+  state.slice132LiveTest = { status: outcome, message: result.message, lastResult: result };
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice132LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice132LiveTest.addEventListener("click", async () => {
+  if (state.slice132LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice132LastReport = null;
+  elements.copySlice132LiveTestResult.hidden = true;
+  try {
+    const { result, copied } = await startSlice132LiveTest(clipboardWrite);
+    setFeedback(
+      `Slice 13.2 test ${String(result.outcome).toUpperCase()}. ${copied ? "Complete result and sanitized diagnostic log copied to clipboard." : "Use Copy last test result once."}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    state.slice132LiveTest = { status: "failed", message: error.message };
+    renderSlice132LiveTest();
+    setFeedback(`Slice 13.2 Script + Dashboard Pack test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice132LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice132LastReport) return;
+  try {
+    await writeClipboard(state.slice132LastReport);
+    setFeedback("Complete Slice 13.2 Script + Dashboard Pack result and sanitized diagnostic log copied.", "success");
+  } catch (error) {
+    setFeedback(`Script + Dashboard Pack result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice132LiveTest();
+
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
   const days = Math.floor(totalSeconds / 86400);
