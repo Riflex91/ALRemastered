@@ -64,8 +64,11 @@ const state = {
   slice141LastReport: null,
   slice142LiveTest: { status: "idle", message: "Ready." },
   slice142LastReport: null,
+  slice143LiveTest: { status: "idle", message: "Ready." },
+  slice143LastReport: null,
   merchantInventoryPreview: null,
   merchantWorkspaceCapacity: null,
+  merchantGoldBudget: null,
   partyPackWizard: null,
   partyPackWizardPreview: null,
   packageLibrary: null,
@@ -288,12 +291,19 @@ const elements = {
   slice142LiveTestStatus: document.querySelector("#slice-14-2-live-test-status"),
   slice142LiveTestNote: document.querySelector("#slice-14-2-live-test-note"),
   copySlice142LiveTestResult: document.querySelector("#copy-slice-14-2-live-test-result"),
+  startSlice143LiveTest: document.querySelector("#start-slice-14-3-live-test"),
+  slice143LiveTestStatus: document.querySelector("#slice-14-3-live-test-status"),
+  slice143LiveTestNote: document.querySelector("#slice-14-3-live-test-note"),
+  copySlice143LiveTestResult: document.querySelector("#copy-slice-14-3-live-test-result"),
   merchantInventoryPreviewStatus: document.querySelector("#merchant-inventory-preview-status"),
   merchantInventoryPreviewRefresh: document.querySelector("#merchant-inventory-preview-refresh"),
   merchantInventoryPreviewSummary: document.querySelector("#merchant-inventory-preview-summary"),
   merchantWorkspaceCapacityStatus: document.querySelector("#merchant-workspace-capacity-status"),
   merchantWorkspaceCapacityRefresh: document.querySelector("#merchant-workspace-capacity-refresh"),
   merchantWorkspaceCapacitySummary: document.querySelector("#merchant-workspace-capacity-summary"),
+  merchantGoldBudgetStatus: document.querySelector("#merchant-gold-budget-status"),
+  merchantGoldBudgetRefresh: document.querySelector("#merchant-gold-budget-refresh"),
+  merchantGoldBudgetSummary: document.querySelector("#merchant-gold-budget-summary"),
   partyPackWizardStatus: document.querySelector("#party-pack-wizard-status"),
   partyPackWizardPackage: document.querySelector("#party-pack-wizard-package"),
   partyPackWizardRefresh: document.querySelector("#party-pack-wizard-refresh"),
@@ -6198,6 +6208,54 @@ elements.merchantWorkspaceCapacityRefresh.addEventListener("click", () => {
 });
 void refreshMerchantWorkspaceCapacity();
 
+function renderMerchantGoldBudget(snapshot) {
+  state.merchantGoldBudget = snapshot;
+  if (!snapshot || snapshot.status !== "ready") {
+    elements.merchantGoldBudgetStatus.textContent = "Unavailable";
+    elements.merchantGoldBudgetSummary.textContent =
+      snapshot?.message ?? "Connect the Merchant Character to inspect protected and spendable gold.";
+    return;
+  }
+  const budget = snapshot.budget ?? {};
+  const pressure = String(budget.pressure ?? "unknown");
+  elements.merchantGoldBudgetStatus.textContent =
+    pressure === "ready" ? "Ready" : pressure === "constrained" ? "Constrained" : "Blocked";
+  elements.merchantGoldBudgetSummary.textContent = [
+    `Observed ${Number(budget.observedGold ?? 0).toLocaleString("en-US")}`,
+    `Safety reserve ${Number(budget.safetyReserveGold ?? 0).toLocaleString("en-US")}`,
+    `Spendable ${Number(budget.spendableBeforeReservations ?? 0).toLocaleString("en-US")}`,
+    `Planned reserved ${Number(budget.plannedReservedGold ?? 0).toLocaleString("en-US")}`,
+    `Available ${Number(budget.availableAfterReservations ?? 0).toLocaleString("en-US")}`,
+    `Reservation deficit ${Number(budget.reservationDeficit ?? 0).toLocaleString("en-US")}`,
+    `Pressure ${pressure}`,
+    "Mutation authority: false",
+  ].join(" · ");
+}
+
+async function refreshMerchantGoldBudget() {
+  elements.merchantGoldBudgetRefresh.disabled = true;
+  try {
+    const response = await fetch("/api/merchant/gold-budget", { cache: "no-store" });
+    const snapshot = await response.json();
+    if (!response.ok && response.status !== 503) {
+      throw new Error(snapshot.error ?? `Merchant Gold & Budget request failed with HTTP ${response.status}.`);
+    }
+    renderMerchantGoldBudget(snapshot);
+  } catch (error) {
+    state.merchantGoldBudget = null;
+    elements.merchantGoldBudgetStatus.textContent = "Unavailable";
+    elements.merchantGoldBudgetSummary.textContent = error.message;
+    setFeedback(`Merchant Gold & Budget refresh failed: ${error.message}`, "error");
+  } finally {
+    elements.merchantGoldBudgetRefresh.disabled = false;
+  }
+}
+
+elements.merchantGoldBudgetRefresh.addEventListener("click", () => {
+  void refreshMerchantGoldBudget();
+});
+void refreshMerchantGoldBudget();
+
 elements.packageLibraryRefresh.addEventListener("click", () => void refreshPackageLibrary());
 void refreshPackageLibrary();
 
@@ -8253,6 +8311,238 @@ elements.copySlice142LiveTestResult.addEventListener("click", async () => {
 });
 
 renderSlice142LiveTest();
+
+function renderSlice143LiveTest() {
+  const test = state.slice143LiveTest ?? { status: "idle", message: "Ready." };
+  const labels = { idle: "Ready", running: "Running…", passed: "PASSED", failed: "FAILED" };
+  elements.slice143LiveTestStatus.textContent = labels[test.status] ?? test.status;
+  elements.startSlice143LiveTest.disabled = test.status === "running";
+  elements.copySlice143LiveTestResult.hidden = !state.slice143LastReport;
+  if (test.status === "running") {
+    elements.slice143LiveTestNote.textContent =
+      "Reading live Merchant gold, validating Safety Reserve and planning-reservation accounting, then checking runtime continuity and Action Gateway isolation.";
+  } else if (test.message) {
+    elements.slice143LiveTestNote.textContent =
+      `${test.message} The complete report is copied automatically when the test finishes.`;
+  }
+}
+
+async function runSlice143Verification() {
+  const before = await fetchRendererSnapshot();
+  const [previewResponse, selfTestResponse] = await Promise.all([
+    fetch("/api/merchant/gold-budget", { cache: "no-store" }),
+    fetch("/api/merchant/gold-budget/self-test", { cache: "no-store" }),
+  ]);
+  const preview = await previewResponse.json();
+  const selfTest = await selfTestResponse.json();
+  if (!selfTestResponse.ok) {
+    throw new Error(selfTest.error ?? "Merchant Gold & Budget self-test failed.");
+  }
+  const after = await fetchRendererSnapshot();
+  const descriptor = selfTest.descriptor ?? {};
+  const budget = preview.budget ?? {};
+  const pressureValid = ["ready", "constrained", "blocked"].includes(budget.pressure);
+  const steps = [
+    { key: "gold-budget-descriptor", outcome:
+      descriptor.slice === "14.3" &&
+      descriptor.domain === "merchant" &&
+      descriptor.mode === "read-only" &&
+      descriptor.sourceSlice === "14.1" &&
+      descriptor.goldBudgetLedger === true &&
+      descriptor.safetyReserveGoldDefault === 1000 &&
+      descriptor.exclusivePlanningReservations === true &&
+      descriptor.parallelOverbookingBlocked === true &&
+      descriptor.reservationPlanningOnly === true &&
+      descriptor.mutationAuthority === false &&
+      descriptor.actionGatewayUsed === false &&
+      descriptor.rawSocketAccess === false ? "passed" : "failed" },
+    { key: "merchant-gold-live", outcome:
+      previewResponse.ok && preview.status === "ready" ? "passed" : "failed" },
+    { key: "safety-reserve-accounting", outcome:
+      Number.isSafeInteger(budget.observedGold) &&
+      Number.isSafeInteger(budget.safetyReserveGold) &&
+      Number.isSafeInteger(budget.safetyReserveDeficit) &&
+      Number.isSafeInteger(budget.spendableBeforeReservations) &&
+      budget.safetyReserveGold === 1000 &&
+      budget.safetyReserveDeficit === Math.max(0, budget.safetyReserveGold - budget.observedGold) &&
+      budget.spendableBeforeReservations === Math.max(0, budget.observedGold - budget.safetyReserveGold)
+        ? "passed" : "failed" },
+    { key: "reservation-accounting", outcome:
+      Number.isSafeInteger(budget.plannedReservedGold) &&
+      Number.isSafeInteger(budget.availableAfterReservations) &&
+      Number.isSafeInteger(budget.reservationDeficit) &&
+      budget.plannedReservedGold === 0 &&
+      budget.availableAfterReservations === Math.max(0, budget.spendableBeforeReservations - budget.plannedReservedGold) &&
+      budget.reservationDeficit === Math.max(0, budget.plannedReservedGold - budget.spendableBeforeReservations) &&
+      budget.reservationPlanningOnly === true &&
+      budget.mutationAuthority === false ? "passed" : "failed" },
+    { key: "parallel-overbooking-blocked", outcome:
+      pressureValid &&
+      selfTest.checks?.parallelOverbookingBlocked === true &&
+      selfTest.checks?.safetyReservePreserved === true ? "passed" : "failed" },
+    { key: "isolated-self-test", outcome:
+      selfTest.status === "ready" &&
+      Object.values(selfTest.checks ?? {}).every(Boolean) &&
+      selfTest.gameplayMutation === false &&
+      selfTest.actionGatewayRequests === 0 &&
+      selfTest.rawSocketAccess === false &&
+      selfTest.userScriptTouched === false ? "passed" : "failed" },
+  ];
+
+  const beforeCore = before.snapshot?.core ?? {};
+  const afterCore = after.snapshot?.core ?? {};
+  const beforeCharacter = before.snapshot?.character ?? {};
+  const afterCharacter = after.snapshot?.character ?? {};
+  const beforeScript = before.snapshot?.script ?? {};
+  const afterScript = after.snapshot?.script ?? {};
+  const coreRestart = beforeCore.startedAt !== afterCore.startedAt;
+  const characterRestart = !sameSocketMarkers(beforeCharacter, afterCharacter);
+  const scriptRestart =
+    (beforeScript.runId ?? null) !== (afterScript.runId ?? null) ||
+    (beforeScript.startedAt ?? null) !== (afterScript.startedAt ?? null);
+  const actionGatewayRequests = Math.max(
+    0,
+    Number(after.snapshot?.actionGateway?.totalRequests ?? 0) -
+      Number(before.snapshot?.actionGateway?.totalRequests ?? 0),
+  );
+  steps.push({ key: "core-character-script-continuity", outcome:
+    !coreRestart && !characterRestart && !scriptRestart ? "passed" : "failed" });
+  steps.push({ key: "read-only-gameplay-runtime", outcome:
+    actionGatewayRequests === 0 &&
+    descriptor.mutationAuthority === false &&
+    descriptor.bankMutation === false &&
+    descriptor.tradeMutation === false &&
+    descriptor.transferMutation === false &&
+    descriptor.goldTransferMutation === false &&
+    descriptor.buySellMutation === false &&
+    descriptor.actionGatewayUsed === false &&
+    descriptor.rawSocketAccess === false ? "passed" : "failed" });
+
+  return {
+    outcome: steps.every((step) => step.outcome === "passed") ? "passed" : "failed",
+    steps, preview, selfTest,
+    coreRestart, characterRestart, scriptRestart, actionGatewayRequests,
+    gameplayMutation: false, rawSocketAccess: false, userScriptTouched: false,
+  };
+}
+
+async function startSlice143LiveTest(clipboardWrite) {
+  const startedAt = new Date().toISOString();
+  state.slice143LiveTest = {
+    status: "running",
+    message: "Slice 14.3 Merchant Gold & Budget test is running.",
+  };
+  renderSlice143LiveTest();
+  const verification = await runSlice143Verification();
+  const diagnosticsResponse = await fetch("/api/logs/export", { cache: "no-store" });
+  if (!diagnosticsResponse.ok) {
+    throw new Error(`Diagnostic export failed with HTTP ${diagnosticsResponse.status}.`);
+  }
+  const diagnostics = await diagnosticsResponse.json();
+  const completedAt = new Date().toISOString();
+  const testId = `live143-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
+  const outcome = verification.outcome;
+  const preview = verification.preview ?? {};
+  const budget = preview.budget ?? {};
+  const descriptor = verification.selfTest?.descriptor ?? {};
+  const stepLines = verification.steps.map((step) =>
+    `- ${step.key}: ${String(step.outcome).toUpperCase()}`
+  );
+  const reportText = [
+    "ALRemastered Slice 14.3 one-click Merchant Gold & Budget test",
+    `Test ID: ${testId}`,
+    "Slice: 14.3",
+    `Outcome: ${String(outcome).toUpperCase()}`,
+    `Client: ${state.status?.version ?? "unknown"}`,
+    `Platform: ${state.status?.platform ?? "unknown"}`,
+    `Started: ${startedAt}`,
+    `Completed: ${completedAt}`,
+    "",
+    "Steps:",
+    ...stepLines,
+    "",
+    `Observed gold: ${budget.observedGold ?? "unavailable"}`,
+    `Safety reserve gold: ${budget.safetyReserveGold ?? "unavailable"}`,
+    `Safety reserve deficit: ${budget.safetyReserveDeficit ?? "unavailable"}`,
+    `Spendable before reservations: ${budget.spendableBeforeReservations ?? "unavailable"}`,
+    `Planned reserved gold: ${budget.plannedReservedGold ?? "unavailable"}`,
+    `Available after reservations: ${budget.availableAfterReservations ?? "unavailable"}`,
+    `Reservation deficit: ${budget.reservationDeficit ?? "unavailable"}`,
+    `Reservation count: ${budget.reservationCount ?? "unavailable"}`,
+    `Budget pressure: ${budget.pressure ?? "unavailable"}`,
+    `Reservation planning only: ${budget.reservationPlanningOnly}`,
+    `Parallel overbooking blocked: ${descriptor.parallelOverbookingBlocked}`,
+    `Mutation authority: ${descriptor.mutationAuthority}`,
+    `Bank mutation: ${descriptor.bankMutation}`,
+    `Trade mutation: ${descriptor.tradeMutation}`,
+    `Transfer mutation: ${descriptor.transferMutation}`,
+    `Gold transfer mutation: ${descriptor.goldTransferMutation}`,
+    `Buy/Sell mutation: ${descriptor.buySellMutation}`,
+    `Core restart: ${verification.coreRestart}`,
+    `Character restart: ${verification.characterRestart}`,
+    `Script restart: ${verification.scriptRestart}`,
+    "Gameplay mutation: false",
+    `Action Gateway requests: ${verification.actionGatewayRequests}`,
+    "Raw socket access: false",
+    "User Script touched: false",
+    `Diagnostic log lines: ${diagnostics.lineCount ?? "unknown"}`,
+    "Secrets sanitized: yes",
+    "",
+    "Sanitized diagnostic log:",
+    diagnostics.text ?? "",
+  ].join("\n");
+
+  const result = {
+    testId,
+    slice: "14.3",
+    outcome,
+    startedAt,
+    completedAt,
+    message: outcome === "passed"
+      ? "Merchant Gold & Budget verification passed."
+      : "Merchant Gold & Budget verification failed. Connect a Merchant Character and retry if live gold is unavailable.",
+    ...verification,
+  };
+  state.slice143LastReport = reportText;
+  state.slice143LiveTest = { status: outcome, message: result.message, lastResult: result };
+  renderMerchantGoldBudget(preview);
+  const copied = await clipboardWrite.finish(reportText);
+  renderSlice143LiveTest();
+  return { result, reportText, copied };
+}
+
+elements.startSlice143LiveTest.addEventListener("click", async () => {
+  if (state.slice143LiveTest?.status === "running") return;
+  const clipboardWrite = beginDeferredClipboardWrite();
+  state.slice143LastReport = null;
+  elements.copySlice143LiveTestResult.hidden = true;
+  try {
+    const { result, copied } = await startSlice143LiveTest(clipboardWrite);
+    setFeedback(
+      `Slice 14.3 test ${String(result.outcome).toUpperCase()}. ${copied ? "Complete result and sanitized diagnostic log copied to clipboard." : "Use Copy last test result once."}`,
+      result.outcome === "passed" && copied ? "success" : result.outcome === "passed" ? "" : "error",
+    );
+  } catch (error) {
+    state.slice143LiveTest = { status: "failed", message: error.message };
+    renderSlice143LiveTest();
+    setFeedback(`Slice 14.3 Merchant Gold & Budget test could not finish: ${error.message}`, "error");
+  }
+});
+
+elements.copySlice143LiveTestResult.addEventListener("click", async () => {
+  if (!state.slice143LastReport) return;
+  try {
+    await writeClipboard(state.slice143LastReport);
+    setFeedback(
+      "Complete Slice 14.3 Merchant Gold & Budget result and sanitized diagnostic log copied.",
+      "success",
+    );
+  } catch (error) {
+    setFeedback(`Merchant Gold & Budget result copy failed: ${error.message}`, "error");
+  }
+});
+
+renderSlice143LiveTest();
 
 function formatDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
