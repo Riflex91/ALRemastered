@@ -79,7 +79,7 @@ test("Slice 11.2 keeps the GPU guard presentation-only and makes it current veri
   const server = readFileSync(new URL("../src/dashboard/server.js", import.meta.url), "utf8");
   const provider = readFileSync(new URL("../src/hd/asset-provider.js", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="14\.1"/);
+  assert.match(html, /data-current-verification-slice="14\.2"/);
   assert.match(html, /data-verification-test="11\.1" hidden/);
   assert.match(html, /data-verification-test="11\.2" hidden/);
   assert.match(html, /Slice 11\.2 one-click GPU \/ texture guard test/);
