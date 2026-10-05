@@ -164,7 +164,7 @@ test("Slice 12.6 is current verification and UI exposes update and rollback cont
   const server = readFileSync(new URL("../src/dashboard/server.js", import.meta.url), "utf8");
   const updater = readFileSync(new URL("../src/packages/updater.js", import.meta.url), "utf8");
 
-  assert.match(html, /data-current-verification-slice="14\.3"/);
+  assert.match(html, /data-current-verification-slice="14\.4"/);
   assert.match(html, /Slice 12\.6 one-click Updates \/ Rollback test/);
   assert.match(html, /Every permission newly requested by an update must be explicitly confirmed/);
 
